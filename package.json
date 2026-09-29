@@ -1,0 +1,16 @@
+{
+	"name": "purview-results",
+	"version": "1.0.0-prerelease.1",
+	"license": "MIT",
+	"private": true,
+	"keywords": [],
+	"homepage": "https://github.com/purview-dev/results#readme",
+	"bugs": {
+		"url": "https://github.com/purview-dev/results/issues"
+	},
+	"author": "Kieron Lanning",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/purview-dev/results.git"
+	}
+}

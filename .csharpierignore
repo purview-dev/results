@@ -1,0 +1,7 @@
+# C# 15 union declarations are a preview language feature that is not yet parseable by CSharpier, so files
+
+# that declare unions are excluded rather than reported as formatting failures. CSharpier reports
+
+# "was not formatted due to syntax errors" for these files; every other file is formatted normally
+
+src/tests/Results.SourceGenerator.UnitTests/GeneratedTestUnions.cs
