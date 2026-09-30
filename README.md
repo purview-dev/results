@@ -1,5 +1,6 @@
 # Purview Results
 
+[![NuGet version](https://img.shields.io/nuget/v/Purview.Results.svg)](https://www.nuget.org/packages/Purview.Results)
 [![Release](https://github.com/purview-dev/results/actions/workflows/release.yml/badge.svg)](https://github.com/purview-dev/results/actions/workflows/release.yml)
 
 Purview result types for .NET — a small, dependency-light `Result<TValue, TError>` type, C# 15 union ergonomics
@@ -9,7 +10,7 @@ Exceptional circumstances still throw; expected outcomes are values.
 ## Packages
 
 | Package | Purpose | Targets |
-|---|---|---|
+| --- | --- | --- |
 | [`Purview.Results`](src/src/Results/Sdk/README.md) | `Result<TValue, TError>` and the `Result` factories. No dependencies. | `net11.0` |
 | [`Purview.Results.SourceGenerator`](src/src/SourceGenerator/Sdk/README.md) | Generates `AsFailure<TValue>()` helpers for `[GenerateResult]` unions. | `netstandard2.0` |
 | [`Purview.Results.ZodSharp`](src/src/ZodSharp/Sdk/README.md) | Bridges ZodSharp `ValidationResult<T>` values into results. | `net11.0` |
@@ -261,4 +262,3 @@ to `main` runs the shared `Purview.Build` release pipeline, which packs, publish
 ## License
 
 MIT — see [LICENSE.md](LICENSE.md).
-
