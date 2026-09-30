@@ -4,11 +4,14 @@
 	"license": "MIT",
 	"private": true,
 	"keywords": [],
-	"homepage": "https://github.com/purview-dev/results#readme",
+	"homepage": "https://purview.dev/projects/results/",
 	"bugs": {
 		"url": "https://github.com/purview-dev/results/issues"
 	},
-	"author": "Kieron Lanning",
+	"author": {
+		"name": "Kieron Lanning",
+		"url": "https://kieronlanning.dev/"
+	},
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/purview-dev/results.git"
