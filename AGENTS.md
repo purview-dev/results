@@ -78,6 +78,13 @@ including the diagnostics table, build properties and activation rules.
   reports the compilation-wide rules (`RSG1005`, `RSG1006`). Never report the same rule from both hosts, and
   keep `DiagnosticLibrary.IsBlocking` as the single blocking policy.
 - New or changed rules require an `AnalyzerReleases.Unshipped.md` entry (the compiler's RS2008 rule catalogue).
+- **One suppressor.** `Suppressors/UnionEqualityDiagnosticSuppressor.cs` is the only programmatic suppression in
+  this repository: it suppresses `CA1815` and only `CA1815`, and only on a declaration that is both a union
+  (`ITypeSymbol.IsUnion`) and opted in with `[GenerateResult]`. Keep it that narrow — a union without the
+  attribute, a union's case types and every other value type must keep the warning — and never let it report
+  diagnostics, because a suppressor is not a rule host. Suppression descriptors are not release-tracked, so
+  `RSG2000` (the suppression id a consumer adds to `NoWarn` to turn the suppression off) must not appear in
+  `AnalyzerReleases.Unshipped.md`, which lists reported rules only.
 - **Keep the pipeline value-equatable.** Do not let `ISymbol`, `Compilation`, `SemanticModel`, `IOperation`,
   `SyntaxNode`, `SyntaxTree` or `Location` reach cached models; convert them during discovery
   (`ResultUnionModel`, `ResultUnionCaseModel`, `ResultSourceLocation`) and use `EquatableArray<T>`.
@@ -115,6 +122,14 @@ including the diagnostics table, build properties and activation rules.
 - Keep the failure resolution order in `DefaultResultsHttpMapper`: the mapping for the error **case** type,
   then the mapping for the **error** type (which covers every case without its own mapping), then the
   registered fallbacks in order, then the unmapped-failure response.
+- **One fallback stage, one ordered list.** `ResultsHttpOptions.AddFallback(...)` delegates and
+  `AddFailureMapper<TMapper>()` failure mappers append to the *same* list, in the order they are called, and an
+  entry defers by returning `null`. `IResultsFailureMapper` (with `ResultsFailureContext`, which carries the case,
+  the error and the request) is the only shape-based hook: keep it the way in for rules keyed by a *value* rather
+  than a type, keep it out of the success path, and never let it become a catch-all that answers every failure —
+  that hides exactly the mapping gaps the unmapped-failure response exists to expose. A mapper is resolved from
+  the request's services on first use, so an unregistered mapper must fail with an `InvalidOperationException`
+  naming the registration that is missing.
 - An unmapped failure is a host mapping gap, not a domain outcome: respond with `UnmappedStatusCode` (`500`)
   and a `ProblemDetails` carrying the `errorType` extension, and log an error. `ThrowOnUnmappedFailure` exists
   for development and must keep throwing `InvalidOperationException`.
@@ -124,10 +139,16 @@ including the diagnostics table, build properties and activation rules.
   `ResultsEndpointFilter`, so a host can register its own mapper first and replace the defaults.
 - `WithResultsHttp()` exists on both `RouteHandlerBuilder` and `RouteGroupBuilder`; keep the endpoint filter
   non-invasive, so a handler that returns something other than an `IResultValue` is left untouched.
-- `Purview.Results.ZodSharp.AspNetCore` registers its mapping as a `ResultsHttpOptions.AddFallback`, so any
-  case- or error-type mapping the host registered for a specific error always wins. It must reuse the ZodSharp
+- `Purview.Results.ZodSharp.AspNetCore` registers its mapping as a `ResultsHttpOptions` failure mapper
+  (`ZodResultsFailureMapper`), so any case- or error-type mapping the host registered for a specific error always
+  wins, and so does a host failure mapper registered before `AddResultsZodSharpHttp`. It must reuse the ZodSharp
   problem mapper (`ZodValidationProblems.ToProblem`) rather than reimplementing error-to-problem mapping, so a
   result-carried validation failure and a thrown `ZodException` produce identical responses.
+- Keep the ZodSharp code/category rules' precedence structural: **code** rules are consulted before **category**
+  rules (each in registration order), then the default validation problem, so a rule can only narrow what the host
+  already gets. A rule matches when *any* of the failure's errors carries its code or category — a rule a schema
+  can silently never reach is exactly the kind of gap this repository surfaces rather than hides — and a factory
+  returns `null` to decline, with matching continuing. Factories see the failure's whole error set.
 
 ## Packaging rules
 

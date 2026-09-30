@@ -7,7 +7,7 @@ namespace Purview.Results.Examples.Basic;
 /// Every operation returns <c>Result&lt;Tenant, TenantError&gt;</c>: an expected failure such as a missing
 /// tenant is a value, and only exceptional circumstances would throw.
 /// </remarks>
-public sealed class InMemoryTenantStore
+sealed class InMemoryTenantStore
 {
 	readonly Dictionary<TenantId, Tenant> _tenants = new()
 	{

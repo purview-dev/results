@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<!--
+			A runnable console example, so it is started with `dotnet run` rather than referenced. It stays
+			non-packable (the SDK default) because it is documentation, not a shipped package.
+		-->
+		<OutputType>Exe</OutputType>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- The runtime type the generated AsFailure helpers build on. -->
+		<ProjectReference Include="..\Results\Results.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- The bridge that turns a ValidationResult<T> into a result. -->
+		<ProjectReference Include="..\ZodSharp\ZodSharp.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!--
+			ZodSharp itself: the [ZodSchema] attribute and the generator that emits TenantInputSchema from it,
+			plus ValidationResult<T> and ValidationError.
+		-->
+		<PackageReference Include="Purview.ZodSharp" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!--
+			The generator is a Roslyn component: it is referenced analyzer-style so it produces the
+			AsFailure<TValue>() helpers for this project's TenantError union without becoming a runtime
+			dependency, and without flowing to anything that references this project.
+		-->
+		<ProjectReference
+			Include="..\SourceGenerator\SourceGenerator.csproj"
+			OutputItemType="Analyzer"
+			ReferenceOutputAssembly="false"
+			PrivateAssets="all"
+		/>
+	</ItemGroup>
+</Project>

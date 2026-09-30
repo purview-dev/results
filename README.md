@@ -47,7 +47,9 @@ public readonly record struct TenantAlreadyExists(TenantId TenantId);
 The generator cannot make a bare case value convert implicitly — C# forbids operators in a static class,
 conversion operators in extension members, and more than one user-defined conversion per sequence — so the
 per-case helper is the ergonomics the language allows. The generator package also ships a code fix for the
-IDE, and returning the union itself (`(TenantError)new TenantNotFound(id)`) is the only helper-free form; see
+IDE and a diagnostic suppressor that answers `CA1815` for opted-in unions, so a `[GenerateResult]` union needs
+no `#pragma warning disable CA1815`, and returning the union itself
+(`(TenantError)new TenantNotFound(id)`) is the only helper-free form; see
 the [generator package README](src/src/SourceGenerator/Sdk/README.md) for the compiler evidence.
 
 Expose the result over HTTP with the ASP.NET Core package, which maps each error case to a response:
@@ -162,21 +164,34 @@ Running `Examples.AspNetCore` answers as follows:
 | `POST /tenants/acme` | `409 Conflict` — the mapping for the `TenantError` error type |
 | `GET /tenants/broken` | `500` with an `errorType` extension, because an endpoint returning `default` is a host bug |
 
+**Case** and **error** mappings are keyed by type. When the answer depends on the *value* a failure carries — a
+validation code, a category, a field — add an `IResultsFailureMapper` instead, in the same ordered list:
+
+```csharp
+builder.Services.AddSingleton<ReservedTenantFailureMapper>();
+builder.Services.AddResultsHttp(options => options
+    .Map<TenantNotFound>(_ => TypedResults.NotFound())
+    .AddFailureMapper<ReservedTenantFailureMapper>());
+```
+
 ### ASP.NET Core + Zod
 
-Register the validation fallback last, so any mapping the host declared for a specific case or error always
-wins, and reuse the ZodSharp problem mapper rather than reimplementing error-to-problem mapping:
+Register the validation mapping last, so any mapping or failure mapper the host declared earlier always wins, and
+reuse the ZodSharp problem mapper rather than reimplementing error-to-problem mapping. Per-code and per-category
+rules answer particular validation failures with a response of their own:
 
 ```csharp
 builder.Services.AddZodSharpProblemDetails();
 builder.Services.AddResultsHttp(options => options
     .Map<TenantAlreadyExists>(error => TypedResults.Problem(statusCode: StatusCodes.Status409Conflict))
 );
-builder.Services.AddResultsZodSharpHttp();
+builder.Services.AddResultsZodSharpHttp(options => options
+    .MapCode("tenant_id_matches_name", StatusCodes.Status422UnprocessableEntity)
+);
 ```
 
 A `TenantInputInvalid` failure implements `IValidationErrorCarrier`, so it becomes a validation problem without
-the host mapping it:
+the host mapping it — unless a rule answers one of its codes or categories:
 
 ```json
 {

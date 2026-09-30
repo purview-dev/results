@@ -2,7 +2,7 @@ using Purview.Results.SourceGeneration;
 
 namespace Purview.Results.AspNetCore;
 
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1815:Override equals and operator equals on value types")]
+// CA1815 is answered by the package's suppressor for every union opted in with [GenerateResult].
 [GenerateResult]
 public readonly union HttpTestError(ItemNotFound, ItemConflict, ItemRejected);
 

@@ -9,22 +9,22 @@
 
 	<ItemGroup>
 		<!-- The runtime type the generated AsFailure helpers build on. -->
-		<ProjectReference Include="..\..\src\Results\Results.csproj" />
+		<ProjectReference Include="..\Results\Results.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<!-- The result-to-response mapping the validation fallback extends. -->
-		<ProjectReference Include="..\..\src\AspNetCore\AspNetCore.csproj" />
+		<ProjectReference Include="..\AspNetCore\AspNetCore.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<!-- The bridge that turns a ValidationResult<T> into a result. -->
-		<ProjectReference Include="..\..\src\ZodSharp\ZodSharp.csproj" />
+		<ProjectReference Include="..\ZodSharp\ZodSharp.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
 		<!-- The validation-problem mapping for results that carry ZodSharp errors. -->
-		<ProjectReference Include="..\..\src\ZodSharp.AspNetCore\ZodSharp.AspNetCore.csproj" />
+		<ProjectReference Include="..\ZodSharp.AspNetCore\ZodSharp.AspNetCore.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -43,7 +43,7 @@
 			dependency, and without flowing to anything that references this project.
 		-->
 		<ProjectReference
-			Include="..\..\src\SourceGenerator\SourceGenerator.csproj"
+			Include="..\SourceGenerator\SourceGenerator.csproj"
 			OutputItemType="Analyzer"
 			ReferenceOutputAssembly="false"
 			PrivateAssets="all"

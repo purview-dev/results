@@ -92,6 +92,20 @@ The package ships an analyzer and a generator that share one diagnostics library
 
 Unsupported by design: `IUnionMembers` member providers (`RSG1007`) and generic unions (`RSG1002`).
 
+## CA1815 needs no pragma
+
+A union declaration gets no value equality from the compiler, so it raises `CA1815` unless it is silenced by hand.
+`[GenerateResult]` unions do not need that: the package ships a diagnostic suppressor that answers `CA1815` for
+every union opted in with the attribute, because a result union is read by matching its case type rather than
+compared by value.
+
+- Only the union is covered. A union without `[GenerateResult]`, the union's case types and every other value
+  type keep the warning, and a case declared as a plain `struct` should still be a `record struct`.
+- The suppression is logged as an `Info` diagnostic under the suppression id `RSG2000`, so a build audit can see
+  exactly what was suppressed.
+- `RSG2000` is a suppression id, not a rule: it never appears in the diagnostics table above, and
+  `<NoWarn>$(NoWarn);RSG2000</NoWarn>` brings `CA1815` back.
+
 ## Requirements and switches
 
 - **.NET 11 SDK or later** with `LangVersion=preview` — union declarations are a preview language feature.

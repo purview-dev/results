@@ -63,7 +63,7 @@ public sealed class ResultExtensionsTests
 		var found = result.TryGetError(out var error);
 
 		await Assert.That(found).IsFalse();
-		await Assert.That(error).IsEqualTo(default(TestError));
+		await Assert.That(error).IsEqualTo(default);
 	}
 
 	[Test]
@@ -74,7 +74,7 @@ public sealed class ResultExtensionsTests
 		var found = result.TryGetError(out var error);
 
 		await Assert.That(found).IsFalse();
-		await Assert.That(error).IsEqualTo(default(TestError));
+		await Assert.That(error).IsEqualTo(default);
 	}
 
 	#endregion

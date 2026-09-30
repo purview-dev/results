@@ -5,7 +5,7 @@ namespace Purview.Results.Examples.AspNetCore.Zod;
 /// <summary>
 /// Registers tenants, validating every input with ZodSharp before it is used.
 /// </summary>
-public sealed class TenantRegistrationService
+sealed class TenantRegistrationService
 {
 	readonly Dictionary<TenantId, Tenant> _tenants = new()
 	{

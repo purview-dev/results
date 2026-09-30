@@ -16,7 +16,7 @@ namespace Purview.Results.Examples.Zod;
 /// input is an expected outcome, so it is a value.
 /// </para>
 /// </remarks>
-public sealed class TenantRegistrationService
+sealed class TenantRegistrationService
 {
 	readonly Dictionary<TenantId, Tenant> _tenants = new()
 	{
@@ -53,6 +53,7 @@ public sealed class TenantRegistrationService
 		if (!validation.IsSuccess)
 			return new TenantInputInvalid(input, validation.Errors).AsFailure<Tenant>();
 
+		// The validated value is the value this method succeeds with, so the adapter maps the failure into the
 		return RegisterValidated(validation.Value);
 	}
 

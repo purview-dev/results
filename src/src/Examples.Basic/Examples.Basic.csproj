@@ -9,20 +9,7 @@
 
 	<ItemGroup>
 		<!-- The runtime type the generated AsFailure helpers build on. -->
-		<ProjectReference Include="..\..\src\Results\Results.csproj" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<!-- The bridge that turns a ValidationResult<T> into a result. -->
-		<ProjectReference Include="..\..\src\ZodSharp\ZodSharp.csproj" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<!--
-			ZodSharp itself: the [ZodSchema] attribute and the generator that emits TenantInputSchema from it,
-			plus ValidationResult<T> and ValidationError.
-		-->
-		<PackageReference Include="Purview.ZodSharp" />
+		<ProjectReference Include="..\Results\Results.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -32,7 +19,7 @@
 			dependency, and without flowing to anything that references this project.
 		-->
 		<ProjectReference
-			Include="..\..\src\SourceGenerator\SourceGenerator.csproj"
+			Include="..\SourceGenerator\SourceGenerator.csproj"
 			OutputItemType="Analyzer"
 			ReferenceOutputAssembly="false"
 			PrivateAssets="all"

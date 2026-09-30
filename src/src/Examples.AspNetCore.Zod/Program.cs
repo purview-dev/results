@@ -7,10 +7,14 @@
 //
 //   curl -i -X POST http://localhost:5216/tenants -H "Content-Type: application/json" -d "{\"tenantId\":\"newco\",\"name\":\"Newco\"}"       -> 200 OK
 //   curl -i -X POST http://localhost:5216/tenants -H "Content-Type: application/json" -d "{\"name\":\"Nameless\"}"                        -> 400 validation problem
+//   curl -i -X POST http://localhost:5216/tenants -H "Content-Type: application/json" -d "{\"tenantId\":\"same\",\"name\":\"same\"}"      -> 422 Unprocessable Entity   (code rule)
 //   curl -i -X POST http://localhost:5216/tenants -H "Content-Type: application/json" -d "{\"tenantId\":\"acme\",\"name\":\"Acme\"}"       -> 409 Conflict
 //
+// The 422 shows the code rule: a failure whose errors include `tenant_id_matches_name` is answered by the rule
+// registered below, while every other validation failure stays a 400 validation problem.
+//
 // The 409 shows the precedence: the mapping registered for a specific case always wins over the validation
-// fallback, and a mapping registered for the error type would still win over the fallback too.
+// mapping, and a mapping registered for the error type would still win over it too.
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -27,9 +31,12 @@ builder.Services.AddResultsHttp(options =>
 	)
 );
 
-// Registered as a fallback, so the case mapping above still wins and a failure that carries no validation
-// errors still takes the host's unmapped-failure path.
-builder.Services.AddResultsZodSharpHttp();
+// Registered as a failure mapper, so the case mapping above still wins and a failure that carries no validation
+// errors still takes the host's unmapped-failure path. A code rule answers a failure whose errors include the
+// code with a response of its own; every other validation failure stays a 400 validation problem.
+builder.Services.AddResultsZodSharpHttp(options =>
+	options.MapCode("tenant_id_matches_name", StatusCodes.Status422UnprocessableEntity)
+);
 
 var app = builder.Build();
 

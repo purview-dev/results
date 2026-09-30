@@ -2,17 +2,23 @@ using System.ComponentModel.DataAnnotations;
 using ZodSharp;
 using ZodSharp.Schemas;
 
-namespace Purview.Results.Examples.AspNetCore.Zod;
+namespace Purview.Results.Examples.Zod;
 
 /// <summary>
 /// The raw input a caller registers a tenant with.
 /// </summary>
 /// <remarks>
+/// <para>
 /// <c>[ZodSchema]</c> makes ZodSharp's generator emit <c>TenantInputSchema</c>, whose <c>Validate</c> method
 /// returns a <c>ValidationResult&lt;TenantInput&gt;</c> instead of throwing.
+/// </para>
+/// <para>
+/// The refinement hook declares a cross-member invariant, so a rejection reports a stable error code that an
+/// HTTP layer can address.
+/// </para>
 /// </remarks>
 [ZodSchema]
-public sealed partial record TenantInput
+sealed partial record TenantInput
 {
 	/// <summary>The identifier of the new tenant.</summary>
 	[Required]

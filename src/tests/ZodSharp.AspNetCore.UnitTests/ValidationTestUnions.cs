@@ -4,7 +4,7 @@ using ZodSharp.Core;
 
 namespace Purview.Results.ZodSharp.AspNetCore;
 
-[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1815:Override equals and operator equals on value types")]
+// CA1815 is answered by the package's suppressor for every union opted in with [GenerateResult].
 [GenerateResult]
 public readonly union ValidationTestError(InputRejected, AggregateRejected, ItemMissing);
 
