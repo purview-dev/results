@@ -658,3 +658,6 @@ sketch
 !scripts/*
 
 .tools/purview-build/
+
+# Test run reports produced by the Microsoft.Testing.Platform runner
+TestResults/

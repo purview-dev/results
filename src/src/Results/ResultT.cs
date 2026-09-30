@@ -47,9 +47,9 @@ public readonly record struct Result<TValue, TError> : IResultValue
 
 	bool IResultValue.IsSuccess => IsSuccess;
 
-	object? IResultValue.Value => IsSuccess ? Value : null;
+	object? IResultValue.SuccessValue => IsSuccess ? Value : null;
 
-	object? IResultValue.Error => IsFailure ? Error : null;
+	object? IResultValue.ErrorValue => IsFailure ? Error : null;
 
 	/// <summary>
 	/// Gets the successful value.

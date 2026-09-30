@@ -4,9 +4,7 @@
 		"TestRoot": "src/tests",
 		"TestPatterns": "*Tests.csproj",
 		"TestProjects": "*UnitTests*",
-		"TestFilter": "/*/*/*/*[Category=Unit]",
-		"ValidatePack": false,
-		"RunPack": false
+		"TestFilter": "/*/*/*/*[Category=Unit]"
 	},
 	"Release": {
 		"Mode": "None"

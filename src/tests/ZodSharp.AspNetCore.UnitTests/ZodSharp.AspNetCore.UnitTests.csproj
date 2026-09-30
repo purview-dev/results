@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<ItemGroup>
+		<!-- The mapping produces ASP.NET Core responses. -->
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- The problem options and exception handler the mapping shares its behaviour with. -->
+		<PackageReference Include="Purview.ZodSharp.AspNetCore" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- Produces the AsFailure helpers for this project's own test union. -->
+		<ProjectReference
+			Include="..\..\src\SourceGenerator\SourceGenerator.csproj"
+			OutputItemType="Analyzer"
+			ReferenceOutputAssembly="false"
+			PrivateAssets="all"
+		/>
+	</ItemGroup>
+</Project>

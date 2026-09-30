@@ -88,11 +88,6 @@ test filter=default_test_filter *args:
 test-unit *args:
     just test "/*/*/*/*[Category=Unit]" {{ args }}
 
-# Generate a synchronized EF Core migration for both SQL Server and PostgreSQL providers (e.g. just migrate InitialTenancyAndAudit)
-[group('Build and Test')]
-migrate *args:
-    bun run db:migrate:add {{ args }}
-
 # Restore dependencies for the solution
 [group('Build and Test')]
 restore *args:

@@ -1,6 +1,6 @@
 <Project>
 	<PropertyGroup>
-		<NamespacePrefix>Purview</NamespacePrefix>
+		<NamespacePrefix>Purview.Results</NamespacePrefix>
 		<RepositoryUrl>https://github.com/purview-dev/results</RepositoryUrl>
 
 		<!-- .NET 11 + Preview stuff! -->

@@ -6,8 +6,8 @@ namespace Purview.Results;
 /// <remarks>
 /// Infrastructure that is not generic over the value and error types — an ASP.NET Core endpoint filter, for
 /// example — can inspect a result through this interface instead of using reflection. Accessing
-/// <see cref="Value"/> or <see cref="Error"/> never throws: the accessor that does not describe the current state
-/// returns <see langword="null"/>.
+/// <see cref="SuccessValue"/> or <see cref="ErrorValue"/> never throws: the accessor that does not describe the
+/// current state returns <see langword="null"/>.
 /// </remarks>
 public interface IResultValue
 {
@@ -24,10 +24,10 @@ public interface IResultValue
 	/// <summary>
 	/// Gets the successful value, or <see langword="null"/> when the result is not a success.
 	/// </summary>
-	object? Value { get; }
+	object? SuccessValue { get; }
 
 	/// <summary>
 	/// Gets the error, or <see langword="null"/> when the result is not a failure.
 	/// </summary>
-	object? Error { get; }
+	object? ErrorValue { get; }
 }
