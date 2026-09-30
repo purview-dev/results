@@ -28,6 +28,7 @@ makes C# 15 union error cases ergonomic, and the ZodSharp and ASP.NET Core integ
 | `src/src/<Project>/Sdk` | Package-only assets. `Sdk/README.md` is packed as the package README; `Sdk/.agents/**` would ship agent skills with the package |
 | `src/tests` | TUnit unit tests, including source-generation and incremental-cache tests |
 | `src/examples` | Runnable, non-packable examples: one project per integration aspect on a shared Tenant* domain |
+| `docs/wiki` | User-facing documentation suite, aggregated by the purview-dev website |
 | `Directory.Packages.props` | Centrally managed NuGet versions |
 | `src/Directory.Build.props` / `src/Directory.Build.targets` | Solution-wide SDK, package and build behaviour |
 | `global.json` | Required .NET SDK, `Purview.BuildSdk` and Microsoft.Testing.Platform selection |
@@ -243,6 +244,10 @@ document: `Examples.Basic` (the result type and the generated helpers), `Example
 - Keep each package `Sdk/README.md`, the repository-root `README.md`, `AGENTS.md` and the code aligned. If a
   change alters diagnostics, build properties, defaults, resolution order or public API, change all of them in
   the same commit.
+- `docs/wiki` is the user-facing documentation suite the purview-dev website aggregates
+  (`source: github-path`, `path: docs/wiki`, landing page `Getting-Started.md`). Keep the affected page in step
+  with the code in the same commit, keep `_Sidebar.md`'s order matching the pages that exist, and keep every page
+  to a single top-level `#` heading because the site derives the page title from the first one.
 - Examples must compile conceptually against the current public API. Use placeholders for credentials and
   environment-specific values.
 
@@ -376,8 +381,8 @@ Before handing work back:
 - Confirm only intended files changed.
 - Review public API, package-content and dependency-direction implications.
 - Add or update focused tests for code changes, including incremental-cache coverage for pipeline changes.
-- Update the affected package `Sdk/README.md`, the root `README.md`, `AGENTS.md` and `AnalyzerReleases` when the
-  change affects them.
+- Update the affected package `Sdk/README.md`, the root `README.md`, `docs/wiki`, `AGENTS.md` and
+  `AnalyzerReleases` when the change affects them.
 - Watch for the packaging traps: `<IsPackable>true</IsPackable>` missing from a new package project, a new
   union-declaring file missing from `.csharpierignore`, and a new diagnostic missing from
   `AnalyzerReleases.Unshipped.md`.
