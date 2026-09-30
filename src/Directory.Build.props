@@ -19,4 +19,36 @@
 	</PropertyGroup>
 
 	<Import Sdk="Purview.BuildSdk" Project="Sdk.props" />
+
+	<!--
+		Package metadata lives after the SDK import so it can use SDK-provided values such as
+		$(CurrentYear). Each packable project opts in with <IsPackable>true</IsPackable> in its own
+		project file, because the SDK reads that declaration from the project file text.
+
+		PackageProjectUrl points at the repository: purview.dev does not publish a `results` project
+		page yet, so a purview.dev link would be a dead end.
+	-->
+	<PropertyGroup Label="NuGet package metadata">
+		<Authors>Kieron Lanning</Authors>
+		<Company>Purview-Dev</Company>
+		<Copyright>Copyright © $(CurrentYear) Purview-Dev</Copyright>
+		<PackageProjectUrl>$(RepositoryUrl)</PackageProjectUrl>
+		<RepositoryType>git</RepositoryType>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<PackageIcon>purview-logo-light.png</PackageIcon>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+	</PropertyGroup>
+
+	<!--
+		The package icon is packed at the package root (the SDK's Sdk/ convention), so the same asset
+		is reused by every packable project without duplicating it in each project folder.
+	-->
+	<ItemGroup Label="NuGet package assets" Condition="'$(IsPackable)' == 'true'">
+		<None
+			Include="$(MSBuildThisFileDirectory)../assets/images/purview-logo-light.png"
+			Link="Sdk\purview-logo-light.png"
+		/>
+	</ItemGroup>
 </Project>

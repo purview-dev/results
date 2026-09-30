@@ -1,6 +1,6 @@
+using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Purview.Results.SourceGeneration.Helpers;
-using System.Collections.Immutable;
 
 // The language's union support is a preview feature of C# 15; ITypeSymbol.IsUnion is marked
 // [Experimental] until the feature ships, and this analysis deliberately targets it.
@@ -351,18 +351,18 @@ static class ResultUnionDiagnostics
 				return ContainsTypeParameters(array.ElementType);
 
 			case INamedTypeSymbol named:
+			{
+				if (named.IsUnboundGenericType)
+					return true;
+
+				foreach (var argument in named.TypeArguments)
 				{
-					if (named.IsUnboundGenericType)
+					if (ContainsTypeParameters(argument))
 						return true;
-
-					foreach (var argument in named.TypeArguments)
-					{
-						if (ContainsTypeParameters(argument))
-							return true;
-					}
-
-					return named.ContainingType is not null && ContainsTypeParameters(named.ContainingType);
 				}
+
+				return named.ContainingType is not null && ContainsTypeParameters(named.ContainingType);
+			}
 
 			default:
 				return false;
@@ -385,38 +385,38 @@ static class ResultUnionDiagnostics
 				return TryGetReferenceableAccessibility(array.ElementType, out isPublic);
 
 			case INamedTypeSymbol named:
+			{
+				if (named.IsFileLocal || named.IsUnboundGenericType)
+					return false;
+
+				foreach (var argument in named.TypeArguments)
 				{
-					if (named.IsFileLocal || named.IsUnboundGenericType)
+					if (!TryGetReferenceableAccessibility(argument, out var argumentIsPublic))
 						return false;
 
-					foreach (var argument in named.TypeArguments)
-					{
-						if (!TryGetReferenceableAccessibility(argument, out var argumentIsPublic))
-							return false;
-
-						isPublic &= argumentIsPublic;
-					}
-
-					for (var current = named; current is not null; current = current.ContainingType)
-					{
-						var accessibility = current.DeclaredAccessibility;
-						if (accessibility == Accessibility.Public)
-							continue;
-
-						// protected internal is accessible from anywhere in this assembly, which is where
-						// generated code lives; every other non-public accessibility is not referenceable
-						// from a generated top-level type.
-						if (accessibility is Accessibility.Internal or Accessibility.ProtectedOrInternal)
-						{
-							isPublic = false;
-							continue;
-						}
-
-						return false;
-					}
-
-					return true;
+					isPublic &= argumentIsPublic;
 				}
+
+				for (var current = named; current is not null; current = current.ContainingType)
+				{
+					var accessibility = current.DeclaredAccessibility;
+					if (accessibility == Accessibility.Public)
+						continue;
+
+					// protected internal is accessible from anywhere in this assembly, which is where
+					// generated code lives; every other non-public accessibility is not referenceable
+					// from a generated top-level type.
+					if (accessibility is Accessibility.Internal or Accessibility.ProtectedOrInternal)
+					{
+						isPublic = false;
+						continue;
+					}
+
+					return false;
+				}
+
+				return true;
+			}
 
 			default:
 				// Type parameters, pointers, function pointers, dynamic and error types cannot be

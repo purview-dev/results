@@ -49,16 +49,23 @@ pipeline-release *args:
     echo "Running release pipeline..."
     "{{ pipeline_tool }}" --Release:Mode=NuGet {{ args }}
 
-# # Run the release pipeline (restore, build, lint, tests, pack, local nuget publish)
-# # Note: `just` runs recipes through the shell, which strips backslashes from unquoted arguments.
-# # Use the LOCAL_NUGET_FEED_PATH environment variable or forward slashes, e.g.
-# # just pipeline-local-release --PublishLocalNuGet:LocalFeedPath=p:/_sync-projects/.local-nuget/
-# [group('Pipeline')]
-# pipeline-local-release *args:
-#     just ensure-pipeline-tool
-#     just lint-fix
-#     echo "Running local release pipeline..."
-#     "{{ pipeline_tool }}" --Release:Mode=LocalNuGet {{ args }}
+# Run the release pipeline (restore, build, lint, tests, pack, local nuget publish)
+# Note: `just` runs recipes through the shell, which strips backslashes from unquoted arguments.
+# Use the LOCAL_NUGET_FEED_PATH environment variable or forward slashes, e.g.
+# just pipeline-local-release --PublishLocalNuGet:LocalFeedPath=p:/_sync-projects/.local-nuget/
+[group('Pipeline')]
+pipeline-local-release *args:
+    just ensure-pipeline-tool
+    just lint-fix
+    echo "Running local release pipeline..."
+    "{{ pipeline_tool }}" --Release:Mode=LocalNuGet {{ args }}
+
+# Run the pipeline through pack + validate (restore, build, lint, tests, pack, validate pack contents) without publishing/releasing
+[group('Pipeline')]
+pipeline-pack-validate *args:
+    just ensure-pipeline-tool
+    echo "Running pack + validate pipeline..."
+    "{{ pipeline_tool }}" --Build:RunPack=true --Build:ValidatePack=true --Release:Mode=None {{ args }}
 
 # Displays the current version from package.json
 [group('Build and Test')]

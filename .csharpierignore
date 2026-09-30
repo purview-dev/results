@@ -1,10 +1,7 @@
 # C# 15 union declarations are a preview language feature that is not yet parseable by CSharpier, so files
-
 # that declare unions are excluded rather than reported as formatting failures. CSharpier reports
-
-# "was not formatted due to syntax errors" for these files; every other file is formatted normally
-
-src/tests/Results.SourceGenerator.UnitTests/GeneratedTestUnions.cs
-src/tests/Results.ZodSharp.UnitTests/ValidationTestUnions.cs
-src/tests/Results.AspNetCore.UnitTests/ResultsHttpTestUnions.cs
-src/tests/Results.ZodSharp.AspNetCore.UnitTests/ValidationTestUnions.cs
+# "was not formatted due to syntax errors" for these files; every other file is formatted normally.
+src/tests/AspNetCore.UnitTests/ResultsHttpTestUnions.cs
+src/tests/SourceGenerator.UnitTests/GeneratedTestUnions.cs
+src/tests/ZodSharp.AspNetCore.UnitTests/ValidationTestUnions.cs
+src/tests/ZodSharp.UnitTests/ValidationTestUnions.cs

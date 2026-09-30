@@ -1,9 +1,9 @@
+using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Runtime.CompilerServices;
 
 namespace Purview.Results.AspNetCore;
 

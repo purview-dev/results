@@ -1,7 +1,24 @@
 # Purview.Results.SourceGenerator
 
+[![NuGet version](https://img.shields.io/nuget/v/Purview.Results.SourceGenerator.svg)](https://www.nuget.org/packages/Purview.Results.SourceGenerator)
+[![Release](https://github.com/purview-dev/results/actions/workflows/release.yml/badge.svg)](https://github.com/purview-dev/results/actions/workflows/release.yml)
+
 An incremental Roslyn source generator that makes C# 15 **union** error cases ergonomic to use with
 `Purview.Results.Result<TValue, TError>`.
+
+## Installation
+
+```bash
+dotnet add package Purview.Results.SourceGenerator
+dotnet add package Purview.Results
+```
+
+The generator is a Roslyn component: reference it as a normal `PackageReference` and it is applied to the
+compilation automatically. `Purview.Results` provides the `Result<TValue, TError>` type the generated helpers
+build.
+
+**Requirements:** a C# 15 compiler with union declaration support (the .NET 11 SDK or later) and
+`LangVersion=preview`.
 
 ```csharp
 [GenerateResult]
@@ -47,13 +64,42 @@ Result<Tenant, TenantError> GetTenant(TenantId tenantId) => new TenantNotFound(t
 ```
 
 The compiler experiments that prove this (and that the explicit forms the helper replaces *do* compile) live
-in `src/tests/Results.SourceGenerator.UnitTests/UnionCompilerBehaviourTests.cs`. The same file records that an
+in `src/tests/SourceGenerator.UnitTests/UnionCompilerBehaviourTests.cs`. The same file records that an
 extension method declared on the *union* type cannot help either (`CS1929`): C# does not apply union
 conversions to an extension-method receiver, which is why one helper is generated **per case type**.
 
 The generator does not change, wrap or replace `Result<TValue, TError>`; it only produces the missing call
 site ergonomics. There is no reflection, no `dynamic`, no runtime type discovery and no mutable static state:
 every helper is a pure static method that calls the existing `Result<TValue, TError>.Failure` factory.
+
+## Why there are no implicit conversions
+
+The shortest possible call site would be `return new TenantNotFound(id);` — the generator declaring an implicit
+conversion instead of a helper method. C# forbids every route to that, and each rule is recorded as a compiler
+experiment in `src/tests/SourceGenerator.UnitTests/UnionCompilerBehaviourTests.cs`:
+
+| Rule | Experiment | Diagnostic |
+| --- | --- | --- |
+| A user-defined operator cannot be declared in a **static class** — and the generated helper class is `public static class {Union}ResultExtensions` | `ConversionOperator_DeclaredInStaticGeneratedHelperClass_DoesNotCompile` | `CS0715` |
+| A conversion operator must be declared by the **source or the target type**; a helper class is neither | `ConversionOperator_DeclaredOutsideSourceOrTargetType_DoesNotCompile` | `CS0556` |
+| Conversion operators are **not permitted as extension members** | `ConversionOperator_DeclaredInExtensionBlock_DoesNotCompile` | `CS9282` |
+| A conversion operator **cannot declare type parameters of its own**, so `TValue` is out of scope for a non-generic case type | `ConversionOperator_OnNonGenericCaseType_CannotNameTheResultValueType` | `CS0246` |
+| **Only one user-defined conversion** may participate in a conversion sequence, so `case → union → Result<…>` can never compose | `Result_GivenCaseValue_DirectAssignmentDoesNotCompile` | `CS0029` |
+
+The only shape the language accepts is a *generic case type* carrying the value type parameter
+(`ConversionOperator_OnGenericCaseType_Compiles`) — precisely the shape the generator rejects as `RSG1002`.
+One helper per case type is therefore the best ergonomics the language allows, and the package's code fix
+offers the rewrite in the IDE when a case value is returned where a result is expected.
+
+A helper-free form does exist, because a cast closes the case → union conversion so that only the library's
+union → result conversion remains:
+
+```csharp
+Result<Tenant, TenantError> GetTenant(TenantId tenantId) => (TenantError)new TenantNotFound(tenantId);
+```
+
+`Result_GivenUnionCastedCase_Compiles` proves it compiles. It is not prettier than `AsFailure<Tenant>()`, but it
+needs no generated code.
 
 ## Activation and design
 
@@ -112,14 +158,62 @@ reported.
 | --- | --- | --- |
 | `ResultsSourceGenerator_Disable` | `false` | Disables generation while still emitting the opt-in attribute. |
 
+The property is declared as a compiler-visible MSBuild property and shipped to `PackageReference` consumers as
+`buildTransitive/Purview.Results.SourceGenerator.props` (from
+`Sdk/buildTransitive/Purview.Results.SourceGenerator.props` in this repository), so
+`-p:ResultsSourceGenerator_Disable=true` — or a `Directory.Build.props` setting — disables the helpers for
+consumers too.
+
 ## Consumer requirements
 
 - A C# 15 compiler with union declaration support (`.NET 11` SDK or later) and `LangVersion=preview`.
 - A reference to `Purview.Results` for `Result<TValue, TError>`.
 
+## Call-site ergonomics: the code fix
+
+Because the generator cannot make a case value convert (`AsFailure<TValue>()` is the best the language allows),
+the package also ships an IDE code fix: `UnionCaseResultCodeFixProvider` in the companion
+`SourceGenerator.CodeFixes` component (`src/src/SourceGenerator.CodeFixes`).
+
+It answers the compiler's `CS0029` ("cannot implicitly convert") and rewrites a returned case value into the
+generated helper, so `return new TenantNotFound(id);` becomes
+`return new TenantNotFound(id).AsFailure<Tenant>();` from the lightbulb.
+
+A fix is only offered when the rewrite will bind:
+
+| Guard | Why |
+| --- | --- |
+| The converted type is `Purview.Results.Result<TValue, TError>` | Only results have generated helpers |
+| `TError` is a union **and** opted in with `[GenerateResult]` | The helper is only generated for opted-in unions |
+| The expression's type is one of `TError`'s case types | `AsFailure<TValue>()` exists once per case |
+| The union is reachable by its simple name at the call site | The helper class is generated into the union's own namespace |
+
+The component is not packable on its own: it needs `Microsoft.CodeAnalysis.CSharp.Workspaces`, which only the
+IDE host provides, so it ships inside this package's `analyzers/dotnet/cs/` as a second analyzer assembly
+(never IL-merged into the generator). The two projects stay independent — the code fix does not reference the
+generator — so no reference cycle can form and Workspaces never enters the generator's dependencies.
+
 ## Tests
 
-`src/tests/Results.SourceGenerator.UnitTests` contains the source-generation tests (basic generation,
+`src/tests/SourceGenerator.UnitTests` contains the source-generation tests (basic generation,
 multiple unions, namespaces, accessibility, case kinds, diagnostics, incremental caching and determinism),
 the compiler experiments above, and runtime/integration tests that execute the generated helpers against the
 real `Result<TValue, TError>` type.
+
+The code-fix tests live in `UnionCaseResultCodeFixProviderTests` and use `UnionCodeFixTestHarness`: the
+framework's code-fix test base is driven by an analyzer's diagnostics, and this fix answers a compiler
+diagnostic, so the harness builds the compilation itself, runs the generator (the generated attribute and
+helpers must exist for the rewrite to bind), applies the fix through an `AdhocWorkspace`, and recompiles the
+rewritten source to prove it compiles.
+
+## Agent skills
+
+This package ships the `purview-results-union-errors` agent skill, the `purview-results-union-author` agent and
+the `migrate-error-returns-to-result-unions` prompt under `.agents/`, so a repository that imports
+`Purview.BuildSdk` receives them in its own `.agents/` folder on the next restore or build. The skill covers
+union modelling, the generated helpers, the diagnostics table, and the language rules that make the helper
+necessary.
+
+## License
+
+MIT — see [LICENSE.md](https://github.com/purview-dev/results/blob/main/LICENSE.md).

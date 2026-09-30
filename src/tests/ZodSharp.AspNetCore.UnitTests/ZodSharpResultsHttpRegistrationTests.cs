@@ -1,7 +1,7 @@
+using System.Collections.Immutable;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Purview.Results.AspNetCore;
-using System.Collections.Immutable;
 using ZodSharp.Core;
 
 namespace Purview.Results.ZodSharp.AspNetCore;
@@ -103,11 +103,7 @@ public sealed class ZodSharpResultsHttpRegistrationTests
 
 	static DefaultHttpContext CreateContext(IServiceProvider services)
 	{
-		DefaultHttpContext context = new()
-		{
-			Response = { Body = new MemoryStream() },
-			RequestServices = services
-		};
+		DefaultHttpContext context = new() { Response = { Body = new MemoryStream() }, RequestServices = services };
 
 		return context;
 	}

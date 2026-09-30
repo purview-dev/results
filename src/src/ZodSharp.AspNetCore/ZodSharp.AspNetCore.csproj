@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
+		<IsPackable>true</IsPackable>
 		<Title>Purview Results ZodSharp ASP.NET Core</Title>
 		<Description>Maps Purview result failures that carry ZodSharp validation errors onto ASP.NET Core HttpValidationProblemDetails responses.</Description>
 		<PackageTags>results;result;aspnetcore;problemdetails;validation;zod;purview;</PackageTags>

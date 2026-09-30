@@ -106,9 +106,7 @@ public class ResultsSourceGeneratorTests
 		result.AssertNoCompilationErrors();
 		result.AssertGeneratedSourceCount(3);
 
-		var hintNames = result
-			.PrimarySyntaxTrees.Select(static tree => Path.GetFileName(tree.FilePath))
-			.ToArray();
+		var hintNames = result.PrimarySyntaxTrees.Select(static tree => Path.GetFileName(tree.FilePath)).ToArray();
 		await Assert
 			.That(hintNames)
 			.IsEquivalentTo([

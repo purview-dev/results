@@ -6,7 +6,60 @@
 		"TestProjects": "*UnitTests*",
 		"TestFilter": "/*/*/*/*[Category=Unit]"
 	},
+	"PackValidation": {
+		// Purview.Results.SourceGenerator is a Roslyn component: the SDK's Roslyn defaults set
+		// IsRoslynComponentOnly, so it produces no .snupkg. It also sets PurviewPackAnalyzerPdb=false, so it
+		// ships no PDB either; the four library packages produce symbol packages, and RequireSymbolFiles and
+		// the assembly checks below all apply to them.
+		"RequireSymbolPackage": false,
+		// RequireExplicitContent defaults to true, so this is the exhaustive declaration of what each
+		// package ships: a package with no rule here, or an entry matching none of its globs, fails.
+		"RequiredContent": {
+			"purview.results": [
+				".agents/**/*",
+				"README.md",
+				"lib/$(TFM)/Purview.Results.dll",
+				"lib/$(TFM)/Purview.Results.xml",
+				"purview-logo-light.png"
+			],
+			"purview.results.aspnetcore": [
+				".agents/**/*",
+				"README.md",
+				"lib/$(TFM)/Purview.Results.AspNetCore.dll",
+				"lib/$(TFM)/Purview.Results.AspNetCore.xml",
+				"purview-logo-light.png"
+			],
+			"purview.results.sourcegenerator": [
+				".agents/**/*",
+				"README.md",
+				"analyzers/dotnet/cs/Purview.Results.SourceGenerator.CodeFixes.dll",
+				"analyzers/dotnet/cs/Purview.Results.SourceGenerator.dll",
+				"buildTransitive/Purview.Results.SourceGenerator.props",
+				"purview-logo-light.png"
+			],
+			"purview.results.zodsharp": [
+				".agents/**/*",
+				"README.md",
+				"lib/$(TFM)/Purview.Results.ZodSharp.dll",
+				"lib/$(TFM)/Purview.Results.ZodSharp.xml",
+				"purview-logo-light.png"
+			],
+			"purview.results.zodsharp.aspnetcore": [
+				".agents/**/*",
+				"README.md",
+				"lib/$(TFM)/Purview.Results.ZodSharp.AspNetCore.dll",
+				"lib/$(TFM)/Purview.Results.ZodSharp.AspNetCore.xml",
+				"purview-logo-light.png"
+			]
+		},
+		"ForbiddenContent": {
+			// The generator ships a merged, self-contained analyzer, so the framework assembly must never
+			// appear loose beside it.
+			"*": ["analyzers/**/Purview.SourceGeneratorFramework.dll"]
+		}
+	},
 	"Release": {
 		"Mode": "None"
 	}
 }
+

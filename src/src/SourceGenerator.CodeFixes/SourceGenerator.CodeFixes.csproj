@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<!--
+			The IDE side of the generator's call-site ergonomics. It ships inside the
+			Purview.Results.SourceGenerator package: that project references this one, and the SDK adds a
+			referenced Roslyn component's analyzer artifact to the referencing component's closure, so both
+			assemblies land under analyzers/dotnet/cs/ and this project is deliberately not packable itself.
+
+			The reference direction matters: this project does not reference the generator, so no reference
+			cycle can form and the generator's analyzer closure never acquires the Workspaces layer.
+		-->
+		<IsRoslynComponent>true</IsRoslynComponent>
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<RootNamespace>Purview.Results.SourceGeneration.CodeFixes</RootNamespace>
+		<Title>Purview Results Source Generator Code Fixes</Title>
+		<Description>IDE code fixes for the Purview.Results source generator: rewrites a returned union case value into the generated AsFailure&lt;TValue&gt;() failed result.</Description>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!--
+			Code fixes require the Workspaces layer, which only the IDE host provides (Visual Studio, Rider,
+			dotnet format). It is never packed and must never reach the generator, which is why the code fix
+			lives in its own project.
+		-->
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+	</ItemGroup>
+</Project>

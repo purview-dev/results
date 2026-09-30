@@ -20,6 +20,19 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<!--
+			The code fix ships in the generator package as a separate Roslyn component, so the tests reference it
+			directly to instantiate the provider. The Workspaces layer is a code-fix dependency the IDE host
+			provides; the tests use it for the AdhocWorkspace the harness applies the fix through.
+		-->
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\..\src\SourceGenerator.CodeFixes\SourceGenerator.CodeFixes.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<PackageReference Include="Purview.SourceGeneratorFramework.Testing.TUnit" />
 	</ItemGroup>
 </Project>

@@ -14,6 +14,7 @@
 		<Project Path="src/Results/Results.csproj" />
 		<Project Path="src/AspNetCore/AspNetCore.csproj" />
 		<Project Path="src/SourceGenerator/SourceGenerator.csproj" />
+		<Project Path="src/SourceGenerator.CodeFixes/SourceGenerator.CodeFixes.csproj" />
 		<Project Path="src/ZodSharp/ZodSharp.csproj" />
 		<Project Path="src/ZodSharp.AspNetCore/ZodSharp.AspNetCore.csproj" />
 	</Folder>

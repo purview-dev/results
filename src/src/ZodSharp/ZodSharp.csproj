@@ -4,6 +4,13 @@
 		It stays a leaf library: Results never depends on ZodSharp, and consumers opt in by referencing
 		this package.
 	-->
+	<PropertyGroup>
+		<IsPackable>true</IsPackable>
+		<Title>Purview Results ZodSharp</Title>
+		<Description>Bridges ZodSharp ValidationResult&lt;T&gt; values into Purview.Results, so validation outcomes flow through the result pipeline as ordinary error values instead of exceptions.</Description>
+		<PackageTags>results;result;validation;zod;zodsharp;purview;</PackageTags>
+	</PropertyGroup>
+
 	<ItemGroup>
 		<PackageReference Include="Purview.ZodSharp" />
 	</ItemGroup>

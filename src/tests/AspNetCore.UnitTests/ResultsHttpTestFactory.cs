@@ -25,7 +25,7 @@ static class ResultsHttpTestFactory
 		DefaultHttpContext context = new()
 		{
 			Response = { Body = new MemoryStream() },
-			RequestServices = services ?? DefaultServices.Value
+			RequestServices = services ?? DefaultServices.Value,
 		};
 
 		return context;

@@ -1,1 +1,8 @@
-﻿<Project Sdk="Microsoft.NET.Sdk" />
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<IsPackable>true</IsPackable>
+		<Title>Purview Results</Title>
+		<Description>Dependency-free Result&lt;TValue, TError&gt; for .NET, with C# 15 union ergonomics for its error cases and integrations that let expected failures flow through a value instead of an exception.</Description>
+		<PackageTags>results;result;railway;error-handling;union;unions;csharp-15;net11;purview;</PackageTags>
+	</PropertyGroup>
+</Project>

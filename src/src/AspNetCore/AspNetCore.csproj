@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
+		<IsPackable>true</IsPackable>
 		<Title>Purview Results ASP.NET Core</Title>
 		<Description>Maps Purview.Results results onto ASP.NET Core responses, including ProblemDetails for expected failures.</Description>
 		<PackageTags>results;result;aspnetcore;problemdetails;minimal-api;purview;</PackageTags>

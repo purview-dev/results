@@ -1,7 +1,7 @@
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Immutable;
 using System.Text.Json;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using ZodSharp;
 using ZodSharp.AspNetCore;
 using ZodSharp.Core;
@@ -19,7 +19,10 @@ public sealed class ZodValidationProblemsTests
 		var errors = CreateErrors();
 
 		// Act
-		var (StatusCode, Body, ContentType) = await ExecuteAsync(ZodValidationProblems.ToProblem(errors, CreateOptions()), CreateContext());
+		var (StatusCode, Body, ContentType) = await ExecuteAsync(
+			ZodValidationProblems.ToProblem(errors, CreateOptions()),
+			CreateContext()
+		);
 
 		// Assert
 		await Assert.That(StatusCode).IsEqualTo(StatusCodes.Status400BadRequest);
@@ -46,7 +49,10 @@ public sealed class ZodValidationProblemsTests
 		ZodProblemDetailsOptions options = new() { Registry = registry };
 
 		// Act
-		var (StatusCode, Body, _) = await ExecuteAsync(ZodValidationProblems.ToProblem(CreateErrors(), options), CreateContext());
+		var (StatusCode, Body, _) = await ExecuteAsync(
+			ZodValidationProblems.ToProblem(CreateErrors(), options),
+			CreateContext()
+		);
 
 		// Assert
 		await Assert.That(StatusCode).IsEqualTo(StatusCodes.Status422UnprocessableEntity);
@@ -60,7 +66,10 @@ public sealed class ZodValidationProblemsTests
 		ZodProblemDetailsOptions options = new() { StatusCodeSelector = _ => StatusCodes.Status409Conflict };
 
 		// Act
-		var (StatusCode, Body, ContentType) = await ExecuteAsync(ZodValidationProblems.ToProblem(CreateErrors(), options), CreateContext());
+		var (StatusCode, Body, ContentType) = await ExecuteAsync(
+			ZodValidationProblems.ToProblem(CreateErrors(), options),
+			CreateContext()
+		);
 
 		// Assert
 		await Assert.That(StatusCode).IsEqualTo(StatusCodes.Status409Conflict);
@@ -92,7 +101,10 @@ public sealed class ZodValidationProblemsTests
 		var context = CreateContext();
 
 		// Act
-		var (StatusCode, Body, ContentType) = await ExecuteAsync(ZodValidationProblems.ToProblem(errors, options), context);
+		var (StatusCode, Body, ContentType) = await ExecuteAsync(
+			ZodValidationProblems.ToProblem(errors, options),
+			context
+		);
 		var exceptionProblem = new ZodException(errors).ToHttpValidationProblemDetails(
 			registry,
 			StatusCodes.Status400BadRequest
@@ -120,7 +132,10 @@ public sealed class ZodValidationProblemsTests
 		var context = CreateContext();
 
 		// Act
-		var (StatusCode, Body, _) = await ExecuteAsync(new InputRejected(7, CreateErrors()).ToValidationProblem(context), context);
+		var (StatusCode, Body, _) = await ExecuteAsync(
+			new InputRejected(7, CreateErrors()).ToValidationProblem(context),
+			context
+		);
 
 		// Assert
 		await Assert.That(StatusCode).IsEqualTo(StatusCodes.Status400BadRequest);
@@ -139,7 +154,10 @@ public sealed class ZodValidationProblemsTests
 		var context = CreateContext(provider);
 
 		// Act
-		var (StatusCode, Body, ContentType) = await ExecuteAsync(new InputRejected(7, CreateErrors()).ToValidationProblem(context), context);
+		var (StatusCode, Body, ContentType) = await ExecuteAsync(
+			new InputRejected(7, CreateErrors()).ToValidationProblem(context),
+			context
+		);
 
 		// Assert
 		await Assert.That(Body).DoesNotContain(context.TraceIdentifier);
@@ -162,7 +180,7 @@ public sealed class ZodValidationProblemsTests
 		DefaultHttpContext context = new()
 		{
 			Response = { Body = new MemoryStream() },
-			RequestServices = services ?? CreateServices()
+			RequestServices = services ?? CreateServices(),
 		};
 
 		return context;

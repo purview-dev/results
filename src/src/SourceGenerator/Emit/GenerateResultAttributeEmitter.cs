@@ -1,7 +1,7 @@
+using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 using Purview.Results.SourceGeneration.Helpers;
-using System.Text;
 
 namespace Purview.Results.SourceGeneration.Emit;
 
