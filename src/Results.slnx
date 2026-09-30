@@ -18,6 +18,16 @@
 		<Project Path="src/ZodSharp/ZodSharp.csproj" />
 		<Project Path="src/ZodSharp.AspNetCore/ZodSharp.AspNetCore.csproj" />
 	</Folder>
+	<Folder Name="/examples/">
+		<!--
+			Runnable, non-packable examples: one per integration aspect, all built on the Tenancy domain the
+			README documents. They are not test projects, so purview-build.json's TestRoot does not pick them up.
+		-->
+		<Project Path="examples/Examples.Basic/Examples.Basic.csproj" />
+		<Project Path="examples/Examples.Zod/Examples.Zod.csproj" />
+		<Project Path="examples/Examples.AspNetCore/Examples.AspNetCore.csproj" />
+		<Project Path="examples/Examples.AspNetCore.Zod/Examples.AspNetCore.Zod.csproj" />
+	</Folder>
 	<Folder Name="/tests/">
 		<Project Path="tests/AspNetCore.UnitTests/AspNetCore.UnitTests.csproj" />
 		<Project Path="tests/SourceGenerator.UnitTests/SourceGenerator.UnitTests.csproj" />

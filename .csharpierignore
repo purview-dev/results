@@ -5,3 +5,7 @@ src/tests/AspNetCore.UnitTests/ResultsHttpTestUnions.cs
 src/tests/SourceGenerator.UnitTests/GeneratedTestUnions.cs
 src/tests/ZodSharp.AspNetCore.UnitTests/ValidationTestUnions.cs
 src/tests/ZodSharp.UnitTests/ValidationTestUnions.cs
+src/examples/Examples.Basic/TenantError.cs
+src/examples/Examples.Zod/TenantError.cs
+src/examples/Examples.AspNetCore/TenantError.cs
+src/examples/Examples.AspNetCore.Zod/TenantError.cs

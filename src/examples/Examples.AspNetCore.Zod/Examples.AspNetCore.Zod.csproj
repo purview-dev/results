@@ -1,0 +1,52 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+	<PropertyGroup>
+		<!--
+			A runnable minimal-API example, started with `dotnet run`. It stays non-packable (the SDK default)
+			because it is documentation, not a shipped package.
+		-->
+		<OutputType>Exe</OutputType>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- The runtime type the generated AsFailure helpers build on. -->
+		<ProjectReference Include="..\..\src\Results\Results.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- The result-to-response mapping the validation fallback extends. -->
+		<ProjectReference Include="..\..\src\AspNetCore\AspNetCore.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- The bridge that turns a ValidationResult<T> into a result. -->
+		<ProjectReference Include="..\..\src\ZodSharp\ZodSharp.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- The validation-problem mapping for results that carry ZodSharp errors. -->
+		<ProjectReference Include="..\..\src\ZodSharp.AspNetCore\ZodSharp.AspNetCore.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!--
+			ZodSharp itself ([ZodSchema] and its generator, ValidationResult<T>, ValidationError) and the
+			problem options and exception handler this mapping deliberately shares its behaviour with.
+		-->
+		<PackageReference Include="Purview.ZodSharp" />
+		<PackageReference Include="Purview.ZodSharp.AspNetCore" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!--
+			The generator is a Roslyn component: it is referenced analyzer-style so it produces the
+			AsFailure<TValue>() helpers for this project's TenantError union without becoming a runtime
+			dependency, and without flowing to anything that references this project.
+		-->
+		<ProjectReference
+			Include="..\..\src\SourceGenerator\SourceGenerator.csproj"
+			OutputItemType="Analyzer"
+			ReferenceOutputAssembly="false"
+			PrivateAssets="all"
+		/>
+	</ItemGroup>
+</Project>

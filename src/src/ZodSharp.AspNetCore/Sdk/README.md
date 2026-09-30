@@ -47,6 +47,19 @@ The status code resolved by `ZodProblemDetailsOptions.StatusCodeSelector` wins; 
 `defaultStatusCode`) is only used when the resolved error type does not define one. The trace identifier is
 included when `ResultsHttpOptions.IncludeTraceId` is `true` (the default).
 
+## Examples
+
+[`src/examples/Examples.AspNetCore.Zod`](https://github.com/purview-dev/results/tree/main/src/examples/Examples.AspNetCore.Zod)
+is a runnable minimal-API example where a `TenantInputInvalid` failure carrying ZodSharp errors becomes a `400`
+validation problem, while the host's own `TenantAlreadyExists` mapping still returns `409`.
+
+```bash
+dotnet run --project src/examples/Examples.AspNetCore.Zod --urls http://localhost:5216
+```
+
+The [repository README](https://github.com/purview-dev/results#examples) lists the Basic, ZodSharp and
+ASP.NET Core examples too.
+
 ## Related packages
 
 | Package | Purpose |

@@ -27,6 +27,7 @@ makes C# 15 union error cases ergonomic, and the ZodSharp and ASP.NET Core integ
 | `src/src/ZodSharp.AspNetCore` | Validation-problem mapping for validation-carrying failures |
 | `src/src/<Project>/Sdk` | Package-only assets. `Sdk/README.md` is packed as the package README; `Sdk/.agents/**` would ship agent skills with the package |
 | `src/tests` | TUnit unit tests, including source-generation and incremental-cache tests |
+| `src/examples` | Runnable, non-packable examples: one project per integration aspect on a shared Tenant* domain |
 | `Directory.Packages.props` | Centrally managed NuGet versions |
 | `src/Directory.Build.props` / `src/Directory.Build.targets` | Solution-wide SDK, package and build behaviour |
 | `global.json` | Required .NET SDK, `Purview.BuildSdk` and Microsoft.Testing.Platform selection |
@@ -192,6 +193,24 @@ including the diagnostics table, build properties and activation rules.
   driven by an analyzer's diagnostics. Follow `UnionCodeFixTestHarness` instead: it runs the generator, applies
   the fix through an `AdhocWorkspace`, and recompiles the rewrite so a broken fix cannot pass. A `Document` is an
   immutable snapshot, so re-resolve it from the workspace's current solution after adding documents.
+
+## Examples
+
+`src/examples` holds one runnable example per integration aspect, all on the Tenant* domain the READMEs
+document: `Examples.Basic` (the result type and the generated helpers), `Examples.Zod`
+(`Purview.Results.ZodSharp`), `Examples.AspNetCore` (`Purview.Results.AspNetCore`) and `Examples.AspNetCore.Zod`
+(`Purview.Results.ZodSharp.AspNetCore`).
+
+- Examples are **documentation that compiles**: keep them non-packable (never declare
+  `<IsPackable>true</IsPackable>`), keep them out of test discovery (no `*Tests` suffix, and they are not under
+  `src/tests`), and keep each one's references equal to exactly the aspect it demonstrates.
+- Each example declares its own local union rather than sharing a domain project, matching how the test
+  projects declare `HttpTestError`/`ValidationTestError`. Anything that declares a union must be added to
+  `.csharpierignore`.
+- The generator is referenced analyzer-style (`OutputItemType="Analyzer"`, `ReferenceOutputAssembly="false"`,
+  `PrivateAssets="all"`), exactly as the test projects reference it.
+- When public behaviour changes, update the example that demonstrates it, the example's snippet in the root
+  `README.md`, and the matching `Sdk/README.md` pointer in the same commit.
 
 ## Documentation rules
 

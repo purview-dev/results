@@ -89,6 +89,20 @@ app.MapGet("/tenants/{id:int}", (int id, HttpContext context) =>
 `DefaultResultsHttpMapper` via `TryAddSingleton`, so a host can register its own implementation first to replace
 the defaults entirely.
 
+## Examples
+
+[`src/examples/Examples.AspNetCore`](https://github.com/purview-dev/results/tree/main/src/examples/Examples.AspNetCore)
+is a runnable minimal-API example that maps the `TenantNotFound` case to `404`, the `TenantDisabled` case to
+`403` and the `TenantError` error type to `409`, and shows the response an endpoint that returns `default`
+receives.
+
+```bash
+dotnet run --project src/examples/Examples.AspNetCore --urls http://localhost:5215
+```
+
+The [repository README](https://github.com/purview-dev/results#examples) lists the Basic, ZodSharp and
+ASP.NET Core + Zod examples too.
+
 ## Related packages
 
 Validation failures that carry ZodSharp errors are rendered as `HttpValidationProblemDetails` by

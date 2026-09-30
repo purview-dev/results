@@ -206,6 +206,19 @@ diagnostic, so the harness builds the compilation itself, runs the generator (th
 helpers must exist for the rewrite to bind), applies the fix through an `AdhocWorkspace`, and recompiles the
 rewritten source to prove it compiles.
 
+## Examples
+
+[`src/examples/Examples.Basic`](https://github.com/purview-dev/results/tree/main/src/examples/Examples.Basic)
+declares a `[GenerateResult]` union over the Tenant* domain the README uses and calls the helper this generator
+emits for each of its cases:
+
+```csharp
+Result<Tenant, TenantError> result = new TenantNotFound(tenantId).AsFailure<Tenant>();
+```
+
+The [repository README](https://github.com/purview-dev/results#examples) covers the ZodSharp, ASP.NET Core and
+ASP.NET Core + Zod examples as well.
+
 ## Agent skills
 
 This package ships the `purview-results-union-errors` agent skill, the `purview-results-union-author` agent and
