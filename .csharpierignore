@@ -5,3 +5,6 @@
 # "was not formatted due to syntax errors" for these files; every other file is formatted normally
 
 src/tests/Results.SourceGenerator.UnitTests/GeneratedTestUnions.cs
+src/tests/Results.ZodSharp.UnitTests/ValidationTestUnions.cs
+src/tests/Results.AspNetCore.UnitTests/ResultsHttpTestUnions.cs
+src/tests/Results.ZodSharp.AspNetCore.UnitTests/ValidationTestUnions.cs

@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<!--
+		Integration package that bridges ZodSharp validation results into Purview.Results.
+		It stays a leaf library: Results never depends on ZodSharp, and consumers opt in by referencing
+		this package.
+	-->
+	<ItemGroup>
+		<PackageReference Include="Purview.ZodSharp" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Results\Results.csproj" />
+	</ItemGroup>
+</Project>

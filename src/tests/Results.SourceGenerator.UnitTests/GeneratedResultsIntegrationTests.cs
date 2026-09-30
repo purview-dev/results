@@ -1,0 +1,121 @@
+namespace Purview.Results.SourceGenerator;
+
+/// <summary>
+/// Proves that results created by the generated helpers compose with the existing
+/// <c>Result&lt;TValue, TError&gt;</c> operations, rather than re-testing those operations.
+/// </summary>
+public class GeneratedResultsIntegrationTests
+{
+	static Result<Tenant, TenantError> CreateFailure() =>
+		new TenantNotFound(new TenantId("tenant-1")).AsFailure<Tenant>();
+
+	[Test]
+	public async Task Match_GivenGeneratedFailure_InvokesTheFailureArmWithTheUnionError()
+	{
+		// Arrange
+		var result = CreateFailure();
+		var successInvoked = false;
+
+		// Act
+		var matched = result.Match(
+			_ =>
+			{
+				successInvoked = true;
+				return "success";
+			},
+			error => error is TenantNotFound ? "not-found" : "other"
+		);
+
+		// Assert
+		await Assert.That(matched).IsEqualTo("not-found");
+		await Assert.That(successInvoked).IsFalse();
+	}
+
+	[Test]
+	public async Task Map_GivenGeneratedFailure_DoesNotInvokeTheMappingAndPreservesTheError()
+	{
+		// Arrange
+		var result = CreateFailure();
+		var mapInvoked = false;
+
+		// Act
+		var mapped = result.Map(tenant =>
+		{
+			mapInvoked = true;
+			return tenant.TenantId.Value;
+		});
+
+		// Assert
+		await Assert.That(mapInvoked).IsFalse();
+		await Assert.That(mapped.IsFailure).IsTrue();
+		await Assert.That(mapped.Error is TenantNotFound).IsTrue();
+	}
+
+	[Test]
+	public async Task MapError_GivenGeneratedFailure_MapsTheUnionError()
+	{
+		// Arrange
+		var result = CreateFailure();
+		var mapInvoked = 0;
+
+		// Act
+		var mapped = result.MapError(error =>
+		{
+			mapInvoked++;
+			return error is TenantNotFound notFound ? notFound.TenantId.Value : "unknown";
+		});
+
+		// Assert
+		await Assert.That(mapInvoked).IsEqualTo(1);
+		await Assert.That(mapped.IsFailure).IsTrue();
+		await Assert.That(mapped.Error).IsEqualTo("tenant-1");
+	}
+
+	[Test]
+	public async Task Bind_GivenGeneratedFailure_DoesNotInvokeTheBinderAndPreservesTheError()
+	{
+		// Arrange
+		var result = CreateFailure();
+		var bindInvoked = false;
+
+		// Act
+		var bound = result.Bind(tenant =>
+		{
+			bindInvoked = true;
+			return Result<TenantId, TenantError>.Success(tenant.TenantId);
+		});
+
+		// Assert
+		await Assert.That(bindInvoked).IsFalse();
+		await Assert.That(bound.IsFailure).IsTrue();
+		await Assert.That(bound.Error is TenantNotFound).IsTrue();
+	}
+
+	[Test]
+	public async Task Bind_GivenGeneratedFailureComposedWithASecondGeneratedFailure_PreservesTheFirstError()
+	{
+		// Arrange
+		var result = CreateFailure();
+
+		// Act
+		var bound = result.Bind(_ => new TenantDisabled(new TenantId("tenant-9")).AsFailure<TenantId>());
+
+		// Assert
+		await Assert.That(bound.IsFailure).IsTrue();
+		await Assert.That(bound.Error is TenantNotFound).IsTrue();
+	}
+
+	[Test]
+	public async Task Map_GivenGeneratedSuccess_InvokesTheMapping()
+	{
+		// Arrange
+		Result<Tenant, TenantError> result = new Tenant(new TenantId("tenant-1"));
+
+		// Act
+		var mapped = result.Map(tenant => tenant.TenantId.Value);
+
+		// Assert
+		await Assert.That(mapped.IsSuccess).IsTrue();
+		await Assert.That(mapped.Value).IsEqualTo("tenant-1");
+	}
+}

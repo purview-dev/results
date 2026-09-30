@@ -1,0 +1,27 @@
+<Solution>
+	<Folder Name="/Solution Items/">
+		<File Path="../.editorconfig" />
+		<File Path="../Directory.Packages.props" />
+		<File Path="../global.json" />
+		<File Path="../Justfile" />
+		<File Path="../nuget.config" />
+		<File Path="../package.json" />
+		<File Path="../purview-build.json" />
+		<File Path="Directory.Build.props" />
+		<File Path="Directory.Build.targets" />
+	</Folder>
+	<Folder Name="/src/">
+		<Project Path="src/Results/Results.csproj" />
+		<Project Path="src/Results.AspNetCore/Results.AspNetCore.csproj" />
+		<Project Path="src/Results.SourceGenerator/Results.SourceGenerator.csproj" />
+		<Project Path="src/Results.ZodSharp/Results.ZodSharp.csproj" />
+		<Project Path="src/Results.ZodSharp.AspNetCore/Results.ZodSharp.AspNetCore.csproj" />
+	</Folder>
+	<Folder Name="/tests/">
+		<Project Path="tests/Results.AspNetCore.UnitTests/Results.AspNetCore.UnitTests.csproj" />
+		<Project Path="tests/Results.SourceGenerator.UnitTests/Results.SourceGenerator.UnitTests.csproj" />
+		<Project Path="tests/Results.UnitTests/Results.UnitTests.csproj" />
+		<Project Path="tests/Results.ZodSharp.AspNetCore.UnitTests/Results.ZodSharp.AspNetCore.UnitTests.csproj" />
+		<Project Path="tests/Results.ZodSharp.UnitTests/Results.ZodSharp.UnitTests.csproj" />
+	</Folder>
+</Solution>

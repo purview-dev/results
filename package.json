@@ -12,5 +12,14 @@
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/purview-dev/results.git"
+	},
+	"scripts": {
+		"lint:slnx:check": "bun scripts/remove-slnx-guid-ids.ts check",
+		"lint:slnx:fix": "bun scripts/remove-slnx-guid-ids.ts fix",
+		"typecheck": "tsc --noEmit"
+	},
+	"devDependencies": {
+		"@types/bun": "^1.4.2",
+		"typescript": "^7.0.2"
 	}
 }

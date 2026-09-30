@@ -1,0 +1,45 @@
+<Project>
+	<!-- Version Definitions -->
+	<PropertyGroup Label=".NET Versions">
+		<DotNetRuntimeVersion>11.0.0-rc.1.26425.128</DotNetRuntimeVersion>
+	</PropertyGroup>
+	<PropertyGroup Label="Purview Versions">
+		<PurviewZodSharpVersion>2.0.0</PurviewZodSharpVersion>
+	</PropertyGroup>
+	<PropertyGroup Label="Source Generator Versions">
+		<PurviewSourceGeneratorFrameworkVersion>1.0.0-prerelease.54</PurviewSourceGeneratorFrameworkVersion>
+		<RoslynVersion>5.9.0</RoslynVersion>
+	</PropertyGroup>
+	<PropertyGroup Label="Testing Versions">
+		<TUnitVersion>1.68.17</TUnitVersion>
+	</PropertyGroup>
+	<!-- Packages -->
+	<ItemGroup Label="Purview">
+		<PackageVersion Include="Purview.ZodSharp" Version="$(PurviewZodSharpVersion)" />
+		<PackageVersion Include="Purview.ZodSharp.AspNetCore" Version="$(PurviewZodSharpVersion)" />
+	</ItemGroup>
+	<ItemGroup Label="Source Generators">
+		<PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="$(RoslynVersion)" />
+		<PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="$(RoslynVersion)" />
+		<PackageVersion
+			Include="Purview.SourceGeneratorFramework"
+			Version="$(PurviewSourceGeneratorFrameworkVersion)"
+		/>
+		<PackageVersion
+			Include="Purview.SourceGeneratorFramework.Testing.TUnit"
+			Version="$(PurviewSourceGeneratorFrameworkVersion)"
+		/>
+	</ItemGroup>
+	<ItemGroup Label=".NET Runtime">
+		<PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="$(DotNetRuntimeVersion)" />
+	</ItemGroup>
+	<ItemGroup Label="Other">
+		<PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
+	</ItemGroup>
+	<ItemGroup Label="Testing">
+		<PackageVersion Include="Bogus" Version="35.6.5" />
+		<PackageVersion Include="TUnit" Version="$(TUnitVersion)" />
+		<PackageVersion Include="TUnit.Core" Version="$(TUnitVersion)" />
+		<PackageVersion Include="TUnit.Mocks" Version="$(TUnitVersion)" />
+	</ItemGroup>
+</Project>

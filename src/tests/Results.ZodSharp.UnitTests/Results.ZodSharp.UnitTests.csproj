@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<ItemGroup>
+		<!--
+			The runtime Results library the generated AsFailure helpers target, the ZodSharp bridge under test, and
+			the source generator that produces the helpers for this project's own union.
+		-->
+		<ProjectReference Include="..\..\src\Results\Results.csproj" />
+		<ProjectReference Include="..\..\src\Results.ZodSharp\Results.ZodSharp.csproj" />
+		<ProjectReference
+			Include="..\..\src\Results.SourceGenerator\Results.SourceGenerator.csproj"
+			OutputItemType="Analyzer"
+			ReferenceOutputAssembly="false"
+			PrivateAssets="all"
+		/>
+	</ItemGroup>
+
+	<ItemGroup>
+		<!--
+			ZodSharp types (ValidationResult, ValidationError) are used directly by the tests, so the package
+			is referenced explicitly rather than relied on transitively.
+		-->
+		<PackageReference Include="Purview.ZodSharp" />
+	</ItemGroup>
+</Project>

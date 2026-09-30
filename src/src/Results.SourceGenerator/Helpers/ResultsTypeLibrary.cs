@@ -1,0 +1,56 @@
+namespace Purview.Results.SourceGeneration.Helpers;
+
+/// <summary>
+/// Provides the <c>TypeIdentity</c> values and namespaces the results source generator resolves
+/// against a compilation.
+/// </summary>
+/// <remarks>
+/// Only reusable framework identities live in the Source Generator Framework's own catalogue; the
+/// Library-specific identities below stay in this component so the framework remains generic.
+/// </remarks>
+static class ResultsTypeLibrary
+{
+	/// <summary>
+	/// The namespace of the runtime <c>Purview.Results</c> library.
+	/// </summary>
+	public const string ResultsNamespace = PropertyLibrary.ResultsNamespace;
+
+	/// <summary>
+	/// The namespace of the generated opt-in attribute.
+	/// </summary>
+	public const string SourceGenerationNamespace = PropertyLibrary.SourceGenerationNamespace;
+
+	/// <summary>
+	/// The namespace that contains the union contracts the language uses to describe unions.
+	/// </summary>
+	public const string RuntimeCompilerServicesNamespace = "System.Runtime.CompilerServices";
+
+	/// <summary>
+	/// The generated <c>GenerateResultAttribute</c> opt-in attribute.
+	/// </summary>
+	public static readonly TypeIdentity GenerateResultAttribute = new(
+		PropertyLibrary.GenerateResultAttributeName,
+		SourceGenerationNamespace
+	);
+
+	/// <summary>
+	/// The runtime <c>Result&lt;TValue, TError&gt;</c> result type. Callers apply the generic arguments
+	/// for a specific union.
+	/// </summary>
+	public static readonly TypeIdentity Result = new(typeName: "Result", @namespace: ResultsNamespace, arity: 2);
+
+	/// <summary>
+	/// The language-specific <c>System.Runtime.CompilerServices.IUnion</c> interface implemented by
+	/// declared unions.
+	/// </summary>
+	public static readonly TypeIdentity Union = new(typeName: "IUnion", @namespace: RuntimeCompilerServicesNamespace);
+
+	/// <summary>
+	/// The language-specific <c>System.Runtime.CompilerServices.UnionAttribute</c> attribute applied to
+	/// union types.
+	/// </summary>
+	public static readonly TypeIdentity UnionAttribute = new(
+		typeName: "UnionAttribute",
+		@namespace: RuntimeCompilerServicesNamespace
+	);
+}

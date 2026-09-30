@@ -1,0 +1,59 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<IsRoslynComponent>true</IsRoslynComponent>
+		<!--
+			The repository targets net11.0 repo-wide; a Roslyn component must target netstandard2.0 so that
+			any compiler host (including older SDKs and Visual Studio) can load it, and so no dependency
+			file is required next to the analyzer assembly.
+		-->
+		<TargetFramework>netstandard2.0</TargetFramework>
+		<!--
+			Every namespace in this component lives under Purview.Results.SourceGeneration, so the
+			root namespace is aligned with that identity instead of the project name. This keeps
+			namespace/folder alignment (IDE0130) meaningful and gives the packed analyzer a sensible
+			assembly/package identity.
+		-->
+		<RootNamespace>Purview.Results.SourceGeneration</RootNamespace>
+		<Title>Purview Results Source Generator</Title>
+		<Description>.NET source generator that makes C# 15 union error cases ergonomic to use with the Purview.Results Result&lt;TValue, TError&gt; type.</Description>
+		<PackageTags>source-generator;results;result;union;unions;csharp-15;net11;purview;results;</PackageTags>
+		<!--
+			The generator reads this compiler-visible MSBuild property to allow consumers to turn it off.
+			When this component is packaged, the same declaration must also be shipped as a build/*.props
+			asset so PackageReference consumers receive it.
+		-->
+		<ResultsSourceGeneratorDisableProperty>ResultsSourceGenerator_Disable</ResultsSourceGeneratorDisableProperty>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.CodeAnalysis.Analyzers" PrivateAssets="all" />
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
+		<PackageReference Include="Purview.SourceGeneratorFramework" PrivateAssets="all" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!--
+			Declares the one property this generator reads from build configuration. The framework's
+			PSGF0003 validation fails the build when a declared generator-read property is not
+			compiler-visible.
+		-->
+		<PurviewGeneratorVisibleProperty Include="$(ResultsSourceGeneratorDisableProperty)" />
+		<CompilerVisibleProperty Include="$(ResultsSourceGeneratorDisableProperty)" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!--
+			The generator reports diagnostics, so the compiler's release-tracking analyzer (RS2008) requires
+			the rule catalogue to be declared in an AnalyzerReleases file.
+		-->
+		<AdditionalFiles Include="AnalyzerReleases.Unshipped.md" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!--
+			The BuildSdk automatically references the sibling shared project (../Shared*/Shared*.csproj),
+			which targets net11.0 and therefore cannot be consumed by a netstandard2.0 Roslyn component.
+		-->
+		<ProjectReference Remove="..\Shared\Shared.csproj" />
+	</ItemGroup>
+</Project>

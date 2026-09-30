@@ -1,0 +1,22 @@
+<Project>
+	<PropertyGroup>
+		<NamespacePrefix>Purview</NamespacePrefix>
+		<RepositoryUrl>https://github.com/purview-dev/results</RepositoryUrl>
+
+		<!-- .NET 11 + Preview stuff! -->
+		<TargetFramework>net11.0</TargetFramework>
+		<LangVersion>preview</LangVersion>
+		<EnablePreviewFeatures>true</EnablePreviewFeatures>
+		<Features>$(Features);runtime-async=on</Features>
+
+		<!--
+			These packages are deliberately dependency-light: no telemetry generator, no Microsoft.Extensions
+			telemetry abstractions. Consumers opt into telemetry in their own host, so the SDK's telemetry defaults
+			are excluded repo-wide.
+		-->
+		<ExcludePurviewTelemetry>true</ExcludePurviewTelemetry>
+		<ExcludeMSTelemetryExtension>true</ExcludeMSTelemetryExtension>
+	</PropertyGroup>
+
+	<Import Sdk="Purview.BuildSdk" Project="Sdk.props" />
+</Project>

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<Title>Purview Results ASP.NET Core</Title>
+		<Description>Maps Purview.Results results onto ASP.NET Core responses, including ProblemDetails for expected failures.</Description>
+		<PackageTags>results;result;aspnetcore;problemdetails;minimal-api;purview;</PackageTags>
+	</PropertyGroup>
+
+	<!--
+		This package deliberately knows nothing about ZodSharp: it maps results onto responses using the mappings a
+		host registers for its own error types. Consumers that want validation failures rendered as
+		HttpValidationProblemDetails also reference Purview.Results.ZodSharp.AspNetCore.
+	-->
+	<ItemGroup>
+		<FrameworkReference Include="Microsoft.AspNetCore.App" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\Results\Results.csproj" />
+	</ItemGroup>
+</Project>
