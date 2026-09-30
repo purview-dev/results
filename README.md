@@ -204,6 +204,18 @@ the host mapping it — unless a rule answers one of its codes or categories:
 }
 ```
 
+## Documentation
+
+The full documentation suite lives in [`docs/wiki`](docs/wiki/Getting-Started.md):
+
+- [Getting started](docs/wiki/Getting-Started.md)
+- [Core concepts](docs/wiki/Core-Concepts.md) and [combinators](docs/wiki/Combinators.md)
+- [Union errors](docs/wiki/Union-Errors.md)
+- [Source generator](docs/wiki/Source-Generator.md) and [diagnostics](docs/wiki/Diagnostics.md)
+- [ASP.NET Core integration](docs/wiki/AspNetCore-Integration.md)
+- [ZodSharp integration](docs/wiki/ZodSharp-Integration.md) and [problem details](docs/wiki/ZodSharp-ProblemDetails.md)
+- [Guarantees and limitations](docs/wiki/Guarantees-and-Limitations.md)
+
 ## Requirements
 
 - **.NET 11 SDK or later** — the runtime packages target `net11.0`; the source generator targets
@@ -224,6 +236,7 @@ the host mapping it — unless a rule answers one of its codes or categories:
 | `src/src/<Project>/Sdk` | Package-only assets: `README.md` (packed as the package README) and any `Sdk/.agents/**` skills |
 | `src/tests` | TUnit unit tests, including source-generation and incremental-cache tests |
 | `src/examples` | Runnable, non-packable examples: one project per integration aspect, built on the Tenant* domain |
+| `docs/wiki` | User-facing documentation suite, aggregated by the purview-dev website |
 | `Directory.Packages.props` | Centrally managed NuGet versions |
 | `src/Directory.Build.props` / `src/Directory.Build.targets` | Solution-wide SDK, package and build behaviour |
 | `global.json` | Required .NET SDK, `Purview.BuildSdk` and Microsoft.Testing.Platform selection |
