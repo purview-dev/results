@@ -75,9 +75,12 @@ public sealed class DefaultResultsHttpMapper(
 		if (errorType is not null && errorType != caseType && _options.TryGetMapper(errorType, out var errorMapper))
 			return errorMapper(error!, context);
 
-		// Fallbacks see the case, so per-error-type behaviour does not have to unwrap a union itself.
+		// Fallbacks see the case, so per-error-type behaviour does not have to unwrap a union itself; the context
+		// also carries the error, so a shape-based mapper can look at the union as a whole.
+		ResultsFailureContext failure = new(caseValue, error, context);
+
 		foreach (var fallback in _options.Fallbacks)
-			if (fallback(caseValue, context) is { } mapped)
+			if (fallback(failure) is { } mapped)
 				return mapped;
 
 		var unmappedType = caseType ?? errorType;

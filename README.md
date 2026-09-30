@@ -1,5 +1,6 @@
 # Purview Results
 
+[![NuGet version](https://img.shields.io/nuget/v/Purview.Results.svg)](https://www.nuget.org/packages/Purview.Results)
 [![Release](https://github.com/purview-dev/results/actions/workflows/release.yml/badge.svg)](https://github.com/purview-dev/results/actions/workflows/release.yml)
 
 Purview result types for .NET — a small, dependency-light `Result<TValue, TError>` type, C# 15 union ergonomics
@@ -9,7 +10,7 @@ Exceptional circumstances still throw; expected outcomes are values.
 ## Packages
 
 | Package | Purpose | Targets |
-|---|---|---|
+| --- | --- | --- |
 | [`Purview.Results`](src/src/Results/Sdk/README.md) | `Result<TValue, TError>` and the `Result` factories. No dependencies. | `net11.0` |
 | [`Purview.Results.SourceGenerator`](src/src/SourceGenerator/Sdk/README.md) | Generates `AsFailure<TValue>()` helpers for `[GenerateResult]` unions. | `netstandard2.0` |
 | [`Purview.Results.ZodSharp`](src/src/ZodSharp/Sdk/README.md) | Bridges ZodSharp `ValidationResult<T>` values into results. | `net11.0` |
@@ -47,7 +48,9 @@ public readonly record struct TenantAlreadyExists(TenantId TenantId);
 The generator cannot make a bare case value convert implicitly — C# forbids operators in a static class,
 conversion operators in extension members, and more than one user-defined conversion per sequence — so the
 per-case helper is the ergonomics the language allows. The generator package also ships a code fix for the
-IDE, and returning the union itself (`(TenantError)new TenantNotFound(id)`) is the only helper-free form; see
+IDE and a diagnostic suppressor that answers `CA1815` for opted-in unions, so a `[GenerateResult]` union needs
+no `#pragma warning disable CA1815`, and returning the union itself
+(`(TenantError)new TenantNotFound(id)`) is the only helper-free form; see
 the [generator package README](src/src/SourceGenerator/Sdk/README.md) for the compiler evidence.
 
 Expose the result over HTTP with the ASP.NET Core package, which maps each error case to a response:
@@ -59,6 +62,146 @@ builder.Services.AddResultsHttp(options => options
 );
 
 app.MapGet("/tenants/{id:int}", (int id) => GetTenant(id)).WithResultsHttp();
+```
+
+## Examples
+
+Every example is a runnable, non-packable project under [`src/examples`](src/examples), built on the same
+Tenancy domain the Quick start uses, so the one `TenantError` union drives all four integration aspects.
+
+| Example | Packages | Demonstrates |
+| --- | --- | --- |
+| [`Examples.Basic`](src/examples/Examples.Basic) | `Purview.Results`, `Purview.Results.SourceGenerator` | States, `Match`/`Map`/`Bind`/`MapError`/`Ensure`, probing, the throw-on-misuse contract, and the generated `AsFailure<TValue>()` helper |
+| [`Examples.Zod`](src/examples/Examples.Zod) | + `Purview.Results.ZodSharp` | A `[ZodSchema]` input validated into a result, where the rejection carries its `ValidationError`s |
+| [`Examples.AspNetCore`](src/examples/Examples.AspNetCore) | + `Purview.Results.AspNetCore` | `AddResultsHttp`/`Map`/`WithResultsHttp`, including the mapping-gap and uninitialized-result paths |
+| [`Examples.AspNetCore.Zod`](src/examples/Examples.AspNetCore.Zod) | + `Purview.Results.ZodSharp.AspNetCore` | A validation-carrying failure rendered as `HttpValidationProblemDetails`, with a case mapping winning over the fallback |
+
+```bash
+dotnet run --project src/examples/Examples.Basic
+dotnet run --project src/examples/Examples.Zod
+dotnet run --project src/examples/Examples.AspNetCore --urls http://localhost:5215
+dotnet run --project src/examples/Examples.AspNetCore.Zod --urls http://localhost:5216
+```
+
+### Basic
+
+`Result<Tenant, TenantError>` holds one of three states — `Uninitialized` (the `default` value), `Success` or
+`Failure` — and every expected outcome is read from the value rather than caught:
+
+```csharp
+Result<Tenant, TenantError> GetTenant(TenantId tenantId) =>
+    _tenants.TryGetValue(tenantId, out var tenant)
+        ? Result<Tenant, TenantError>.Success(tenant)
+        : new TenantNotFound(tenantId).AsFailure<Tenant>();
+
+var loaded = GetTenant(tenantId);
+
+loaded.Match(tenant => $"loaded '{tenant.Name}'", error => $"could not load the tenant: {error}");
+loaded.Map(tenant => tenant.Name);
+loaded.Bind(tenant => store.CreateTenant(new TenantId("newco"), tenant.Name));
+loaded.Ensure(tenant => tenant.Enabled, tenant => new TenantDisabled(tenant.Id));
+loaded.TryGetError(out var error);   // probing never throws, even for `default`
+loaded.Value;                        // throws InvalidOperationException unless the result is a success
+```
+
+### Zod
+
+ZodSharp validation never throws: `Validate` returns a `ValidationResult<TenantInput>` carrying the validated
+value on success and every `ValidationError` on failure. `ToResult` turns that into an ordinary result whose
+error is one of the union's cases:
+
+```csharp
+[ZodSchema]
+public sealed partial record TenantInput
+{
+    [Required]
+    public string? TenantId { get; init; }
+
+    [Required]
+    public string? Name { get; init; }
+}
+
+Result<Tenant, TenantError> Register(TenantInput input) =>
+    TenantInputSchema
+        .Validate(input)
+        .ToResult<TenantInput, TenantError>(errors => new TenantInputInvalid(input, errors))
+        .Bind(RegisterValidated);
+```
+
+When the value the method succeeds with is not the validated value, the generated helper produces the failure
+instead, because the validated value cannot be carried forward:
+
+```csharp
+var validation = TenantInputSchema.Validate(input);
+
+if (!validation.IsSuccess)
+    return new TenantInputInvalid(input, validation.Errors).AsFailure<Tenant>();
+
+return RegisterValidated(validation.Value);
+```
+
+### ASP.NET Core
+
+The host decides what each error case looks like on the wire. A mapping registered for the **case** type wins;
+the mapping registered for the **error** type covers every case without one:
+
+```csharp
+builder.Services.AddResultsHttp(options => options
+    .Map<TenantNotFound>(error => TypedResults.NotFound(new { error = nameof(TenantNotFound), tenantId = error.TenantId.Value }))
+    .Map<TenantDisabled>(error => TypedResults.Problem(statusCode: StatusCodes.Status403Forbidden, title: "The tenant is disabled."))
+    .Map<TenantError>(_ => TypedResults.Problem(statusCode: StatusCodes.Status409Conflict, title: "The tenant already exists."))
+);
+
+app.MapGet("/tenants/{id}", (string id) => store.GetTenant(new TenantId(id))).WithResultsHttp();
+```
+
+Running `Examples.AspNetCore` answers as follows:
+
+| Request | Response |
+| --- | --- |
+| `GET /tenants/acme` | `200 OK` with the tenant |
+| `GET /tenants/initech` | `404 Not Found` — the mapping for the `TenantNotFound` case |
+| `GET /tenants/globex/usage` | `403 Forbidden` — the mapping for the `TenantDisabled` case |
+| `POST /tenants/acme` | `409 Conflict` — the mapping for the `TenantError` error type |
+| `GET /tenants/broken` | `500` with an `errorType` extension, because an endpoint returning `default` is a host bug |
+
+**Case** and **error** mappings are keyed by type. When the answer depends on the *value* a failure carries — a
+validation code, a category, a field — add an `IResultsFailureMapper` instead, in the same ordered list:
+
+```csharp
+builder.Services.AddSingleton<ReservedTenantFailureMapper>();
+builder.Services.AddResultsHttp(options => options
+    .Map<TenantNotFound>(_ => TypedResults.NotFound())
+    .AddFailureMapper<ReservedTenantFailureMapper>());
+```
+
+### ASP.NET Core + Zod
+
+Register the validation mapping last, so any mapping or failure mapper the host declared earlier always wins, and
+reuse the ZodSharp problem mapper rather than reimplementing error-to-problem mapping. Per-code and per-category
+rules answer particular validation failures with a response of their own:
+
+```csharp
+builder.Services.AddZodSharpProblemDetails();
+builder.Services.AddResultsHttp(options => options
+    .Map<TenantAlreadyExists>(error => TypedResults.Problem(statusCode: StatusCodes.Status409Conflict))
+);
+builder.Services.AddResultsZodSharpHttp(options => options
+    .MapCode("tenant_id_matches_name", StatusCodes.Status422UnprocessableEntity)
+);
+```
+
+A `TenantInputInvalid` failure implements `IValidationErrorCarrier`, so it becomes a validation problem without
+the host mapping it — unless a rule answers one of its codes or categories:
+
+```json
+{
+  "title": "One or more validation errors occurred.",
+  "status": 400,
+  "errors": { "TenantId": ["Required field 'TenantId' is null"] },
+  "issues": [{ "code": "missing_field", "path": ["TenantId"], "message": "Required field 'TenantId' is null" }],
+  "traceId": "0HNOUQVQNF7CV:00000001"
+}
 ```
 
 ## Requirements
@@ -80,6 +223,7 @@ app.MapGet("/tenants/{id:int}", (int id) => GetTenant(id)).WithResultsHttp();
 | `src/src/ZodSharp.AspNetCore` | `HttpValidationProblemDetails` mapping for validation-carrying failures |
 | `src/src/<Project>/Sdk` | Package-only assets: `README.md` (packed as the package README) and any `Sdk/.agents/**` skills |
 | `src/tests` | TUnit unit tests, including source-generation and incremental-cache tests |
+| `src/examples` | Runnable, non-packable examples: one project per integration aspect, built on the Tenant* domain |
 | `Directory.Packages.props` | Centrally managed NuGet versions |
 | `src/Directory.Build.props` / `src/Directory.Build.targets` | Solution-wide SDK, package and build behaviour |
 | `global.json` | Required .NET SDK, `Purview.BuildSdk` and Microsoft.Testing.Platform selection |
@@ -118,4 +262,3 @@ to `main` runs the shared `Purview.Build` release pipeline, which packs, publish
 ## License
 
 MIT — see [LICENSE.md](LICENSE.md).
-

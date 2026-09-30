@@ -24,28 +24,80 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddZodSharpProblemDetails();
 builder.Services.AddResultsHttp();
-builder.Services.AddResultsZodSharpHttp();
+
+// Every validation-carrying failure becomes one validation problem, except the codes and categories that a
+// rule answers with something else.
+builder.Services.AddResultsZodSharpHttp(options => options
+    .MapCode("tenant_not_found", StatusCodes.Status404NotFound)
+    .MapCategory("invalid_value", StatusCodes.Status422UnprocessableEntity)
+);
 
 var app = builder.Build();
 
 app.MapPost("/reconcile", (ReconciliationRequest request) => Reconcile(request)).WithResultsHttp();
 ```
 
-`AddResultsZodSharpHttp` registers the mapping as a **fallback**, so a mapping the host registered for a
-specific error case always wins, and a mapping registered for the error type still wins over it.
+`AddResultsZodSharpHttp` registers the mapping as a **failure mapper**, so a mapping the host registered for a
+specific error case always wins, a mapping registered for the error type wins, and a host failure mapper
+registered before it wins too.
+
+## Answering by validation error code or category
+
+| Member | Purpose |
+| --- | --- |
+| `MapCode(string code, int statusCode)` | Renders the validation problem with a different default status |
+| `MapCode(string code, Func<ImmutableArray<ValidationError>, HttpContext, IResult?>)` | Renders a response of your own |
+| `MapCategory(string category, int statusCode)` | The same, for a category that spans many codes |
+| `MapCategory(string category, Func<ImmutableArray<ValidationError>, HttpContext, IResult?>)` | Renders a response of your own |
+
+A rule applies when **any** of the failure's errors carries its code or category, so a registered code rule is
+always reachable whatever else the schema reported. Matching walks the **code** rules first, then the **category**
+rules, each in registration order, and finally the default validation problem — a code is narrower than a
+category, so it wins however the two were registered. A factory that wants stricter semantics returns `null` to
+decline the failure, and matching continues:
+
+```csharp
+options
+    // A code rule that only answers a failure whose every error is that code.
+    .MapCode("tenant_not_found", (errors, context) =>
+        errors.All(error => error.Code == "tenant_not_found")
+            ? TypedResults.NotFound()
+            : null)
+    // A category rule that answers the failures the code rule declined.
+    .MapCategory("invalid_value", StatusCodes.Status422UnprocessableEntity);
+```
+
+A factory receives the failure's **full error set**, so a rule never hides the other problems the caller has to
+fix, and the `int statusCode` overloads still render every error as an `HttpValidationProblemDetails`. A code or
+category registered twice with different behaviour is rejected at configuration time.
 
 ## API
 
 | Member | Purpose |
 | --- | --- |
-| `AddResultsZodSharpHttp()` | Registers the ZodSharp options and adds the validation-problem fallback to `ResultsHttpOptions` |
+| `AddResultsZodSharpHttp(Action<ZodResultsHttpOptions>? configure = null)` | Registers the ZodSharp options and adds the validation failure mapper to `ResultsHttpOptions` |
+| `ZodResultsHttpOptions.MapCode` / `.MapCategory` | The per-code and per-category rules described above |
+| `ZodResultsFailureMapper` | The mapper itself, for a host that wants to register or compose it by hand |
 | `IValidationErrorCarrier.ToValidationProblem(HttpContext, int statusCode = 400)` | Creates the validation problem for the errors the error value carries |
 | `ImmutableArray<ValidationError>.ToValidationProblem(HttpContext, int statusCode = 400)` | Creates the validation problem for a set of errors |
 | `ZodValidationProblems.ToProblem(errors, options, defaultStatusCode = 400, traceId = null)` | The underlying mapper, for hosts that resolve the options themselves |
 
 The status code resolved by `ZodProblemDetailsOptions.StatusCodeSelector` wins; `statusCode` (or
-`defaultStatusCode`) is only used when the resolved error type does not define one. The trace identifier is
-included when `ResultsHttpOptions.IncludeTraceId` is `true` (the default).
+`defaultStatusCode`, or a rule's `statusCode`) is only used when the resolved error type does not define one. The
+trace identifier is included when `ResultsHttpOptions.IncludeTraceId` is `true` (the default).
+
+## Examples
+
+[`src/examples/Examples.AspNetCore.Zod`](https://github.com/purview-dev/results/tree/main/src/examples/Examples.AspNetCore.Zod)
+is a runnable minimal-API example where a `TenantInputInvalid` failure carrying ZodSharp errors becomes a `400`
+validation problem, while the host's own `TenantAlreadyExists` mapping still returns `409`.
+
+```bash
+dotnet run --project src/examples/Examples.AspNetCore.Zod --urls http://localhost:5216
+```
+
+The [repository README](https://github.com/purview-dev/results#examples) lists the Basic, ZodSharp and
+ASP.NET Core examples too.
 
 ## Related packages
 

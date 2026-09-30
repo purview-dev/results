@@ -56,6 +56,19 @@ A factory returning a result rather than an error is deliberately **not** offere
 `Result<TValue, TError>` the compiler prefers a `Func<..., TError>` parameter and would silently nest the
 results. Naming the error type explicitly keeps the intent unambiguous.
 
+## Examples
+
+[`src/examples/Examples.Zod`](https://github.com/purview-dev/results/tree/main/src/examples/Examples.Zod) is a
+runnable console example that validates a `[ZodSchema] TenantInput` and turns the outcome into a
+`Result<Tenant, TenantError>`, with the rejection carrying its reported `ValidationError`s.
+
+```bash
+dotnet run --project src/examples/Examples.Zod
+```
+
+The [repository README](https://github.com/purview-dev/results#examples) lists the Basic, ASP.NET Core and
+ASP.NET Core + Zod examples too.
+
 ## Related packages
 
 | Package | Purpose |

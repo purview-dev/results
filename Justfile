@@ -108,6 +108,26 @@ pack publish_folder=artifacts_folder *args:
     echo "  Current version is {{ BLUE }}{{ current_version }}{{ NORMAL }}"
     dotnet pack {{ solution }} -c {{ build_configuration }} -o {{ publish_folder }} {{ args }}
 
+# Run the Basic example (result states, combinators and the generated AsFailure helpers)
+[group('Examples')]
+example-basic *args:
+    dotnet run --project src/examples/Examples.Basic {{ args }}
+
+# Run the ZodSharp example (a validation outcome flowing through the result pipeline)
+[group('Examples')]
+example-zod *args:
+    dotnet run --project src/examples/Examples.Zod {{ args }}
+
+# Run the ASP.NET Core example (result-to-response mapping), listening on http://localhost:5215
+[group('Examples')]
+example-aspnetcore *args:
+    dotnet run --project src/examples/Examples.AspNetCore --urls http://localhost:5215 {{ args }}
+
+# Run the ASP.NET Core + ZodSharp example (validation problems from result failures), listening on http://localhost:5216
+[group('Examples')]
+example-aspnetcore-zod *args:
+    dotnet run --project src/examples/Examples.AspNetCore.Zod --urls http://localhost:5216 {{ args }}
+
 # Open the solution in Visual Studio/ Registered application
 [group('Utilities')]
 vs:

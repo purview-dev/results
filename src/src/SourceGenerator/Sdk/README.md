@@ -110,6 +110,9 @@ needs no generated code.
 - **One analyzer, one generator, one diagnostics library.** `ResultsDiagnosticAnalyzer` raises the per-target
   rules and the generator shares the same analysis to decide whether generation can continue (see
   [Diagnostics](#diagnostics)).
+- **One suppressor, with one narrow job.** `UnionEqualityDiagnosticSuppressor` answers `CA1815` for opted-in
+  unions (see [Diagnostic suppressions](#diagnostic-suppressions)). It reports no diagnostics of its own, so it
+  cannot hide a rule.
 - **Union membership is decided by the language** (`ITypeSymbol.IsUnion`), never by type names, source text,
   reflection or the union's runtime value.
 - **Case types come from the language's own rule**: a union's public single-parameter constructors define its
@@ -151,6 +154,43 @@ The diagnostics live in one shared library (`Diagnostics/DiagnosticLibrary.cs` +
 
 Case-level findings never block the union: the remaining cases are still generated, and the skipped case is
 reported.
+
+## Diagnostic suppressions
+
+A union declaration gets no value equality from the compiler, so every union raises `CA1815` ("Override equals
+and operator equals on value types") unless it is silenced by hand with a `#pragma warning disable CA1815` or a
+`[SuppressMessage]`. A `[GenerateResult]` union is the error type of a result and is read by matching its case
+type, not by comparing two unions by value, so the package answers that warning for you:
+
+| Suppression ID | Suppressed rule | Applies to |
+| --- | --- | --- |
+| `RSG2000` | `CA1815` | A declaration that is a union **and** is opted in with `[GenerateResult]` |
+
+The suppression is narrow on purpose:
+
+- A union without `[GenerateResult]` keeps the warning — this package only speaks for the unions it generates
+  for.
+- The union's **case types** keep the warning, as does every other value type. A case declared as a plain
+  `struct` still gets `CA1815`; a `record struct` case never gets it, because records synthesise equality.
+- Nothing is hidden: a suppressor can only suppress non-error, configurable diagnostics, and `RSG2000` is a
+  suppression id rather than a rule, so `RSG1000`–`RSG1007` remain the only diagnostics this package reports.
+
+Every suppression is logged as an `Info` diagnostic against `RSG2000`, in the verbose build log and in an
+MSBuild binlog (and as a suppressed diagnostic in an `/errorlog` SARIF file), so a build can always be audited
+for what it suppressed.
+
+**Keeping `CA1815`.** Add `RSG2000` to the compiler's warning suppressions, for example
+`<NoWarn>$(NoWarn);RSG2000</NoWarn>` in the project file (or `/nowarn:RSG2000` on a compiler invocation). The
+warning then returns for every union declaration, including the opted-in ones.
+
+```xml
+<PropertyGroup>
+	<NoWarn>$(NoWarn);RSG2000</NoWarn>
+</PropertyGroup>
+```
+
+Declaring equality on the union is the other way to keep `CA1815` satisfied — it is the code the warning asks
+for, and a union that has it never raises the warning in the first place, so the suppressor has nothing to do.
 
 ## Build properties
 
@@ -200,11 +240,30 @@ multiple unions, namespaces, accessibility, case kinds, diagnostics, incremental
 the compiler experiments above, and runtime/integration tests that execute the generated helpers against the
 real `Result<TValue, TError>` type.
 
+The suppressor is covered by `UnionEqualityDiagnosticSuppressorTests`. The real `CA1815` comes from the .NET
+analyzers the SDK loads, which a unit-test compilation cannot reference, so those tests report the same id at the
+same location from a test-only analyzer (`Ca1815ReporterAnalyzer`) and run it beside the shipped suppressor
+through `CompilationWithAnalyzers`. The compilation under test is still a real one: it is produced by running the
+generator, so the union, the generated attribute and the generated helpers are all present.
+
 The code-fix tests live in `UnionCaseResultCodeFixProviderTests` and use `UnionCodeFixTestHarness`: the
 framework's code-fix test base is driven by an analyzer's diagnostics, and this fix answers a compiler
 diagnostic, so the harness builds the compilation itself, runs the generator (the generated attribute and
 helpers must exist for the rewrite to bind), applies the fix through an `AdhocWorkspace`, and recompiles the
 rewritten source to prove it compiles.
+
+## Examples
+
+[`src/examples/Examples.Basic`](https://github.com/purview-dev/results/tree/main/src/examples/Examples.Basic)
+declares a `[GenerateResult]` union over the Tenant* domain the README uses and calls the helper this generator
+emits for each of its cases:
+
+```csharp
+Result<Tenant, TenantError> result = new TenantNotFound(tenantId).AsFailure<Tenant>();
+```
+
+The [repository README](https://github.com/purview-dev/results#examples) covers the ZodSharp, ASP.NET Core and
+ASP.NET Core + Zod examples as well.
 
 ## Agent skills
 

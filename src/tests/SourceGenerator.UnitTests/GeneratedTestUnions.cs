@@ -26,9 +26,9 @@ public readonly record struct TenantAlreadyExists(TenantId TenantId);
 public readonly record struct Tenant(TenantId TenantId);
 
 /// <summary>The errors a tenant operation can produce.</summary>
-// The C# union declaration does not synthesise value equality, and these test types are compared by case
-// in the tests, so CA1815 is not meaningful here.
-#pragma warning disable CA1815
+/// <remarks>
+/// CA1815 is not raised for this declaration: the package's suppressor answers it for every union opted in
+/// with <c>[GenerateResult]</c>, so no pragma or suppress-message attribute is needed here.
+/// </remarks>
 [GenerateResult]
 public readonly union TenantError(TenantNotFound, TenantDisabled, TenantAlreadyExists);
-#pragma warning restore CA1815

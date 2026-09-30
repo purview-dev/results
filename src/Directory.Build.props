@@ -25,14 +25,21 @@
 		$(CurrentYear). Each packable project opts in with <IsPackable>true</IsPackable> in its own
 		project file, because the SDK reads that declaration from the project file text.
 
-		PackageProjectUrl points at the repository: purview.dev does not publish a `results` project
-		page yet, so a purview.dev link would be a dead end.
+		PurviewProjectUrl/PurviewDocsUrl are the site's project and documentation pages for this
+		repository, matching the other purview-dev repos; PackageProjectUrl points at the project
+		page rather than the repository.
 	-->
+	<PropertyGroup Label="Purview site URL metadata">
+		<PurviewHomepage>https://purview.dev/</PurviewHomepage>
+		<PurviewProjectUrl>$(PurviewHomepage)projects/results/</PurviewProjectUrl>
+		<PurviewDocsUrl>$(PurviewHomepage)docs/results/</PurviewDocsUrl>
+	</PropertyGroup>
+
 	<PropertyGroup Label="NuGet package metadata">
 		<Authors>Kieron Lanning</Authors>
 		<Company>Purview-Dev</Company>
 		<Copyright>Copyright © $(CurrentYear) Purview-Dev</Copyright>
-		<PackageProjectUrl>$(RepositoryUrl)</PackageProjectUrl>
+		<PackageProjectUrl>$(PurviewProjectUrl)</PackageProjectUrl>
 		<RepositoryType>git</RepositoryType>
 		<PublishRepositoryUrl>true</PublishRepositoryUrl>
 		<PackageIcon>purview-logo-light.png</PackageIcon>
