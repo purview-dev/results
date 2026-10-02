@@ -20,6 +20,12 @@
 
 	<Import Sdk="Purview.BuildSdk" Project="Sdk.props" />
 
+	<ItemGroup>
+		<NamespaceRemoveSuffix Remove="SourceGenerator" />
+		<NamespaceRemoveSuffix Remove="CodeFixes" />
+		<NamespaceRemoveSuffix Remove="Analyzers" />
+	</ItemGroup>
+
 	<!--
 		Package metadata lives after the SDK import so it can use SDK-provided values such as
 		$(CurrentYear). Each packable project opts in with <IsPackable>true</IsPackable> in its own

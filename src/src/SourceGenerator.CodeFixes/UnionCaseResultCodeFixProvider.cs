@@ -12,7 +12,7 @@ using Microsoft.CodeAnalysis.Text;
 // ITypeSymbol.IsUnion is [Experimental] until C# 15 union support ships, and this provider targets it.
 #pragma warning disable RSEXPERIMENTAL006
 
-namespace Purview.Results.SourceGeneration.CodeFixes;
+namespace Purview.Results.SourceGenerator.CodeFixes;
 
 /// <summary>
 /// Offers the generated <c>AsFailure&lt;TValue&gt;()</c> helper when a union case value is returned where a
@@ -40,7 +40,7 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 	const string EquivalenceKey = "PurviewResultsUseAsFailure";
 	const string ResultNamespace = "Purview.Results";
 	const string ResultMetadataName = "Result`2";
-	const string SourceGenerationNamespace = "Purview.Results.SourceGeneration";
+	const string SourceGenerationNamespace = "Purview.Results.SourceGenerator";
 	const string GenerateResultAttributeMetadataName = "GenerateResultAttribute";
 	const string FailureHelperName = "AsFailure";
 

@@ -1,4 +1,4 @@
-using Purview.Results.SourceGeneration;
+using Purview.Results.SourceGenerator;
 
 namespace Purview.Results.AspNetCore;
 

@@ -1,7 +1,7 @@
-using System.Collections.Immutable;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Purview.Results.AspNetCore;
+using System.Collections.Immutable;
 using ZodSharp.Core;
 
 namespace Purview.Results.ZodSharp.AspNetCore;
@@ -19,15 +19,15 @@ public sealed class ZodSharpResultsHttpRegistrationTests
 		var context = CreateContext(services);
 
 		// Act
-		var (StatusCode, Body) = await ExecuteAsync(
+		var (statusCode, body) = await ExecuteAsync(
 			mapper.Map(new InputRejected(7, CreateErrors()).AsFailure<int>(), context),
 			context
 		);
 
 		// Assert
-		await Assert.That(StatusCode).IsEqualTo(StatusCodes.Status400BadRequest);
-		await Assert.That(Body).Contains(InvalidNameCode);
-		await Assert.That(Body).Contains(context.TraceIdentifier);
+		await Assert.That(statusCode).IsEqualTo(StatusCodes.Status400BadRequest);
+		await Assert.That(body).Contains(InvalidNameCode);
+		await Assert.That(body).Contains(context.TraceIdentifier);
 	}
 
 	[Test]
@@ -39,11 +39,11 @@ public sealed class ZodSharpResultsHttpRegistrationTests
 		var context = CreateContext(services);
 
 		// Act
-		var (StatusCode, Body) = await ExecuteAsync(mapper.Map(new ItemMissing(7).AsFailure<int>(), context), context);
+		var (statusCode, body) = await ExecuteAsync(mapper.Map(new ItemMissing(7).AsFailure<int>(), context), context);
 
 		// Assert
-		await Assert.That(StatusCode).IsEqualTo(StatusCodes.Status500InternalServerError);
-		await Assert.That(Body).Contains(nameof(ItemMissing));
+		await Assert.That(statusCode).IsEqualTo(StatusCodes.Status500InternalServerError);
+		await Assert.That(body).Contains(nameof(ItemMissing));
 	}
 
 	[Test]
@@ -59,14 +59,14 @@ public sealed class ZodSharpResultsHttpRegistrationTests
 		var context = CreateContext(services);
 
 		// Act
-		var (StatusCode, Body) = await ExecuteAsync(
+		var (statusCode, body) = await ExecuteAsync(
 			mapper.Map(new InputRejected(7, CreateErrors()).AsFailure<int>(), context),
 			context
 		);
 
 		// Assert
-		await Assert.That(StatusCode).IsEqualTo(StatusCodes.Status409Conflict);
-		await Assert.That(Body).Contains("rejected 7");
+		await Assert.That(statusCode).IsEqualTo(StatusCodes.Status409Conflict);
+		await Assert.That(body).Contains("rejected 7");
 	}
 
 	[Test]
@@ -78,14 +78,14 @@ public sealed class ZodSharpResultsHttpRegistrationTests
 		var context = CreateContext(services);
 
 		// Act
-		var (StatusCode, Body) = await ExecuteAsync(
+		var (statusCode, body) = await ExecuteAsync(
 			mapper.Map(new AggregateRejected("operation", CreateErrors()).AsFailure<int>(), context),
 			context
 		);
 
 		// Assert
-		await Assert.That(StatusCode).IsEqualTo(StatusCodes.Status400BadRequest);
-		await Assert.That(Body).Contains(InvalidNameCode);
+		await Assert.That(statusCode).IsEqualTo(StatusCodes.Status400BadRequest);
+		await Assert.That(body).Contains(InvalidNameCode);
 	}
 
 	static ServiceProvider CreateServices(Action<ResultsHttpOptions>? configure = null)

@@ -22,12 +22,11 @@
 		-->
 		<TargetFramework>netstandard2.0</TargetFramework>
 		<!--
-			Every namespace in this component lives under Purview.Results.SourceGeneration, so the
+			Every namespace in this component lives under Purview.Results.SourceGenerator, so the
 			root namespace is aligned with that identity instead of the project name. This keeps
 			namespace/folder alignment (IDE0130) meaningful and gives the packed analyzer a sensible
 			assembly/package identity.
 		-->
-		<RootNamespace>Purview.Results.SourceGeneration</RootNamespace>
 		<Title>Purview Results Source Generator</Title>
 		<Description>.NET source generator that makes C# 15 union error cases ergonomic to use with the Purview.Results Result&lt;TValue, TError&gt; type.</Description>
 		<PackageTags>source-generator;results;result;union;unions;csharp-15;net11;purview;results;</PackageTags>

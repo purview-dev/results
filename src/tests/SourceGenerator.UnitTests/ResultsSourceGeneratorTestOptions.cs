@@ -38,7 +38,7 @@ public record ResultsSourceGeneratorTestOptions : AnalyzerTestOptions
 		LanguageVersion = Microsoft.CodeAnalysis.CSharp.LanguageVersion.Preview;
 
 		AdditionalAssemblyTypes = AdditionalAssemblyTypes.AddRange(typeof(Result<,>));
-		AdditionalNamespaces = AdditionalNamespaces.Add("Purview.Results").Add("Purview.Results.SourceGeneration");
+		AdditionalNamespaces = AdditionalNamespaces.Add("Purview.Results").Add("Purview.Results.SourceGenerator");
 
 		DisableSourceGeneratorPropertyName = DisableGeneratorProperty;
 		ExcludeGeneratedSourceHintNames = [.. PostInitializationHintNames];

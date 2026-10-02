@@ -1,11 +1,11 @@
 using System.Collections.Immutable;
 using System.Text;
 using Microsoft.CodeAnalysis;
-using Purview.Results.SourceGeneration.Diagnostics;
-using Purview.Results.SourceGeneration.Helpers;
-using Purview.Results.SourceGeneration.Models;
+using Purview.Results.SourceGenerator.Diagnostics;
+using Purview.Results.SourceGenerator.Helpers;
+using Purview.Results.SourceGenerator.Models;
 
-namespace Purview.Results.SourceGeneration.Discovery;
+namespace Purview.Results.SourceGenerator.Discovery;
 
 /// <summary>
 /// Converts an opted-in attribute target into the immutable <see cref="ResultUnionModel"/> the pipeline

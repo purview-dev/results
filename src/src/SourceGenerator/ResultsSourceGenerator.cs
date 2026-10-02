@@ -1,10 +1,10 @@
 using Microsoft.CodeAnalysis;
-using Purview.Results.SourceGeneration.Discovery;
-using Purview.Results.SourceGeneration.Emit;
-using Purview.Results.SourceGeneration.Helpers;
-using Purview.Results.SourceGeneration.Validation;
+using Purview.Results.SourceGenerator.Discovery;
+using Purview.Results.SourceGenerator.Emit;
+using Purview.Results.SourceGenerator.Helpers;
+using Purview.Results.SourceGenerator.Validation;
 
-namespace Purview.Results.SourceGeneration;
+namespace Purview.Results.SourceGenerator;
 
 /// <summary>
 /// Generates strongly typed helpers that create

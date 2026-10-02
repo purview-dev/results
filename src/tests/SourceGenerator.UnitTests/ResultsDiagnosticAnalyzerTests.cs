@@ -1,6 +1,6 @@
 using System.Globalization;
 using Microsoft.CodeAnalysis;
-using Purview.Results.SourceGeneration.Analyzers;
+using Purview.Results.SourceGenerator.Analyzers;
 
 namespace Purview.Results.SourceGenerator;
 

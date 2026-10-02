@@ -1,4 +1,4 @@
-using Purview.Results.SourceGeneration;
+using Purview.Results.SourceGenerator;
 using System.Collections.Immutable;
 using ZodSharp.Core;
 

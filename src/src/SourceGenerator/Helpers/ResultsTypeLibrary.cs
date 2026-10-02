@@ -1,4 +1,4 @@
-namespace Purview.Results.SourceGeneration.Helpers;
+namespace Purview.Results.SourceGenerator.Helpers;
 
 /// <summary>
 /// Provides the <c>TypeIdentity</c> values and namespaces the results source generator resolves

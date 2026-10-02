@@ -1,4 +1,4 @@
-namespace Purview.Results.SourceGeneration.Helpers;
+namespace Purview.Results.SourceGenerator.Helpers;
 
 /// <summary>
 /// Contains the names, hint names and build properties used by the results source generator.
@@ -15,7 +15,7 @@ static class PropertyLibrary
 	/// The namespace of the <c>GenerateResultAttribute</c> opt-in attribute generated into consuming
 	/// assemblies.
 	/// </summary>
-	public const string SourceGenerationNamespace = "Purview.Results.SourceGeneration";
+	public const string SourceGenerationNamespace = "Purview.Results.SourceGenerator";
 
 	/// <summary>
 	/// The metadata name of the generated opt-in attribute.

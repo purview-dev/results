@@ -48,10 +48,10 @@ public sealed class ResultTests
 	{
 		var result = Result<string, TestError>.Failure(new(Error));
 
-		string act() => result.Value;
+		string Act() => result.Value;
 
 		await Assert
-			.That((Func<string>)act)
+			.That((Func<string>)Act)
 			.ThrowsExactly<InvalidOperationException>()
 			.WithMessage("The value of a non-successful result cannot be accessed.", StringComparison.Ordinal);
 	}
@@ -61,10 +61,10 @@ public sealed class ResultTests
 	{
 		var result = Result<string, TestError>.Success(Value);
 
-		TestError act() => result.Error;
+		TestError Act() => result.Error;
 
 		await Assert
-			.That(act)
+			.That(Act)
 			.ThrowsExactly<InvalidOperationException>()
 			.WithMessage("The error of a non-failed result cannot be accessed.", StringComparison.Ordinal);
 	}
@@ -74,9 +74,9 @@ public sealed class ResultTests
 	{
 		Result<string, TestError> result = default;
 
-		string act() => result.Value;
+		string Act() => result.Value;
 
-		await Assert.That((Func<string>)act).ThrowsExactly<InvalidOperationException>();
+		await Assert.That((Func<string>)Act).ThrowsExactly<InvalidOperationException>();
 	}
 
 	[Test]
@@ -84,9 +84,9 @@ public sealed class ResultTests
 	{
 		Result<string, TestError> result = default;
 
-		TestError act() => result.Error;
+		TestError Act() => result.Error;
 
-		await Assert.That(act).ThrowsExactly<InvalidOperationException>();
+		await Assert.That(Act).ThrowsExactly<InvalidOperationException>();
 	}
 
 	#endregion
@@ -190,10 +190,10 @@ public sealed class ResultTests
 	{
 		Result<string, TestError> result = default;
 
-		string act() => result.Match(success: value => value, failure: error => error.Message);
+		string Act() => result.Match(success: value => value, failure: error => error.Message);
 
 		await Assert
-			.That((Func<string>)act)
+			.That((Func<string>)Act)
 			.ThrowsExactly<InvalidOperationException>()
 			.WithMessage("The result is uninitialized.", StringComparison.Ordinal);
 	}
@@ -245,10 +245,10 @@ public sealed class ResultTests
 	{
 		Result<string, TestError> result = default;
 
-		Result<int, TestError> act() => result.Map(value => value.Length);
+		Result<int, TestError> Act() => result.Map(value => value.Length);
 
 		await Assert
-			.That(act)
+			.That(Act)
 			.ThrowsExactly<InvalidOperationException>()
 			.WithMessage("The result is uninitialized.", StringComparison.Ordinal);
 	}
@@ -355,10 +355,10 @@ public sealed class ResultTests
 	{
 		Result<string, TestError> result = default;
 
-		Result<int, TestError> act() => result.Bind(value => Result<int, TestError>.Success(value.Length));
+		Result<int, TestError> Act() => result.Bind(value => Result<int, TestError>.Success(value.Length));
 
 		await Assert
-			.That(act)
+			.That(Act)
 			.ThrowsExactly<InvalidOperationException>()
 			.WithMessage("The result is uninitialized.", StringComparison.Ordinal);
 	}

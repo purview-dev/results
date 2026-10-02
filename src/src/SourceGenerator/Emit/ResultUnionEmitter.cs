@@ -1,10 +1,10 @@
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
-using Purview.Results.SourceGeneration.Helpers;
-using Purview.Results.SourceGeneration.Models;
+using Purview.Results.SourceGenerator.Helpers;
+using Purview.Results.SourceGenerator.Models;
 
-namespace Purview.Results.SourceGeneration.Emit;
+namespace Purview.Results.SourceGenerator.Emit;
 
 /// <summary>
 /// Emits the strongly typed result helpers for every opted-in union.

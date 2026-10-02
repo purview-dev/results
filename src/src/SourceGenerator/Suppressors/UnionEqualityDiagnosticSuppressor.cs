@@ -2,13 +2,13 @@ using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
-using Purview.Results.SourceGeneration.Diagnostics;
+using Purview.Results.SourceGenerator.Diagnostics;
 
 // The language's union support is a preview feature of C# 15; ITypeSymbol.IsUnion is marked
 // [Experimental] until the feature ships, and this suppression deliberately targets it.
 #pragma warning disable RSEXPERIMENTAL006
 
-namespace Purview.Results.SourceGeneration.Suppressors;
+namespace Purview.Results.SourceGenerator.Suppressors;
 
 /// <summary>
 /// Suppresses <c>CA1815</c> (override <c>Equals</c> and the equality operators on value types) for the union

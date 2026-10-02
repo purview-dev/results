@@ -1,12 +1,12 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
-using Purview.Results.SourceGeneration.Helpers;
+using Purview.Results.SourceGenerator.Helpers;
 
 // The language's union support is a preview feature of C# 15; ITypeSymbol.IsUnion is marked
 // [Experimental] until the feature ships, and this analysis deliberately targets it.
 #pragma warning disable RSEXPERIMENTAL006
 
-namespace Purview.Results.SourceGeneration.Diagnostics;
+namespace Purview.Results.SourceGenerator.Diagnostics;
 
 /// <summary>
 /// The outcome of analyzing one opted-in target, shared by the analyzer (which reports

@@ -1,5 +1,4 @@
-using Purview.Results.SourceGeneration;
-using Purview.Results.SourceGeneration.Analyzers;
+using Purview.Results.SourceGenerator.Analyzers;
 
 namespace Purview.Results.SourceGenerator;
 

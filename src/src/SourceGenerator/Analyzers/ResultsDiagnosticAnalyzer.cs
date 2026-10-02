@@ -1,9 +1,9 @@
-using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
-using Purview.Results.SourceGeneration.Diagnostics;
+using Purview.Results.SourceGenerator.Diagnostics;
+using System.Collections.Immutable;
 
-namespace Purview.Results.SourceGeneration.Analyzers;
+namespace Purview.Results.SourceGenerator.Analyzers;
 
 /// <summary>
 /// Raises the per-target result diagnostics so consumers see them in the IDE and in build output.

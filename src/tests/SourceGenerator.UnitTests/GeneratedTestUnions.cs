@@ -1,5 +1,3 @@
-using Purview.Results.SourceGeneration;
-
 namespace Purview.Results.SourceGenerator;
 
 // Union declarations used by the generated-code runtime tests. They live in the test project so the

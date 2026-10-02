@@ -4,7 +4,7 @@
 		<DotNetRuntimeVersion>11.0.0-rc.1.26425.128</DotNetRuntimeVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Purview Versions">
-		<PurviewZodSharpVersion>2.0.0</PurviewZodSharpVersion>
+		<PurviewZodSharpVersion>2.0.1-prerelease.1</PurviewZodSharpVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Source Generator Versions">
 		<PurviewSourceGeneratorFrameworkVersion>1.0.0-prerelease.54</PurviewSourceGeneratorFrameworkVersion>

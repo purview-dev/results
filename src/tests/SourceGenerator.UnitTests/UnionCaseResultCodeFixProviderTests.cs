@@ -4,7 +4,7 @@ public sealed class UnionCaseResultCodeFixProviderTests
 {
 	const string UnionSource = """
 		using Purview.Results;
-		using Purview.Results.SourceGeneration;
+		using Purview.Results.SourceGenerator;
 
 		namespace Test
 		{
@@ -172,7 +172,7 @@ public sealed class UnionCaseResultCodeFixProviderTests
 
 			namespace Domain
 			{
-				using Purview.Results.SourceGeneration;
+				using Purview.Results.SourceGenerator;
 
 				public readonly record struct TenantId(string Value);
 

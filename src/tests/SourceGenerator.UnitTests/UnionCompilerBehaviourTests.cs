@@ -1,5 +1,4 @@
 using Microsoft.CodeAnalysis;
-using Purview.Results.SourceGeneration;
 
 // The language's union support is a preview feature of C# 15; ITypeSymbol.IsUnion is marked
 // [Experimental] until the feature ships, and these tests deliberately exercise it.

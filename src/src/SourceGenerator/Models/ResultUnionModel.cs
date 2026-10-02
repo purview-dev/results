@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Purview.Results.SourceGeneration.Models;
+namespace Purview.Results.SourceGenerator.Models;
 
 /// <summary>
 /// A cache-safe description of a source location: the originating file path plus spans.

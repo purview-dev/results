@@ -1,9 +1,9 @@
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
-using Purview.Results.SourceGeneration.Helpers;
+using Purview.Results.SourceGenerator.Helpers;
 
-namespace Purview.Results.SourceGeneration.Emit;
+namespace Purview.Results.SourceGenerator.Emit;
 
 /// <summary>
 /// Emits the <c>GenerateResultAttribute</c> that consumers apply to their unions.

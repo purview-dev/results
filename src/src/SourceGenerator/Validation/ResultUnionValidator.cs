@@ -1,9 +1,9 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
-using Purview.Results.SourceGeneration.Diagnostics;
-using Purview.Results.SourceGeneration.Models;
+using Purview.Results.SourceGenerator.Diagnostics;
+using Purview.Results.SourceGenerator.Models;
 
-namespace Purview.Results.SourceGeneration.Validation;
+namespace Purview.Results.SourceGenerator.Validation;
 
 /// <summary>
 /// Validates the discovered union models against each other and produces the single aggregate generation
