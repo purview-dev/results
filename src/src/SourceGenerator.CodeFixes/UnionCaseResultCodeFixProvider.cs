@@ -40,7 +40,6 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 	const string EquivalenceKey = "PurviewResultsUseAsFailure";
 	const string ResultNamespace = "Purview.Results";
 	const string ResultMetadataName = "Result`2";
-	const string SourceGenerationNamespace = "Purview.Results.SourceGenerator";
 	const string GenerateResultAttributeMetadataName = "GenerateResultAttribute";
 	const string FailureHelperName = "AsFailure";
 
@@ -126,7 +125,7 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 		{
 			if (
 				attribute.AttributeClass is { } attributeClass
-				&& HasMetadataName(attributeClass, SourceGenerationNamespace, GenerateResultAttributeMetadataName)
+				&& HasMetadataName(attributeClass, ResultNamespace, GenerateResultAttributeMetadataName)
 			)
 			{
 				return true;

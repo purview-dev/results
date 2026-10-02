@@ -12,12 +12,6 @@ static class PropertyLibrary
 	public const string ResultsNamespace = "Purview.Results";
 
 	/// <summary>
-	/// The namespace of the <c>GenerateResultAttribute</c> opt-in attribute generated into consuming
-	/// assemblies.
-	/// </summary>
-	public const string SourceGenerationNamespace = "Purview.Results.SourceGenerator";
-
-	/// <summary>
 	/// The metadata name of the generated opt-in attribute.
 	/// </summary>
 	public const string GenerateResultAttributeName = "GenerateResultAttribute";

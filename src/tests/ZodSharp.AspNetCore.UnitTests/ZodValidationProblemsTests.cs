@@ -1,7 +1,7 @@
-using Microsoft.AspNetCore.Http;
-using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Immutable;
 using System.Text.Json;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using ZodSharp;
 using ZodSharp.AspNetCore;
 using ZodSharp.Core;
@@ -101,8 +101,7 @@ public sealed class ZodValidationProblemsTests
 		var context = CreateContext();
 
 		// Act
-		var (statusCode,
-			body, contentType) = await ExecuteAsync(
+		var (statusCode, body, contentType) = await ExecuteAsync(
 			ZodValidationProblems.ToProblem(errors, options),
 			context
 		);

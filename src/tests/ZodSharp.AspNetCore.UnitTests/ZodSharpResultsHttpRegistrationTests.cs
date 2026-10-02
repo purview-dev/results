@@ -1,7 +1,7 @@
+using System.Collections.Immutable;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Purview.Results.AspNetCore;
-using System.Collections.Immutable;
 using ZodSharp.Core;
 
 namespace Purview.Results.ZodSharp.AspNetCore;

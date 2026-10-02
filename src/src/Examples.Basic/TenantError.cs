@@ -1,5 +1,3 @@
-using Purview.Results.SourceGenerator;
-
 namespace Purview.Results.Examples.Basic;
 
 /// <summary>

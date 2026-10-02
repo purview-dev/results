@@ -1,4 +1,7 @@
 <Project>
+	<PropertyGroup>
+		<CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+	</PropertyGroup>
 	<!-- Version Definitions -->
 	<PropertyGroup Label=".NET Versions">
 		<DotNetRuntimeVersion>11.0.0-rc.1.26425.128</DotNetRuntimeVersion>

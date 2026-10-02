@@ -1,7 +1,7 @@
+using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Purview.Results.SourceGenerator.Diagnostics;
-using System.Collections.Immutable;
 
 namespace Purview.Results.SourceGenerator.Analyzers;
 

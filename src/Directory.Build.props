@@ -15,7 +15,6 @@
 			are excluded repo-wide.
 		-->
 		<ExcludePurviewTelemetry>true</ExcludePurviewTelemetry>
-		<ExcludeMSTelemetryExtension>true</ExcludeMSTelemetryExtension>
 	</PropertyGroup>
 
 	<Import Sdk="Purview.BuildSdk" Project="Sdk.props" />

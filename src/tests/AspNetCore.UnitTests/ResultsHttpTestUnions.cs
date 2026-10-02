@@ -1,5 +1,3 @@
-using Purview.Results.SourceGenerator;
-
 namespace Purview.Results.AspNetCore;
 
 // CA1815 is answered by the package's suppressor for every union opted in with [GenerateResult].
