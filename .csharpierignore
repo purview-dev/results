@@ -10,5 +10,6 @@ src/tests/ZodSharp.AspNetCore.UnitTests/ValidationTestUnions.cs
 src/tests/ZodSharp.UnitTests/ValidationTestUnions.cs
 src/src/Examples.Basic/TenantError.cs
 src/src/Examples.Zod/TenantError.cs
+src/src/Examples.ValueObjects.Zod/TenantError.cs
 src/src/Examples.AspNetCore/TenantError.cs
 src/src/Examples.AspNetCore.Zod/TenantError.cs

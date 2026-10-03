@@ -8,6 +8,7 @@
 - [ASP.NET Core Integration](AspNetCore-Integration.md)
 - [ZodSharp Integration](ZodSharp-Integration.md)
 - [ZodSharp Problem Details](ZodSharp-ProblemDetails.md)
+- [Value Objects Composition](Value-Objects-Composition.md)
 - [Guarantees and Limitations](Guarantees-and-Limitations.md)
 - [Testing](Testing.md)
 - [Agent Skills](Agent-Skills.md)

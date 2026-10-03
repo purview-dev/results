@@ -48,10 +48,10 @@ change must not break.
 
 ## ZodSharp mapping philosophy
 
-- Code rules are consulted before category rules (each in registration order), then the default validation
-  problem, so a rule can only narrow what the host already gets.
-- A rule matches when **any** of the failure's errors carries its code or category: a rule a schema can silently
-  never reach is the kind of gap this suite surfaces rather than hides.
+- Code rules are consulted before category rules, which are consulted before origin rules (each in registration
+  order), then the default validation problem, so a rule can only narrow what the host already gets.
+- A rule matches when **any** of the failure's errors carries its code, category or origin: a rule a schema can
+  silently never reach is the kind of gap this suite surfaces rather than hides.
 - A factory returns `null` to decline, and matching continues. Factories see the failure's whole error set.
 
 ## Not in scope

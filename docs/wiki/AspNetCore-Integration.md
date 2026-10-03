@@ -138,7 +138,7 @@ Running `Examples.AspNetCore`:
 | `GET /tenants/broken` | `500` with an `errorType` extension, because an endpoint returning `default` is a host bug |
 
 ```bash
-dotnet run --project src/examples/Examples.AspNetCore --urls http://localhost:5215
+dotnet run --project src/src/Examples.AspNetCore --urls http://localhost:5215
 ```
 
 ## Related

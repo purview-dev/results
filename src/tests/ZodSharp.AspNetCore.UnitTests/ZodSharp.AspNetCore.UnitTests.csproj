@@ -10,6 +10,17 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<!--
+			The value-object generator and ZodSharp types, so the end-to-end test can declare a real
+			[Scalar] + [ZodSchema] + [ZodRule] value object whose type-level rule owns its code and origin.
+			ZodSharp types are used directly, so the package is referenced explicitly rather than relied on
+			transitively through Purview.ZodSharp.AspNetCore.
+		-->
+		<PackageReference Include="Purview.ValueObjects" />
+		<PackageReference Include="Purview.ZodSharp" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<!-- Produces the AsFailure helpers for this project's own test union. -->
 		<ProjectReference
 			Include="..\..\src\SourceGenerator\SourceGenerator.csproj"

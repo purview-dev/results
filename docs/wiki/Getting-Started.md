@@ -127,13 +127,14 @@ See [ZodSharp Integration](ZodSharp-Integration.md) and, for ProblemDetails rend
 
 ## Runnable examples
 
-Every example is a non-packable project under `src/examples`, built on the same Tenancy domain:
+Every example is a non-packable project under `src/src/Examples.*`, built on the same Tenancy domain:
 
 ```bash
-dotnet run --project src/examples/Examples.Basic
-dotnet run --project src/examples/Examples.Zod
-dotnet run --project src/examples/Examples.AspNetCore --urls http://localhost:5215
-dotnet run --project src/examples/Examples.AspNetCore.Zod --urls http://localhost:5216
+dotnet run --project src/src/Examples.Basic
+dotnet run --project src/src/Examples.Zod
+dotnet run --project src/src/Examples.AspNetCore --urls http://localhost:5215
+dotnet run --project src/src/Examples.AspNetCore.Zod --urls http://localhost:5216
+dotnet run --project src/src/Examples.ValueObjects.Zod
 ```
 
 ## Next steps

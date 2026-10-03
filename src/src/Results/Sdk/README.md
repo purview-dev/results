@@ -92,16 +92,16 @@ Result<Tenant, TenantError> GetTenant(TenantId tenantId) => (TenantError)new Ten
 
 ## Examples
 
-[`src/examples/Examples.Basic`](https://github.com/purview-dev/results/tree/main/src/examples/Examples.Basic) is a
+[`src/src/Examples.Basic`](https://github.com/purview-dev/results/tree/main/src/src/Examples.Basic) is a
 runnable console example over the Tenant* domain this README documents: the three result states, the combinators,
 probing, the throw-on-misuse contract and the generated `AsFailure<TValue>()` helper.
 
 ```bash
-dotnet run --project src/examples/Examples.Basic
+dotnet run --project src/src/Examples.Basic
 ```
 
-The [repository README](https://github.com/purview-dev/results#examples) lists the ZodSharp, ASP.NET Core and
-ASP.NET Core + Zod examples too.
+The [repository README](https://github.com/purview-dev/results#examples) lists the ZodSharp, ASP.NET Core,
+ASP.NET Core + Zod and value-objects composition examples too.
 
 ## Related packages
 

@@ -254,7 +254,7 @@ rewritten source to prove it compiles.
 
 ## Examples
 
-[`src/examples/Examples.Basic`](https://github.com/purview-dev/results/tree/main/src/examples/Examples.Basic)
+[`src/src/Examples.Basic`](https://github.com/purview-dev/results/tree/main/src/src/Examples.Basic)
 declares a `[GenerateResult]` union over the Tenant* domain the README uses and calls the helper this generator
 emits for each of its cases:
 

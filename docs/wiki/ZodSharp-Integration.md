@@ -62,7 +62,9 @@ public readonly record struct TenantInputInvalid(TenantInput Input, ImmutableArr
 ```
 
 `IValidationErrorCarrier` exposes a single `ValidationErrors` member, preserving each `ValidationError`'s code,
-category, path and parameters.
+origin, category, path and parameters. The **origin** is the structured origin a rule owns (`"value_object"` for a
+type-level rule, `"array"` for a collection rule), which is how an HTTP layer can answer a whole family of rules
+without naming each code.
 
 [ZodSharp Problem Details](ZodSharp-ProblemDetails.md) consumes the interface; without it, a host would have to
 map every validation-carrying error individually.
@@ -81,7 +83,7 @@ Naming the error type explicitly keeps the intent unambiguous.
 ## Example
 
 ```bash
-dotnet run --project src/examples/Examples.Zod
+dotnet run --project src/src/Examples.Zod
 ```
 
 `Examples.Zod` validates a `[ZodSchema] TenantInput` and turns the outcome into a `Result<Tenant, TenantError>`,

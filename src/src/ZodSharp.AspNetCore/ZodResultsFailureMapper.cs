@@ -9,17 +9,17 @@ using ZodSharp.Core;
 namespace Purview.Results.ZodSharp.AspNetCore;
 
 /// <summary>
-/// Renders a result failure that carries ZodSharp validation errors, honouring the code and category rules
-/// registered on <see cref="ZodResultsHttpOptions"/>.
+/// Renders a result failure that carries ZodSharp validation errors, honouring the code, category and origin
+/// rules registered on <see cref="ZodResultsHttpOptions"/>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The failure's errors are matched against the registered rules — codes first, then categories, each in
-/// registration order — and the first rule that answers wins. A rule with a status code renders the standard
-/// validation problem with that default status; a rule with a factory renders whatever the factory returns, and a
-/// factory returning <see langword="null"/> declines the failure so matching continues. When no rule answers, the
-/// failure is rendered as the standard validation problem, so registering rules only ever narrows what a host
-/// already gets.
+/// The failure's errors are matched against the registered rules — codes first, then categories, then origins,
+/// each in registration order — and the first rule that answers wins. A rule with a status code renders the
+/// standard validation problem with that default status; a rule with a factory renders whatever the factory
+/// returns, and a factory returning <see langword="null"/> declines the failure so matching continues. When no
+/// rule answers, the failure is rendered as the standard validation problem, so registering rules only ever
+/// narrows what a host already gets.
 /// </para>
 /// <para>
 /// A failure that does not carry validation errors is declined (<see langword="null"/>), so other mappers and

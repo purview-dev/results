@@ -1,7 +1,7 @@
 // Demonstrates Purview.Results.ZodSharp: a ZodSharp validation outcome flows through the same result pipeline
 // as every other expected outcome, as a value instead of an exception.
 //
-//   dotnet run --project src/examples/Examples.Zod
+//   dotnet run --project src/src/Examples.Zod
 
 TenantRegistrationService service = new();
 

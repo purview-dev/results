@@ -3,7 +3,7 @@
 // exception handler uses, so a validation failure carried by a result and the same failure thrown as a
 // ZodException produce identical responses.
 //
-//   dotnet run --project src/examples/Examples.AspNetCore.Zod --urls http://localhost:5216
+//   dotnet run --project src/src/Examples.AspNetCore.Zod --urls http://localhost:5216
 //
 //   curl -i -X POST http://localhost:5216/tenants -H "Content-Type: application/json" -d "{\"tenantId\":\"newco\",\"name\":\"Newco\"}"       -> 200 OK
 //   curl -i -X POST http://localhost:5216/tenants -H "Content-Type: application/json" -d "{\"name\":\"Nameless\"}"                        -> 400 validation problem
@@ -15,6 +15,10 @@
 //
 // The 409 shows the precedence: the mapping registered for a specific case always wins over the validation
 // mapping, and a mapping registered for the error type would still win over it too.
+//
+// This example reports DataAnnotations-shaped errors, which carry no origin. The third axis — a rule that owns an
+// origin, such as `MapOrigin("value_object", ...)` for a type-level rule on a value object — is demonstrated in
+// docs/wiki/Value-Objects-Composition.md.
 
 var builder = WebApplication.CreateBuilder(args);
 

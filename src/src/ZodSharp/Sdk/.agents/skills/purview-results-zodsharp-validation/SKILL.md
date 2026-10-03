@@ -61,8 +61,8 @@ public readonly record struct ProviderConnectionInvalid(
 ```
 
 Implement `IValidationErrorCarrier` on the case (or error) that carries ZodSharp `ValidationError` values.
-`ValidationErrors` preserves each error's code, category, path and parameters, so an HTTP layer can render a
-validation problem **without knowing the error type** — which is exactly how
+`ValidationErrors` preserves each error's code, origin, category, path and parameters, so an HTTP layer can render
+a validation problem **without knowing the error type** — which is exactly how
 `Purview.Results.ZodSharp.AspNetCore` maps it (see the `purview-results-zodsharp-problems` skill).
 
 Guidance:

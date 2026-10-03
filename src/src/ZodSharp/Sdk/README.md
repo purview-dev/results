@@ -58,16 +58,16 @@ results. Naming the error type explicitly keeps the intent unambiguous.
 
 ## Examples
 
-[`src/examples/Examples.Zod`](https://github.com/purview-dev/results/tree/main/src/examples/Examples.Zod) is a
+[`src/src/Examples.Zod`](https://github.com/purview-dev/results/tree/main/src/src/Examples.Zod) is a
 runnable console example that validates a `[ZodSchema] TenantInput` and turns the outcome into a
 `Result<Tenant, TenantError>`, with the rejection carrying its reported `ValidationError`s.
 
 ```bash
-dotnet run --project src/examples/Examples.Zod
+dotnet run --project src/src/Examples.Zod
 ```
 
-The [repository README](https://github.com/purview-dev/results#examples) lists the Basic, ASP.NET Core and
-ASP.NET Core + Zod examples too.
+The [repository README](https://github.com/purview-dev/results#examples) lists the Basic, ASP.NET Core,
+ASP.NET Core + Zod and value-objects composition examples too.
 
 ## Related packages
 

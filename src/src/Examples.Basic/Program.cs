@@ -1,6 +1,6 @@
 // A guided tour of Purview.Results over the Tenancy domain the package README documents.
 //
-//   dotnet run --project src/examples/Examples.Basic
+//   dotnet run --project src/src/Examples.Basic
 //
 // Every expected outcome below is a value. Nothing throws except the deliberate misuse at the end, which
 // demonstrates the throw-on-misuse contract that keeps an uninitialized result a bug rather than a state.

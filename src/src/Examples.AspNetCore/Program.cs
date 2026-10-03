@@ -1,7 +1,7 @@
 // Demonstrates Purview.Results.AspNetCore: an endpoint returns Result<Tenant, TenantError> and the host decides
 // what each error case looks like on the wire.
 //
-//   dotnet run --project src/examples/Examples.AspNetCore --urls http://localhost:5215
+//   dotnet run --project src/src/Examples.AspNetCore --urls http://localhost:5215
 //
 //   curl -i http://localhost:5215/tenants/acme             -> 200 OK
 //   curl -i http://localhost:5215/tenants/initech          -> 404 Not Found          (case mapping)

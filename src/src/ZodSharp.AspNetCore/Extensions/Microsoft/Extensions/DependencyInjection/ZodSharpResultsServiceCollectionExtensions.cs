@@ -15,12 +15,12 @@ public static class ZodSharpResultsServiceCollectionExtensions
 	{
 		/// <summary>
 		/// Makes a result failure that carries ZodSharp validation errors produce an
-		/// <c>HttpValidationProblemDetails</c> response, with optional rules per validation error code and
-		/// category.
+		/// <c>HttpValidationProblemDetails</c> response, with optional rules per validation error code,
+		/// category and origin.
 		/// </summary>
 		/// <param name="configure">
-		/// Configures which responses particular validation error codes and categories produce. Without it, every
-		/// failure that carries validation errors is rendered as one validation problem.
+		/// Configures which responses particular validation error codes, categories and origins produce. Without
+		/// it, every failure that carries validation errors is rendered as one validation problem.
 		/// </param>
 		/// <remarks>
 		/// <para>

@@ -66,21 +66,23 @@ app.MapGet("/tenants/{id:int}", (int id) => GetTenant(id)).WithResultsHttp();
 
 ## Examples
 
-Every example is a runnable, non-packable project under [`src/examples`](src/examples), built on the same
-Tenancy domain the Quick start uses, so the one `TenantError` union drives all four integration aspects.
+Every example is a runnable, non-packable project under `src/src/Examples.*`, built on the same
+Tenancy domain the Quick start uses, so the one `TenantError` union drives every integration aspect.
 
 | Example | Packages | Demonstrates |
 | --- | --- | --- |
-| [`Examples.Basic`](src/examples/Examples.Basic) | `Purview.Results`, `Purview.Results.SourceGenerator` | States, `Match`/`Map`/`Bind`/`MapError`/`Ensure`, probing, the throw-on-misuse contract, and the generated `AsFailure<TValue>()` helper |
-| [`Examples.Zod`](src/examples/Examples.Zod) | + `Purview.Results.ZodSharp` | A `[ZodSchema]` input validated into a result, where the rejection carries its `ValidationError`s |
-| [`Examples.AspNetCore`](src/examples/Examples.AspNetCore) | + `Purview.Results.AspNetCore` | `AddResultsHttp`/`Map`/`WithResultsHttp`, including the mapping-gap and uninitialized-result paths |
-| [`Examples.AspNetCore.Zod`](src/examples/Examples.AspNetCore.Zod) | + `Purview.Results.ZodSharp.AspNetCore` | A validation-carrying failure rendered as `HttpValidationProblemDetails`, with a case mapping winning over the fallback |
+| [`Examples.Basic`](src/src/Examples.Basic) | `Purview.Results`, `Purview.Results.SourceGenerator` | States, `Match`/`Map`/`Bind`/`MapError`/`Ensure`, probing, the throw-on-misuse contract, and the generated `AsFailure<TValue>()` helper |
+| [`Examples.Zod`](src/src/Examples.Zod) | + `Purview.Results.ZodSharp` | A `[ZodSchema]` input validated into a result, where the rejection carries its `ValidationError`s |
+| [`Examples.AspNetCore`](src/src/Examples.AspNetCore) | + `Purview.Results.AspNetCore` | `AddResultsHttp`/`Map`/`WithResultsHttp`, including the mapping-gap and uninitialized-result paths |
+| [`Examples.AspNetCore.Zod`](src/src/Examples.AspNetCore.Zod) | + `Purview.Results.ZodSharp.AspNetCore` | A validation-carrying failure rendered as `HttpValidationProblemDetails`, with a case mapping winning over the fallback |
+| [`Examples.ValueObjects.Zod`](src/src/Examples.ValueObjects.Zod) | `Purview.Results.ZodSharp`, `Purview.ValueObjects` | A `[Scalar]` value object whose type-level `[ZodRule]` owns its code and origin, validated into a result failure the HTTP layer can answer by origin |
 
 ```bash
-dotnet run --project src/examples/Examples.Basic
-dotnet run --project src/examples/Examples.Zod
-dotnet run --project src/examples/Examples.AspNetCore --urls http://localhost:5215
-dotnet run --project src/examples/Examples.AspNetCore.Zod --urls http://localhost:5216
+dotnet run --project src/src/Examples.Basic
+dotnet run --project src/src/Examples.Zod
+dotnet run --project src/src/Examples.AspNetCore --urls http://localhost:5215
+dotnet run --project src/src/Examples.AspNetCore.Zod --urls http://localhost:5216
+dotnet run --project src/src/Examples.ValueObjects.Zod
 ```
 
 ### Basic
@@ -178,8 +180,8 @@ builder.Services.AddResultsHttp(options => options
 ### ASP.NET Core + Zod
 
 Register the validation mapping last, so any mapping or failure mapper the host declared earlier always wins, and
-reuse the ZodSharp problem mapper rather than reimplementing error-to-problem mapping. Per-code and per-category
-rules answer particular validation failures with a response of their own:
+reuse the ZodSharp problem mapper rather than reimplementing error-to-problem mapping. Per-code, per-category and
+per-origin rules answer particular validation failures with a response of their own:
 
 ```csharp
 builder.Services.AddZodSharpProblemDetails();
@@ -188,11 +190,12 @@ builder.Services.AddResultsHttp(options => options
 );
 builder.Services.AddResultsZodSharpHttp(options => options
     .MapCode("tenant_id_matches_name", StatusCodes.Status422UnprocessableEntity)
+    .MapOrigin("value_object", StatusCodes.Status422UnprocessableEntity)
 );
 ```
 
 A `TenantInputInvalid` failure implements `IValidationErrorCarrier`, so it becomes a validation problem without
-the host mapping it — unless a rule answers one of its codes or categories:
+the host mapping it — unless a rule answers one of its codes, categories or origins:
 
 ```json
 {
@@ -214,6 +217,7 @@ The full documentation suite lives in [`docs/wiki`](docs/wiki/Getting-Started.md
 - [Source generator](docs/wiki/Source-Generator.md) and [diagnostics](docs/wiki/Diagnostics.md)
 - [ASP.NET Core integration](docs/wiki/AspNetCore-Integration.md)
 - [ZodSharp integration](docs/wiki/ZodSharp-Integration.md) and [problem details](docs/wiki/ZodSharp-ProblemDetails.md)
+- [Value objects composition](docs/wiki/Value-Objects-Composition.md)
 - [Guarantees and limitations](docs/wiki/Guarantees-and-Limitations.md)
 
 ## Requirements
@@ -235,7 +239,7 @@ The full documentation suite lives in [`docs/wiki`](docs/wiki/Getting-Started.md
 | `src/src/ZodSharp.AspNetCore` | `HttpValidationProblemDetails` mapping for validation-carrying failures |
 | `src/src/<Project>/Sdk` | Package-only assets: `README.md` (packed as the package README) and any `Sdk/.agents/**` skills |
 | `src/tests` | TUnit unit tests, including source-generation and incremental-cache tests |
-| `src/examples` | Runnable, non-packable examples: one project per integration aspect, built on the Tenant* domain |
+| `src/src/Examples.*` | Runnable, non-packable examples: one project per integration aspect, built on the Tenant* domain |
 | `docs/wiki` | User-facing documentation suite, aggregated by the purview-dev website |
 | `Directory.Packages.props` | Centrally managed NuGet versions |
 | `src/Directory.Build.props` / `src/Directory.Build.targets` | Solution-wide SDK, package and build behaviour |

@@ -27,7 +27,7 @@ makes C# 15 union error cases ergonomic, and the ZodSharp and ASP.NET Core integ
 | `src/src/ZodSharp.AspNetCore` | Validation-problem mapping for validation-carrying failures |
 | `src/src/<Project>/Sdk` | Package-only assets. `Sdk/README.md` is packed as the package README; `Sdk/.agents/**` would ship agent skills with the package |
 | `src/tests` | TUnit unit tests, including source-generation and incremental-cache tests |
-| `src/examples` | Runnable, non-packable examples: one project per integration aspect on a shared Tenant* domain |
+| `src/src/Examples.*` | Runnable, non-packable examples: one project per integration aspect on a shared Tenant* domain |
 | `docs/wiki` | User-facing documentation suite, aggregated by the purview-dev website |
 | `Directory.Packages.props` | Centrally managed NuGet versions |
 | `src/Directory.Build.props` / `src/Directory.Build.targets` | Solution-wide SDK, package and build behaviour |
@@ -145,11 +145,12 @@ including the diagnostics table, build properties and activation rules.
   wins, and so does a host failure mapper registered before `AddResultsZodSharpHttp`. It must reuse the ZodSharp
   problem mapper (`ZodValidationProblems.ToProblem`) rather than reimplementing error-to-problem mapping, so a
   result-carried validation failure and a thrown `ZodException` produce identical responses.
-- Keep the ZodSharp code/category rules' precedence structural: **code** rules are consulted before **category**
-  rules (each in registration order), then the default validation problem, so a rule can only narrow what the host
-  already gets. A rule matches when *any* of the failure's errors carries its code or category — a rule a schema
-  can silently never reach is exactly the kind of gap this repository surfaces rather than hides — and a factory
-  returns `null` to decline, with matching continuing. Factories see the failure's whole error set.
+- Keep the ZodSharp code/category/origin rules' precedence structural: **code** rules are consulted before
+  **category** rules, which are consulted before **origin** rules (each in registration order), then the default
+  validation problem, so a rule can only narrow what the host already gets. A rule matches when *any* of the
+  failure's errors carries its code, category or origin — a rule a schema can silently never reach is exactly the
+  kind of gap this repository surfaces rather than hides — and a factory returns `null` to decline, with matching
+  continuing. Factories see the failure's whole error set.
 
 ## Packaging rules
 
@@ -218,10 +219,12 @@ including the diagnostics table, build properties and activation rules.
 
 ## Examples
 
-`src/examples` holds one runnable example per integration aspect, all on the Tenant* domain the READMEs
+`src/src/Examples.*` holds one runnable example per integration aspect, all on the Tenant* domain the READMEs
 document: `Examples.Basic` (the result type and the generated helpers), `Examples.Zod`
-(`Purview.Results.ZodSharp`), `Examples.AspNetCore` (`Purview.Results.AspNetCore`) and `Examples.AspNetCore.Zod`
-(`Purview.Results.ZodSharp.AspNetCore`).
+(`Purview.Results.ZodSharp`), `Examples.AspNetCore` (`Purview.Results.AspNetCore`),
+`Examples.AspNetCore.Zod` (`Purview.Results.ZodSharp.AspNetCore`) and `Examples.ValueObjects.Zod`
+(`Purview.Results.ZodSharp` + `Purview.ValueObjects`, a type-level `[ZodRule]` whose code and origin flow into the
+result and the HTTP mapping).
 
 - Examples are **documentation that compiles**: keep them non-packable (never declare
   `<IsPackable>true</IsPackable>`), keep them out of test discovery (no `*Tests` suffix, and they are not under

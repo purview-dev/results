@@ -8,6 +8,7 @@
 	</PropertyGroup>
 	<PropertyGroup Label="Purview Versions">
 		<PurviewZodSharpVersion>2.0.1-prerelease.1</PurviewZodSharpVersion>
+		<PurviewValueObjectsVersion>1.0.0-prerelease.12</PurviewValueObjectsVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Source Generator Versions">
 		<PurviewSourceGeneratorFrameworkVersion>1.0.0-prerelease.54</PurviewSourceGeneratorFrameworkVersion>
@@ -20,6 +21,7 @@
 	<ItemGroup Label="Purview">
 		<PackageVersion Include="Purview.ZodSharp" Version="$(PurviewZodSharpVersion)" />
 		<PackageVersion Include="Purview.ZodSharp.AspNetCore" Version="$(PurviewZodSharpVersion)" />
+		<PackageVersion Include="Purview.ValueObjects" Version="$(PurviewValueObjectsVersion)" />
 	</ItemGroup>
 	<ItemGroup Label="Source Generators">
 		<PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="$(RoslynVersion)" />
