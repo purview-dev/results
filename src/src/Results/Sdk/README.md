@@ -69,9 +69,8 @@ returns `null`.
 ## Union error types
 
 A C# 15 union is a natural `TError`: the error cases stay strongly typed. Because C# never composes the union
-conversion with the result's own conversion, a case value cannot be returned directly — the
-[`Purview.Results.SourceGenerator`](https://www.nuget.org/packages/Purview.Results.SourceGenerator) package
-generates a per-case `AsFailure<TValue>()` helper for `[GenerateResult]` unions:
+conversion with the result's own conversion, a case value cannot be returned directly — the source generator
+bundled in this package generates a per-case `AsFailure<TValue>()` helper for `[GenerateResult]` unions:
 
 ```csharp
 Result<Tenant, TenantError> GetTenant(TenantId tenantId) => new TenantNotFound(tenantId).AsFailure<Tenant>();
@@ -79,9 +78,8 @@ Result<Tenant, TenantError> GetTenant(TenantId tenantId) => new TenantNotFound(t
 
 The generator cannot declare that conversion for you: C# forbids user-defined operators in a static class,
 forbids conversion operators in extension members, and permits only one user-defined conversion per conversion
-sequence. The
-[`Purview.Results.SourceGenerator`](https://www.nuget.org/packages/Purview.Results.SourceGenerator) package
-ships a code fix that offers the rewrite in the IDE when a case value is returned where a result is expected.
+sequence. The same package ships a code fix that offers the rewrite in the IDE when a case value is returned
+where a result is expected.
 
 If you prefer to avoid the helper entirely, the cast form needs no generated code, because the cast closes the
 case → union conversion so only the library's union → result conversion remains:
@@ -107,16 +105,16 @@ ASP.NET Core + Zod and value-objects composition examples too.
 
 | Package | Purpose |
 | --- | --- |
-| [`Purview.Results.SourceGenerator`](https://www.nuget.org/packages/Purview.Results.SourceGenerator) | Generates `AsFailure<TValue>()` helpers for `[GenerateResult]` unions |
 | [`Purview.Results.AspNetCore`](https://www.nuget.org/packages/Purview.Results.AspNetCore) | Maps results onto ASP.NET Core responses, including `ProblemDetails` |
 | [`Purview.Results.ZodSharp`](https://www.nuget.org/packages/Purview.Results.ZodSharp) | Bridges ZodSharp `ValidationResult<T>` into results |
 | [`Purview.Results.ZodSharp.AspNetCore`](https://www.nuget.org/packages/Purview.Results.ZodSharp.AspNetCore) | Maps validation-carrying failures onto `HttpValidationProblemDetails` |
 
 ## Agent skills
 
-This package ships the `purview-results-core` agent skill under `.agents/`. Repositories that import
-`Purview.BuildSdk` get it mirrored into their own `.agents/` folder on the next restore or build, so AI agents
-working there receive the guidance automatically.
+This package ships the `purview-results-core` and `purview-results-union-errors` agent skills, the
+`purview-results-union-author` agent and the `migrate-error-returns-to-result-unions` prompt under `.agents/`.
+Repositories that import `Purview.BuildSdk` get them mirrored into their own `.agents/` folder on the next
+restore or build, so AI agents working there receive the guidance automatically.
 
 ## License
 

@@ -1,19 +1,19 @@
 # Source Generator
 
-`Purview.Results.SourceGenerator` is an incremental Roslyn source generator that makes C# 15 **union** error cases
-ergonomic with `Result<TValue, TError>`. It generates the `[GenerateResult]` attribute, one `AsFailure<TValue>()`
-helper per union case, and the diagnostics that keep unsupported shapes out of a build.
+The [`Purview.Results`](https://www.nuget.org/packages/Purview.Results) package ships an incremental Roslyn
+source generator that makes C# 15 **union** error cases ergonomic with `Result<TValue, TError>`. It generates
+the `[GenerateResult]` attribute, one `AsFailure<TValue>()` helper per union case, and the diagnostics that keep
+unsupported shapes out of a build. It is not published as a separate package.
 
 ## Installation
 
 ```bash
-dotnet add package Purview.Results.SourceGenerator
 dotnet add package Purview.Results
 ```
 
-The component targets `netstandard2.0` (with the SDK's Roslyn defaults) so any compiler host can load it.
-Requirements: a C# 15 compiler with union declaration support (the .NET 11 SDK or later) and
-`LangVersion=preview`.
+The component targets `netstandard2.0` (with the SDK's Roslyn defaults) so any compiler host can load it, and it
+is applied to the compilation automatically from the package's `analyzers/dotnet/cs` folder. Requirements: a
+C# 15 compiler with union declaration support (the .NET 11 SDK or later) and `LangVersion=preview`.
 
 ## Activation and design
 
@@ -77,20 +77,19 @@ not change, wrap or replace `Result<TValue, TError>`.
 
 | Property | Default | Purpose |
 | --- | --- | --- |
-| `ResultsSourceGenerator_Disable` | `false` | Disables generation while still emitting the opt-in attribute |
+| `DisableResultsSourceGenerator` | `false` | Disables generation while still emitting the opt-in attribute |
 
-The switch reaches `PackageReference` consumers through
-`buildTransitive/Purview.Results.SourceGenerator.props`, so `-p:ResultsSourceGenerator_Disable=true` (or a
-`Directory.Build.props` setting) disables the helpers there too. Release tracking for the rules lives in
-`src/src/SourceGenerator/AnalyzerReleases.Unshipped.md`.
+The switch reaches `PackageReference` consumers through `buildTransitive/Purview.Results.props`, so
+`-p:DisableResultsSourceGenerator=true` (or a `Directory.Build.props` setting) disables the helpers there too.
+Release tracking for the rules lives in `src/src/SourceGenerator/AnalyzerReleases.Unshipped.md`.
 
 ## Packaging
 
-The generator is never packed loose: the package ships its merged analyzer under `analyzers/dotnet/cs/` with no
-`lib/` folder and **no PDB** (`PurviewPackAnalyzerPdb=false`), because the packaged analyzer is the framework's
-ILRepack-merged assembly whose rewritten PDB carries no Roslyn compiler-flags record. The `CS0029` code fix ships
-beside it as a second analyzer assembly (`Purview.Results.SourceGenerator.CodeFixes.dll`) and is never IL-merged
-into the generator.
+The generator is never packed loose: `Purview.Results` ships its merged analyzer under `analyzers/dotnet/cs/`
+with no `lib/` folder and **no PDB**, because the packaged analyzer is the framework's ILRepack-merged assembly
+whose rewritten PDB carries no Roslyn compiler-flags record. The `CS0029` code fix ships beside it as a second
+analyzer assembly (`Purview.Results.SourceGenerator.CodeFixes.dll`) and is never IL-merged into the generator.
+The generator is not a separate NuGet package.
 
 ## Related
 

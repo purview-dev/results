@@ -1,20 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<!--
-			The SDK only treats a project as packable when its own project file declares
-			<IsPackable>true</IsPackable> (it reads the file text, not the evaluated property), so the
-			declaration has to live here rather than in Directory.Build.props.
+			This component is packed into the Purview.Results package, not published as its own package: the
+			SDK only treats a project as packable when its own project file declares IsPackable as true, so
+			leaving the declaration off keeps it as an analyzer-only project whose merged assembly
+			Purview.Results packs under analyzers/dotnet/cs.
 		-->
-		<IsPackable>true</IsPackable>
 		<IsRoslynComponent>true</IsRoslynComponent>
-		<!--
-			The packaged analyzer is the framework's merged (ILRepack) assembly, and the merge tool's rewritten
-			PDB carries no Roslyn compiler-flags record, so shipping it would fail the pipeline's pack
-			validation (`optimization=release`) with no way to scope that check to this package. The family's
-			other component packages (for example Purview.Telemetry.SourceGenerator) opt out the same way; the
-			component's bin output still has its PDB for local debugging.
-		-->
-		<PurviewPackAnalyzerPdb>false</PurviewPackAnalyzerPdb>
 		<!--
 			The repository targets net11.0 repo-wide; a Roslyn component must target netstandard2.0 so that
 			any compiler host (including older SDKs and Visual Studio) can load it, and so no dependency
@@ -32,10 +24,10 @@
 		<PackageTags>source-generator;results;result;union;unions;csharp-15;net11;purview;results;</PackageTags>
 		<!--
 			The generator reads this compiler-visible MSBuild property to allow consumers to turn it off.
-			When this component is packaged, the same declaration must also be shipped as a build/*.props
-			asset so PackageReference consumers receive it.
+			Purview.Results ships the same declaration as buildTransitive/Purview.Results.props so
+			PackageReference consumers receive it.
 		-->
-		<ResultsSourceGeneratorDisableProperty>ResultsSourceGenerator_Disable</ResultsSourceGeneratorDisableProperty>
+		<ResultsSourceGeneratorDisableProperty>DisableResultsSourceGenerator</ResultsSourceGeneratorDisableProperty>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -64,11 +56,11 @@
 
 	<ItemGroup>
 		<!--
-			The code fix ships in this package. An analyzer project reference is what the SDK's
-			PackProjectReferencedSourceGenerators collects into analyzers/dotnet/cs/, so both assemblies - this
-			component's merged analyzer and the code fix - are delivered to consumers. The reference does not
-			produce a compile-time dependency, and the code-fix project does not reference this one, so no
-			reference cycle can form and the Workspaces layer stays out of this component's dependencies.
+			The code fix ships in the same package as the generator. Purview.Results packs this component's
+			merged analyzer and the code fix separately under analyzers/dotnet/cs, so both are delivered to
+			consumers. The reference does not produce a compile-time dependency, and the code-fix project does
+			not reference this one, so no reference cycle can form and the Workspaces layer stays out of this
+			component's dependencies.
 		-->
 		<ProjectReference
 			Include="..\SourceGenerator.CodeFixes\SourceGenerator.CodeFixes.csproj"

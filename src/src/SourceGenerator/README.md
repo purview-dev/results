@@ -1,21 +1,22 @@
-# Purview.Results.SourceGenerator
+# Purview.Results source generator
 
-[![NuGet version](https://img.shields.io/nuget/v/Purview.Results.SourceGenerator.svg)](https://www.nuget.org/packages/Purview.Results.SourceGenerator)
+[![NuGet version](https://img.shields.io/nuget/v/Purview.Results.svg)](https://www.nuget.org/packages/Purview.Results)
 [![Release](https://github.com/purview-dev/results/actions/workflows/release.yml/badge.svg)](https://github.com/purview-dev/results/actions/workflows/release.yml)
 
 An incremental Roslyn source generator that makes C# 15 **union** error cases ergonomic to use with
-`Purview.Results.Result<TValue, TError>`.
+`Purview.Results.Result<TValue, TError>`. It ships inside the
+[`Purview.Results`](https://www.nuget.org/packages/Purview.Results) package; it is not published as a separate
+package.
 
 ## Installation
 
 ```bash
-dotnet add package Purview.Results.SourceGenerator
 dotnet add package Purview.Results
 ```
 
-The generator is a Roslyn component: reference it as a normal `PackageReference` and it is applied to the
-compilation automatically. `Purview.Results` provides the `Result<TValue, TError>` type the generated helpers
-build.
+`Purview.Results` provides both the `Result<TValue, TError>` type and this generator: the package carries the
+merged Roslyn component under `analyzers/dotnet/cs`, so it is applied to the compilation automatically. There is
+no separate generator package to reference.
 
 **Requirements:** a C# 15 compiler with union declaration support (the .NET 11 SDK or later) and
 `LangVersion=preview`.
@@ -196,18 +197,17 @@ for, and a union that has it never raises the warning in the first place, so the
 
 | Property | Default | Purpose |
 | --- | --- | --- |
-| `ResultsSourceGenerator_Disable` | `false` | Disables generation while still emitting the opt-in attribute. |
+| `DisableResultsSourceGenerator` | `false` | Disables generation while still emitting the opt-in attribute. |
 
 The property is declared as a compiler-visible MSBuild property and shipped to `PackageReference` consumers as
-`buildTransitive/Purview.Results.SourceGenerator.props` (from
-`Sdk/buildTransitive/Purview.Results.SourceGenerator.props` in this repository), so
-`-p:ResultsSourceGenerator_Disable=true` — or a `Directory.Build.props` setting — disables the helpers for
+`buildTransitive/Purview.Results.props` (from `Sdk/buildTransitive/Purview.Results.props` in this repository),
+so `-p:DisableResultsSourceGenerator=true` — or a `Directory.Build.props` setting — disables the helpers for
 consumers too.
 
 ## Consumer requirements
 
 - A C# 15 compiler with union declaration support (`.NET 11` SDK or later) and `LangVersion=preview`.
-- A reference to `Purview.Results` for `Result<TValue, TError>`.
+- A reference to `Purview.Results`, which provides both `Result<TValue, TError>` and this generator.
 
 ## Call-site ergonomics: the code fix
 
@@ -229,7 +229,7 @@ A fix is only offered when the rewrite will bind:
 | The union is reachable by its simple name at the call site | The helper class is generated into the union's own namespace |
 
 The component is not packable on its own: it needs `Microsoft.CodeAnalysis.CSharp.Workspaces`, which only the
-IDE host provides, so it ships inside this package's `analyzers/dotnet/cs/` as a second analyzer assembly
+IDE host provides, so `Purview.Results` packs it into `analyzers/dotnet/cs/` as a second analyzer assembly
 (never IL-merged into the generator). The two projects stay independent — the code fix does not reference the
 generator — so no reference cycle can form and Workspaces never enters the generator's dependencies.
 

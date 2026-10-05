@@ -37,8 +37,7 @@ This wiki is the project documentation hub. Packages are published under the `Pu
 
 | Package | Purpose |
 | --- | --- |
-| `Purview.Results` | `Result<TValue, TError>`, the `Result` factories and `IResultValue`. No dependencies. |
-| `Purview.Results.SourceGenerator` | Generates `AsFailure<TValue>()` helpers for `[GenerateResult]` unions, plus the analyzer and code fix. |
+| `Purview.Results` | `Result<TValue, TError>`, the `Result` factories and `IResultValue`, plus the bundled source generator for `[GenerateResult]` unions. No runtime dependencies. |
 | `Purview.Results.AspNetCore` | Maps results onto ASP.NET Core responses (`IResult`, `ProblemDetails`). |
 | `Purview.Results.ZodSharp` | Bridges ZodSharp `ValidationResult<T>` values into results. |
 | `Purview.Results.ZodSharp.AspNetCore` | Renders validation-carrying failures as `HttpValidationProblemDetails`. |

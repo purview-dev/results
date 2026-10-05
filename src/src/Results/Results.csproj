@@ -4,5 +4,52 @@
 		<Title>Purview Results</Title>
 		<Description>Dependency-free Result&lt;TValue, TError&gt; for .NET, with C# 15 union ergonomics for its error cases and integrations that let expected failures flow through a value instead of an exception.</Description>
 		<PackageTags>results;result;railway;error-handling;union;unions;csharp-15;net11;purview;</PackageTags>
+		<!--
+			The package carries the source generator and its IDE code fix under analyzers/dotnet/cs, so a
+			consumer that references Purview.Results gets the [GenerateResult] union ergonomics without a
+			second PackageReference. The generator is packed from its merged analyzer artifact by the target
+			below rather than through an analyzer ProjectReference: the generator emits its opt-in attribute
+			into every compilation it runs on, and running it on this library would bake a conflicting
+			Purview.Results.GenerateResultAttribute into the package and raise CS0436 in every consumer.
+		-->
+		<TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);PackResultsSourceGenerator</TargetsForTfmSpecificContentInPackage>
 	</PropertyGroup>
+
+	<!--
+		Packs the self-contained (ILRepack-merged) generator and the code-fix assembly into
+		analyzers/dotnet/cs. The merged generator is produced by the framework's GetPurviewMergedAnalyzerFile
+		target, so the loose Purview.SourceGeneratorFramework.dll never ships; the code fix stays a separate
+		analyzer assembly because it needs the Workspaces layer only the IDE host provides.
+	-->
+	<Target
+		Name="PackResultsSourceGenerator"
+		Label="Packs the Purview.Results source generator and code fix under analyzers/dotnet/cs."
+	>
+		<MSBuild
+			Projects="..\SourceGenerator\SourceGenerator.csproj"
+			Targets="GetPurviewMergedAnalyzerFile"
+			Properties="Configuration=$(Configuration)"
+			RemoveProperties="TargetFramework;TargetFrameworks;RuntimeIdentifier;SelfContained"
+		>
+			<Output TaskParameter="TargetOutputs" ItemName="_PurviewResultsMergedGenerator" />
+		</MSBuild>
+		<MSBuild
+			Projects="..\SourceGenerator.CodeFixes\SourceGenerator.CodeFixes.csproj"
+			Targets="Build"
+			Properties="Configuration=$(Configuration)"
+			RemoveProperties="TargetFramework;TargetFrameworks;RuntimeIdentifier;SelfContained"
+		/>
+		<MSBuild
+			Projects="..\SourceGenerator.CodeFixes\SourceGenerator.CodeFixes.csproj"
+			Targets="GetTargetPath"
+			Properties="Configuration=$(Configuration)"
+			RemoveProperties="TargetFramework;TargetFrameworks;RuntimeIdentifier;SelfContained"
+		>
+			<Output TaskParameter="TargetOutputs" ItemName="_PurviewResultsCodeFixes" />
+		</MSBuild>
+		<ItemGroup>
+			<TfmSpecificPackageFile Include="@(_PurviewResultsMergedGenerator)" PackagePath="analyzers/dotnet/cs/" />
+			<TfmSpecificPackageFile Include="@(_PurviewResultsCodeFixes)" PackagePath="analyzers/dotnet/cs/" />
+		</ItemGroup>
+	</Target>
 </Project>

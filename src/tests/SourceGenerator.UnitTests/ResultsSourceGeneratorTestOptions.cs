@@ -17,7 +17,7 @@ public record ResultsSourceGeneratorTestOptions : AnalyzerTestOptions
 	/// <summary>
 	/// The MSBuild/analyzer-config property that disables the generator.
 	/// </summary>
-	public const string DisableGeneratorProperty = "ResultsSourceGenerator_Disable";
+	public const string DisableGeneratorProperty = "DisableResultsSourceGenerator";
 
 	/// <summary>
 	/// The hint names of the sources emitted during post-initialization, which are excluded from the

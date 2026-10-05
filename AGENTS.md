@@ -2,8 +2,8 @@
 
 ## Purpose and authority
 
-This repository contains the Purview result types for .NET: `Purview.Results`, a Roslyn source generator that
-makes C# 15 union error cases ergonomic, and the ZodSharp and ASP.NET Core integrations.
+This repository contains the Purview result types for .NET: `Purview.Results` (which bundles the Roslyn source
+generator that makes C# 15 union error cases ergonomic), and the ZodSharp and ASP.NET Core integrations.
 
 - This file is the repository-wide source of truth for AI agents. A more-specific `AGENTS.md` in a subtree, if
   one is ever added, takes precedence for that subtree.
@@ -20,7 +20,7 @@ makes C# 15 union error cases ergonomic, and the ZodSharp and ASP.NET Core integ
 | --- | --- |
 | `src/Results.slnx` | Canonical solution for restore, build, test and pack |
 | `src/src/Results` | `Result<TValue, TError>`, the `Result` factories, `IResultValue` |
-| `src/src/SourceGenerator` | Roslyn incremental generator, diagnostic analyzer, `[GenerateResult]` attribute |
+| `src/src/SourceGenerator` | Roslyn incremental generator, diagnostic analyzer and `[GenerateResult]` attribute; not a package of its own, packed into `Purview.Results` |
 | `src/src/SourceGenerator.CodeFixes` | IDE code fix for `CS0029`: rewrites a returned union case into the generated `AsFailure<TValue>()` |
 | `src/src/AspNetCore` | Result-to-response mapping, endpoint filter, DI registration |
 | `src/src/ZodSharp` | ZodSharp `ValidationResult<T>` bridge |
@@ -70,7 +70,7 @@ makes C# 15 union error cases ergonomic, and the ZodSharp and ASP.NET Core integ
 
 ## Source generator rules
 
-`src/src/SourceGenerator/Sdk/README.md` is the authoritative design document — keep it in sync with behaviour,
+`src/src/SourceGenerator/README.md` is the authoritative design document — keep it in sync with behaviour,
 including the diagnostics table, build properties and activation rules.
 
 - **One analyzer, one generator, one diagnostics library.** `Diagnostics/DiagnosticLibrary.cs`,
@@ -98,11 +98,12 @@ including the diagnostics table, build properties and activation rules.
   have.
 - Create the `CodeWriter` inside the `RegisterSourceOutput` callback; never store it in incremental pipeline
   state or a custom context.
-- `ResultsSourceGenerator_Disable` must stay declared as both a `PurviewGeneratorVisibleProperty` and a
+- `DisableResultsSourceGenerator` must stay declared as both a `PurviewGeneratorVisibleProperty` and a
   `CompilerVisibleProperty`, and shipped to consumers by
-  `src/src/SourceGenerator/Sdk/buildTransitive/Purview.Results.SourceGenerator.props`. The framework's PSGF0003
-  validation fails the build when a declared generator-read property is neither compiler-visible nor declared by
-  the package's own `Sdk/build*` assets, which is what keeps the packaged switch honest.
+  `src/src/Results/Sdk/buildTransitive/Purview.Results.props` (the package that carries the generator). The
+  framework's PSGF0003 validation fails the build when a declared generator-read property is neither
+  compiler-visible nor declared by a package's own `Sdk/build*` assets, which is what keeps the packaged switch
+  honest.
 - `[GenerateResult]` is supported on union declarations only. Generic unions and `IUnionMembers` member
   providers are deliberately unsupported and reported as `RSG1002`/`RSG1007`.
 - **Do not attempt to generate implicit conversions.** C# blocks every route: an operator is illegal in a static
@@ -166,22 +167,28 @@ including the diagnostics table, build properties and activation rules.
   into the package root, so `Sdk/README.md` becomes the `.nupkg` README and takes precedence over the
   repository-root `README.md`. Update it for any user-visible change, and keep the repository-root `README.md`
   consistent with it.
-- The packed shapes that must not regress: the Roslyn component ships its analyzer assembly under
-  `analyzers/dotnet/cs/` with no `lib/` folder and **no PDB** (`PurviewPackAnalyzerPdb=false`), and the library
-  packages ship `lib/<tfm>/<assembly>.dll` plus the XML documentation file and a symbol package.
-- The component opts out of the analyzer PDB because the packaged analyzer is the framework's merged (ILRepack)
+- The packed shapes that must not regress: `Purview.Results` ships the merged Roslyn component and its code fix
+  under `analyzers/dotnet/cs/` with no `lib/` folder and **no PDB**, and every library package ships
+  `lib/<tfm>/<assembly>.dll` plus the XML documentation file and a symbol package.
+- The generator ships **no analyzer PDB** because the packaged analyzer is the framework's merged (ILRepack)
   assembly: the merge tool's rewritten PDB carries no Roslyn compiler-flags record, and the pipeline's pack
   validation asserts `optimization=release` for every assembly that ships a PDB, with no way to scope that check
-  to one package. Telemetry and the other component packages opt out the same way. Revisit if the framework's
-  merge tool starts preserving the compiler-flags record.
+  to one package. `Purview.Results` packs only the merged assembly (through the framework's
+  `GetPurviewMergedAnalyzerFile` target) and the code fix, so no analyzer PDB is contributed. Telemetry and the
+  other component packages opt out the same way. Revisit if the framework's merge tool starts preserving the
+  compiler-flags record.
 - `purview-build.json`'s `PackValidation.RequiredContent` is the exhaustive declaration of what each package
   ships (`RequireExplicitContent` defaults to `true`, so an undeclared entry fails too). Update it whenever
   package content changes — a new asset, a removed PDB, a renamed analyzer — and verify with
   `just pipeline-pack-validate`, which runs restore, build, lint, tests, pack and the validation.
-- `Purview.Results.SourceGenerator` therefore carries **two** analyzer assemblies in `analyzers/dotnet/cs/`:
-  the merged generator and `Purview.Results.SourceGenerator.CodeFixes.dll`. The code fix is packed by the SDK's
-  `PackProjectReferencedSourceGenerators` from the analyzer project reference in `SourceGenerator.csproj`, and it
-  is never IL-merged into the generator. Verify both are present whenever analyzers or packaging change.
+- `Purview.Results` therefore carries **two** analyzer assemblies in `analyzers/dotnet/cs/`: the merged
+  generator and `Purview.Results.SourceGenerator.CodeFixes.dll`. The code fix is packed by the
+  `PackResultsSourceGenerator` target in `Results.csproj`, which also calls the framework's
+  `GetPurviewMergedAnalyzerFile` for the generator, and it is never IL-merged into the generator. The generator
+  is deliberately **not** referenced as an analyzer by `Purview.Results`: it emits its opt-in attribute into
+  every compilation it runs on, so running it on the library would bake a conflicting
+  `Purview.Results.GenerateResultAttribute` into the package and raise `CS0436` in every consumer. Verify both
+  assemblies are present whenever analyzers or packaging change.
 - Verify packaging by packing and inspecting the output, for example
   `dotnet pack src/Results.slnx -o <folder>` followed by opening the `.nupkg`. The PR and release pipelines run
   the same check through `Purview.Build`'s pack validation.
@@ -267,8 +274,7 @@ maintained here.
 
 | Content | Package | Path |
 | --- | --- | --- |
-| `skills/purview-results-core` | `Purview.Results` | `src/src/Results/Sdk/.agents` |
-| `skills/purview-results-union-errors`, `agents/purview-results-union-author.agent.md`, `prompts/migrate-error-returns-to-result-unions.prompt.md` | `Purview.Results.SourceGenerator` | `src/src/SourceGenerator/Sdk/.agents` |
+| `skills/purview-results-core`, `skills/purview-results-union-errors`, `agents/purview-results-union-author.agent.md`, `prompts/migrate-error-returns-to-result-unions.prompt.md` | `Purview.Results` | `src/src/Results/Sdk/.agents` |
 | `skills/purview-results-http-mapping` | `Purview.Results.AspNetCore` | `src/src/AspNetCore/Sdk/.agents` |
 | `skills/purview-results-zodsharp-validation` | `Purview.Results.ZodSharp` | `src/src/ZodSharp/Sdk/.agents` |
 | `skills/purview-results-zodsharp-problems` | `Purview.Results.ZodSharp.AspNetCore` | `src/src/ZodSharp.AspNetCore/Sdk/.agents` |

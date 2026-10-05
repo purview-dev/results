@@ -13,12 +13,11 @@ This guide installs the packages, models an error union, returns a result, and m
 
 ```bash
 dotnet add package Purview.Results
-dotnet add package Purview.Results.SourceGenerator   # only when you model errors as a union
 ```
 
-`Purview.Results.SourceGenerator` is a Roslyn component: add it as an ordinary `PackageReference` and it applies
-to the compilation automatically. It also brings the analyzer, the `CS0029` code fix, and the `CA1815`
-suppression for opted-in unions.
+`Purview.Results` carries the result type and, under `analyzers/dotnet/cs`, the Roslyn component that makes
+union errors ergonomic: it applies to the compilation automatically and brings the analyzer, the `CS0029` code
+fix, and the `CA1815` suppression for opted-in unions. There is no separate generator package to reference.
 
 ## 2. Model the error as a union (optional)
 

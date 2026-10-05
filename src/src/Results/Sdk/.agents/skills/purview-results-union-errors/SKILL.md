@@ -12,7 +12,6 @@ Use this skill when a codebase models expected failures as a **union** and retur
 
 ```csharp
 using Purview.Results;
-using Purview.Results.SourceGeneration;
 
 // One small, focused type per case.
 public readonly record struct TenantNotFound(TenantId TenantId);
@@ -54,7 +53,7 @@ A helper-free form exists when a cast reads better, because the cast closes the 
 Result<Tenant, TenantError> Get(TenantId id) => (TenantError)new TenantNotFound(id);
 ```
 
-`Purview.Results.SourceGenerator` also ships an IDE code fix: when you write
+`Purview.Results` also ships an IDE code fix: when you write
 `return new TenantNotFound(id);` in a `Result<TValue, TUnion>`-returning member, the lightbulb offers the
 `AsFailure<TValue>()` rewrite. The fix is only offered when the rewrite will bind (the converted type is a
 result, the error type is a `[GenerateResult]` union, the value is one of its cases, and the union is in scope
@@ -109,8 +108,8 @@ compared by value.
 ## Requirements and switches
 
 - **.NET 11 SDK or later** with `LangVersion=preview` — union declarations are a preview language feature.
-- A reference to `Purview.Results` for the result type the helpers build.
-- `-p:ResultsSourceGenerator_Disable=true` (or a `Directory.Build.props` setting) disables the helpers while
+- A reference to `Purview.Results`, which provides both the result type and this generator.
+- `-p:DisableResultsSourceGenerator=true` (or a `Directory.Build.props` setting) disables the helpers while
   the opt-in attribute is still emitted, which is useful when the generated code has to be inspected in
   isolation.
 

@@ -19,7 +19,7 @@ static class PropertyLibrary
 	/// <summary>
 	/// The MSBuild property that disables the generator when set to <see langword="true"/>.
 	/// </summary>
-	public const string DisableGenerator = "ResultsSourceGenerator_Disable";
+	public const string DisableGenerator = "DisableResultsSourceGenerator";
 
 	/// <summary>
 	/// The hint name of the generated opt-in attribute source.

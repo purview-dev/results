@@ -193,11 +193,13 @@ public readonly record struct Result<TValue, TError> : IResultValue
 	/// <summary>
 	/// Creates a successful result.
 	/// </summary>
+	[SuppressMessage("Design", "CA1000:Do not declare static members on generic types")]
 	public static Result<TValue, TError> Success(TValue value) => new(value);
 
 	/// <summary>
 	/// Creates a failed result.
 	/// </summary>
+	[SuppressMessage("Design", "CA1000:Do not declare static members on generic types")]
 	public static Result<TValue, TError> Failure(TError error) => new(error);
 
 	enum ResultState : byte
