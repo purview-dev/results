@@ -52,7 +52,6 @@ static class ResultUnionValidator
 		var unions = ImmutableArray.CreateBuilder<ResultUnionModel>(ordered.Length);
 		HashSet<TypeIdentity> configuredUnions = [];
 		Dictionary<string, ResultUnionModel> generatedTypes = [with(StringComparer.Ordinal)];
-		Dictionary<TypeReference, ResultUnionModel> caseOwners = [];
 
 		foreach (var union in ordered)
 		{
@@ -78,36 +77,80 @@ static class ResultUnionValidator
 			}
 
 			generatedTypes[generatedTypeKey] = union;
+			unions.Add(union);
+		}
 
+		var generated = unions.ToImmutable();
+
+		// The per-case AsFailure helper is generated once per case type, so the owner of each case type has
+		// to be known before the helpers are decided. The unions are in ordinal order, so the first owner
+		// recorded for a case type is the ordinal-first owner.
+		Dictionary<TypeReference, List<ResultUnionModel>> caseOwners = [];
+
+		foreach (var union in generated)
+		{
+			foreach (var unionCase in union.Cases)
+			{
+				if (!caseOwners.TryGetValue(unionCase.CaseType, out var owners))
+				{
+					owners = [];
+					caseOwners[unionCase.CaseType] = owners;
+				}
+
+				owners.Add(union);
+			}
+		}
+
+		var generatedUnions = ImmutableArray.CreateBuilder<ResultUnionModel>(generated.Length);
+
+		foreach (var union in generated)
+		{
 			var helperCases = ImmutableArray.CreateBuilder<ResultUnionCaseModel>(union.Cases.Count);
 
 			foreach (var unionCase in union.Cases)
 			{
-				if (caseOwners.TryGetValue(unionCase.CaseType, out var caseOwner))
+				var owners = caseOwners[unionCase.CaseType];
+
+				if (owners.Count == 1)
 				{
-					Add(
-						diagnostics,
-						DiagnosticLibrary.SharedCaseType,
-						DiagnosticScope.Compilation,
-						union,
-						unionCase.FullyQualifiedName,
-						caseOwner.FullyQualifiedName,
-						union.FullyQualifiedName
-					);
+					helperCases.Add(unionCase);
+
 					continue;
 				}
 
-				caseOwners[unionCase.CaseType] = union;
-				helperCases.Add(unionCase);
+				if (unionCase.IsUnionCase)
+				{
+					// A union-typed case is an inclusion: sharing it across unions is the composition pattern,
+					// and the union-receiver factory is the safe form. No per-case helper is generated for any
+					// owner and no diagnostic is reported, because the helper would bind to the wrong union.
+					continue;
+				}
+
+				if (owners[0].UnionType.Equals(union.UnionType))
+				{
+					helperCases.Add(unionCase);
+
+					continue;
+				}
+
+				Add(
+					diagnostics,
+					DiagnosticLibrary.SharedCaseType,
+					DiagnosticScope.Compilation,
+					union,
+					unionCase.FullyQualifiedName,
+					owners[0].FullyQualifiedName,
+					union.FullyQualifiedName
+				);
 			}
 
-			// The union is always generated: its union-receiver factory covers every case in union.Cases, even
-			// one shared with another union. Only the shared case's per-case AsFailure helper is dropped, which
-			// is why the union keeps its own HelperCases subset.
-			unions.Add(union with { HelperCases = helperCases.ToImmutable() });
+			// The union is always generated: its union-receiver factory covers every case in union.Cases and
+			// every case reachable through an included union, even one shared with another union. Only the
+			// per-case AsFailure helpers are dropped, which is why the union keeps its own HelperCases subset.
+			generatedUnions.Add(union with { HelperCases = helperCases.ToImmutable() });
 		}
 
-		return new ResultUnionGenerationModel(context, unions.ToImmutable(), diagnostics.ToImmutable());
+		return new ResultUnionGenerationModel(context, generatedUnions.ToImmutable(), diagnostics.ToImmutable());
 	}
 
 	/// <summary>

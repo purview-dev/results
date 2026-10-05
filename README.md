@@ -49,8 +49,10 @@ The generator also declares a C# 14 extension block on the union itself, so the 
 call site stays unambiguous: `TenantError.Failure(tenantNotFound)` produces `Result<TenantError>`,
 `TenantError.Failure<Tenant>(tenantNotFound)` produces `Result<Tenant, TenantError>`, and
 `TenantError.Success()` / `TenantError.Success(tenant)` produce the success shapes. This union-receiver factory is
-the shared-case safe form: when a case type belongs to more than one union, the per-case `AsFailure` helper is
-generated once and reported as `RSG1006`, so the factory is the call that always binds to the union you name.
+the shared-case safe form: when a **leaf** case type belongs to more than one union, the per-case `AsFailure`
+helper is generated once and reported as `RSG1006`, so the factory is the call that always binds to the union you
+name. A case type that is itself a union is an *included union*: the factory also covers its cases and builds the
+nested value, so composition replaces leaf sharing and no `RSG1006` is raised for it.
 
 The generator cannot make a bare case value convert implicitly — C# forbids operators in a static class,
 conversion operators in extension members, and more than one user-defined conversion per sequence — so the

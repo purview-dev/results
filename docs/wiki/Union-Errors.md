@@ -67,11 +67,17 @@ Result<Tenant, TenantError> created = TenantError.Success(tenant);
 ```
 
 The per-case `AsFailure` helper is generated **once per case type**, not once per union, because C# does not apply
-union conversions to an *instance* extension-method receiver (`CS1929`). A case type shared by two unions therefore
-gets a single `AsFailure` helper, reported as `RSG1006`, which can bind to the wrong union. The union-receiver
-factory is a **static** extension member (`extension(Union) { public static ... }`): the receiver is the union type
-itself and the case is an argument, so it is generated for every union and every case and is the form to use when a
-case type is shared.
+union conversions to an *instance* extension-method receiver (`CS1929`). A **leaf** case type shared by two unions
+therefore gets a single `AsFailure` helper, reported as `RSG1006`, which can bind to the wrong union. The
+union-receiver factory is a **static** extension member (`extension(Union) { public static ... }`): the receiver is
+the union type itself and the case is an argument, so it is generated for every union and every case and is the form
+to use when a case type is shared.
+
+A case type that is itself a union is an **included union**, and sharing it is composition rather than a shared
+leaf: the including union's factory also covers every case reachable through it (constructing the nested value
+`new Outer(new Inner(leaf))`), no `RSG1006` is reported, and no ambiguous per-case helper is generated for it. A
+case reachable through two different included unions cannot name a construction path, so it is reported as
+`RSG1008` and skipped.
 
 ## Why there is no implicit conversion
 
@@ -147,12 +153,14 @@ if (reserved.TryGetError(out var billingError))
     return RegisterTenantError.Failure<Tenant>(billingError);
 ```
 
-List the callee's **union** as the case, not its leaf cases. A leaf listed in two unions is a shared case, which
-raises `RSG1006` and generates the per-case `AsFailure` helper for only one of them, so a case-receiver call site
-can bind to the wrong union; convert it with the union-receiver factory (`CallerUnion.Failure(leaf)`) instead. If the
-caller must not expose the callee's types at all, map the callee's cases into the caller's own case types with
-`MapError(error => error switch { ... })` instead — the compiler then forces the mapping to stay exhaustive as the
-callee's union grows.
+List the callee's **union** as the case, not its leaf cases. The union's own cases are then reachable through the
+including union's factory, so `RegisterTenantError.Failure<Tenant>(new BillingAccountMissing(id))` constructs the
+nested value directly. A leaf listed in two unions is a shared case, which raises `RSG1006` and generates the
+per-case `AsFailure` helper for only one of them, so a case-receiver call site can bind to the wrong union; convert
+it with the union-receiver factory (`CallerUnion.Failure(leaf)`) instead. A union-typed case shared by two unions is
+composition, so it is not reported and its per-case helper is not generated at all. If the caller must not expose
+the callee's types at all, map the callee's cases into the caller's own case types with `MapError(error => error
+switch { ... })` instead — the compiler then forces the mapping to stay exhaustive as the callee's union grows.
 
 Nesting also works with the HTTP layer: the ASP.NET Core mapper resolves a union error to its innermost case, so a
 mapping for the leaf (`Map<BillingServiceUnavailable>`) wins, and a mapping for the enclosing union
@@ -164,7 +172,9 @@ mapping for the leaf (`Map<BillingServiceUnavailable>`) wins, and a mapping for 
 | --- | --- |
 | A union declaration whose cases are public single-parameter constructors | Yes |
 | A type marked `[Union]` with public single-parameter constructors | Yes |
-| A case type shared by two unions | Yes — `RSG1006` warning; the per-case `AsFailure` helper is generated once, and the union-receiver `Failure(...)` factory is generated for both |
+| A **leaf** case type shared by two unions | Yes — `RSG1006` warning; the per-case `AsFailure` helper is generated once, and the union-receiver `Failure(...)` factory is generated for both |
+| A **union-typed** case shared by two unions (composition) | Yes — no warning; the including union's factory covers the included union's cases, and no ambiguous per-case helper is generated |
+| A case reachable through two different included unions | Yes — `RSG1008` warning; that case's inclusion factory is skipped |
 | A generic union | No — `RSG1002` |
 | A case type that itself contains type parameters | No — `RSG1002` (the remaining cases still generate) |
 | `IUnionMembers` member providers | No — `RSG1007` |

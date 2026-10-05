@@ -56,7 +56,7 @@ The framework assembly must never appear loose beside the merged analyzer — `F
 
 ## Analyzer release tracking
 
-The generator bundled in `Purview.Results` ships public diagnostics (`RSG1000`–`RSG1007`), so it maintains the
+The generator bundled in `Purview.Results` ships public diagnostics (`RSG1000`–`RSG1008`), so it maintains the
 Roslyn release-tracking files. New or changed rules go in
 `src/src/SourceGenerator/AnalyzerReleases.Unshipped.md`, which the compiler's RS2008 catalogue validates during
 the build. `RSG2000` is a *suppression* id, not a reported rule, so it must not appear there.

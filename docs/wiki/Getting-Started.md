@@ -60,8 +60,9 @@ public static class TenantErrorResultExtensions
 }
 ```
 
-The union-receiver factory names the union, so it stays unambiguous when a case type is shared with another union
-(`RSG1006`).
+The union-receiver factory names the union, so it stays unambiguous when a leaf case type is shared with another
+union (`RSG1006`). A case type that is itself a union is an *included union*: the factory also covers its cases and
+builds the nested value, so list the callee's union as a case instead of repeating its leaf cases.
 
 See [Union Errors](Union-Errors.md) for the modelling rules and [Source Generator](Source-Generator.md) for the
 generated shape.

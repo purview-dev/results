@@ -13,3 +13,4 @@ RSG1004 | Purview.Results.Usage | Error | Duplicate GenerateResult configuration
 RSG1005 | Purview.Results.Usage | Error | Generated helper class name collision
 RSG1006 | Purview.Results.Usage | Warning | Union case type is shared with another union
 RSG1007 | Purview.Results.Usage | Error | Unsupported union member provider
+RSG1008 | Purview.Results.Usage | Warning | Union inclusion case is ambiguous

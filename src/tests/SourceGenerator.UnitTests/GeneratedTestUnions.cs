@@ -52,9 +52,9 @@ public readonly union BillingError(BillingAccountMissing, BillingServiceUnavaila
 /// <see cref="BillingError"/> unions, each as a single case.
 /// </summary>
 /// <remarks>
-/// The case types are unions, not their leaf cases, so a billing failure can be lifted into this contract with
-/// one union conversion and no case type is shared with <see cref="BillingError"/> (which would raise
-/// <c>RSG1006</c>).
+/// The case types are unions, not their leaf cases. Each is an <em>included union</em>: the generated factory
+/// also covers its cases and constructs the nested value, so a billing failure can be lifted into this contract
+/// with one union conversion and no leaf case is shared with <see cref="BillingError"/>.
 /// </remarks>
 [GenerateResult]
 public readonly union RegisterTenantError(TenantError, BillingError);

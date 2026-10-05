@@ -175,6 +175,211 @@ public class ResultsSourceGeneratorTests
 	}
 
 	[Test]
+	public async Task GenerateAsync_GivenIncludedUnion_EmitsFlattenedFactoriesForTheIncludedCases(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		// LookupError is a case of SetError, so its own case (NotFound) is reachable through it. The
+		// generator emits a union-receiver factory for NotFound on SetError that constructs the nested value.
+		const string source = """
+			using Purview.Results;
+
+			namespace Test
+			{
+				public readonly record struct NotFound(int Id);
+
+				public readonly record struct Rejected(string Reason);
+
+				[GenerateResult]
+				public readonly union LookupError(NotFound);
+
+				[GenerateResult]
+				public readonly union SetError(LookupError, Rejected);
+
+				public static class Usage
+				{
+					public static Result<int, SetError> Included(NotFound error) => SetError.Failure<int>(error);
+
+					public static Result<SetError> IncludedUnit(NotFound error) => SetError.Failure(error);
+
+					public static Result<int, SetError> Direct(Rejected error) => SetError.Failure<int>(error);
+				}
+			}
+			""";
+
+		// Act
+		var result = await GenerateAsync(source, cancellationToken);
+
+		// Assert
+		result.AssertNoCompilationErrors();
+
+		var setTree = result.PrimarySyntaxTrees.Single(static tree =>
+			tree.FilePath.EndsWith("SetErrorResultExtensions.g.cs", StringComparison.Ordinal)
+		);
+		var setSource = (await setTree.GetTextAsync(cancellationToken)).ToString();
+
+		// The included case gets a factory, and its body constructs the nested union value.
+		await Assert.That(setSource).Contains("global::Test.NotFound error");
+		await Assert.That(setSource).Contains("new global::Test.SetError(new global::Test.LookupError(error))");
+	}
+
+	[Test]
+	public async Task GenerateAsync_GivenSharedUnionCase_DropsThePerCaseHelperAndReportsNoSharedCaseWarning(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		// LookupError is a union-typed case of both GetError and SetError. Sharing it is the composition
+		// pattern, so no RSG1006 is reported and no per-case AsFailure helper is generated for it on either
+		// union; the union-receiver factory is the safe form.
+		const string source = """
+			using Purview.Results;
+
+			namespace Test
+			{
+				public readonly record struct NotFound(int Id);
+
+				[GenerateResult]
+				public readonly union LookupError(NotFound);
+
+				[GenerateResult]
+				public readonly union GetError(LookupError);
+
+				[GenerateResult]
+				public readonly union SetError(LookupError);
+
+				public static class Usage
+				{
+					public static Result<int, GetError> Get(LookupError error) => GetError.Failure<int>(error);
+
+					public static Result<int, SetError> Set(LookupError error) => SetError.Failure<int>(error);
+				}
+			}
+			""";
+
+		// Act
+		var result = await GenerateAsync(source, cancellationToken);
+
+		// Assert
+		result.AssertNoCompilationErrors();
+		await Assert.That(result).DoesNotHaveDiagnostic("RSG1006");
+
+		var getTree = result.PrimarySyntaxTrees.Single(static tree =>
+			tree.FilePath.EndsWith("GetErrorResultExtensions.g.cs", StringComparison.Ordinal)
+		);
+		var getSource = (await getTree.GetTextAsync(cancellationToken)).ToString();
+
+		await Assert.That(getSource).DoesNotContain("this global::Test.LookupError error");
+		await Assert.That(getSource).Contains("global::Test.LookupError error");
+	}
+
+	[Test]
+	public async Task GenerateAsync_GivenNestedIncludedUnions_ConstructsTheWholeChain(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		// TopError -> MiddleError -> LeafError -> NotFound, so the included factory must construct the whole
+		// nested value, innermost first.
+		const string source = """
+			using Purview.Results;
+
+			namespace Test
+			{
+				public readonly record struct NotFound(int Id);
+
+				[GenerateResult]
+				public readonly union LeafError(NotFound);
+
+				[GenerateResult]
+				public readonly union MiddleError(LeafError);
+
+				[GenerateResult]
+				public readonly union TopError(MiddleError);
+
+				public static class Usage
+				{
+					public static Result<int, TopError> Value(NotFound error) => TopError.Failure<int>(error);
+				}
+			}
+			""";
+
+		// Act
+		var result = await GenerateAsync(source, cancellationToken);
+
+		// Assert
+		result.AssertNoCompilationErrors();
+
+		var topTree = result.PrimarySyntaxTrees.Single(static tree =>
+			tree.FilePath.EndsWith("TopErrorResultExtensions.g.cs", StringComparison.Ordinal)
+		);
+		var topSource = (await topTree.GetTextAsync(cancellationToken)).ToString();
+
+		await Assert
+			.That(topSource)
+			.Contains("new global::Test.TopError(new global::Test.MiddleError(new global::Test.LeafError(error)))");
+	}
+
+	[Test]
+	public async Task GenerateAsync_GivenAmbiguousIncludedCase_SkipsTheAmbiguousFactoryAndKeepsTheOthers(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		// NotFound is reachable through both LeftError and RightError, so no single construction path can be
+		// named for it. The direct cases still get their factories.
+		const string source = """
+			using Purview.Results;
+
+			namespace Test
+			{
+				public readonly record struct NotFound(int Id);
+
+				public readonly record struct Rejected(string Reason);
+
+				[GenerateResult]
+				public readonly union LeftError(NotFound);
+
+				[GenerateResult]
+				public readonly union RightError(NotFound);
+
+				[GenerateResult]
+				public readonly union OuterError(LeftError, RightError, Rejected);
+			}
+			""";
+
+		// Act
+		var result = await GenerateAsync(
+			source,
+			new ResultsSourceGeneratorTestOptions
+			{
+				AnalyzerTypes = [typeof(Purview.Results.SourceGenerator.Analyzers.ResultsDiagnosticAnalyzer)],
+			},
+			cancellationToken
+		);
+
+		// Assert
+		result.AssertNoCompilationErrors();
+		await Assert.That(result.AnalyzerResult).IsNotNull();
+
+		var analyzerDiagnostics = result
+			.AnalyzerResult!.Diagnostics.Select(static diagnostic => diagnostic.Id)
+			.ToArray();
+		await Assert.That(analyzerDiagnostics).Contains("RSG1008");
+
+		var outerTree = result.PrimarySyntaxTrees.Single(static tree =>
+			tree.FilePath.EndsWith("OuterErrorResultExtensions.g.cs", StringComparison.Ordinal)
+		);
+		var outerSource = (await outerTree.GetTextAsync(cancellationToken)).ToString();
+
+		await Assert.That(outerSource).Contains("global::Test.LeftError error");
+		await Assert.That(outerSource).Contains("global::Test.RightError error");
+		await Assert.That(outerSource).Contains("global::Test.Rejected error");
+		await Assert.That(outerSource).DoesNotContain("global::Test.NotFound error");
+	}
+
+	[Test]
 	public async Task GenerateAsync_GivenMultipleUnions_EmitsIndependentHelpersInDeterministicOrder(
 		CancellationToken cancellationToken
 	)

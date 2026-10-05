@@ -97,6 +97,34 @@ per-case `AsFailure` helper is generated once — for the union that sorts first
 case-receiver call can bind to the wrong union. The factory names the union by its receiver, so it is generated for
 every union and covers every one of the union's cases, including a shared one.
 
+## Union inclusion
+
+A case type that is itself a union is an **included union**: the including union's factory also covers every case
+reachable through it, so a case of an included union can be converted by naming the including union. The value is
+constructed nested, innermost first:
+
+```csharp
+[GenerateResult]
+public readonly union BillingError(BillingAccountMissing, BillingServiceUnavailable);
+
+[GenerateResult]
+public readonly union RegisterTenantError(TenantError, BillingError);
+
+// BillingAccountMissing is reachable through BillingError, so the factory covers it and builds the nested value.
+Result<Tenant, RegisterTenantError> result =
+	RegisterTenantError.Failure<Tenant>(new BillingAccountMissing(accountId));
+// equivalent to:
+Result<Tenant, RegisterTenantError> explicitNesting =
+	RegisterTenantError.Failure<Tenant>(new BillingError(new BillingAccountMissing(accountId)));
+```
+
+Inclusion is automatic for every union-typed case; no attribute is needed. It is also the way to **avoid `RSG1006`
+entirely**: list the callee's union as a case instead of repeating its leaf cases. A union-typed case shared by two
+unions is the intended composition pattern, so it is **not** reported as `RSG1006` and its ambiguous per-case
+`AsFailure` helper is not generated for any union; the union-receiver factory is the only (and safe) form. A case
+reachable through two different included unions cannot name a construction path, so it is reported as `RSG1008` and
+its inclusion factory is skipped.
+
 ## Why the generator exists
 
 C# composes a union *case* into its union and `Result<TValue, TError>` composes the *union* into a result,
@@ -176,8 +204,8 @@ needs no generated code.
 The diagnostics live in one shared library (`Diagnostics/DiagnosticLibrary.cs` +
 `Diagnostics/ResultUnionDiagnostics.cs` + `Diagnostics/ResultDiagnostic.cs`) that both hosts consume:
 
-- **`ResultsDiagnosticAnalyzer` reports the per-target rules** (`RSG1000`–`RSG1004`, `RSG1007`) in the IDE
-  and in build output.
+- **`ResultsDiagnosticAnalyzer` reports the per-target rules** (`RSG1000`–`RSG1004`, `RSG1007`, `RSG1008`) in the
+  IDE and in build output.
 - **The generator reports the compilation-wide rules** (`RSG1005`, `RSG1006`) that need every opted-in union
   in the compilation.
 - **The generator never reports a rule the analyzer reports.** It still runs the same shared analysis, so the
@@ -192,8 +220,9 @@ The diagnostics live in one shared library (`Diagnostics/DiagnosticLibrary.cs` +
 | `RSG1003` | Error | Analyzer | Union: yes / case: no | A type that generated code must reference is not accessible (for example a `file` type). |
 | `RSG1004` | Error | Analyzer | No | The same union is configured more than once (for example on two partial declarations); the helpers are generated once. |
 | `RSG1005` | Error | Generator | Yes (the colliding union is skipped) | Two unions produce the same generated class name in one namespace. |
-| `RSG1006` | Warning | Generator | No (only the shared case's `AsFailure` helper is skipped) | A case type is shared with another union, so its per-case helper is generated once; the union-receiver `Failure(...)` factory is generated for every union and is the shared-case safe form. |
+| `RSG1006` | Warning | Generator | No (only the shared leaf case's `AsFailure` helper is skipped) | A **leaf** case type is shared with another union, so its per-case helper is generated once; the union-receiver `Failure(...)` factory is generated for every union and is the shared-case safe form. A union-typed case shared across unions is composition, not a shared leaf, and is not reported. |
 | `RSG1007` | Error | Analyzer | Yes | The union uses an `IUnionMembers` member provider, which the first implementation does not support. |
+| `RSG1008` | Warning | Analyzer | No (only the ambiguous case's inclusion factory is skipped) | A case is reachable through two different included unions, so no inclusion factory can name its construction path. List the case through the union that directly declares it instead. |
 
 Case-level findings never block the union: the remaining cases are still generated, and the skipped case is
 reported.
@@ -216,7 +245,7 @@ The suppression is narrow on purpose:
 - The union's **case types** keep the warning, as does every other value type. A case declared as a plain
   `struct` still gets `CA1815`; a `record struct` case never gets it, because records synthesise equality.
 - Nothing is hidden: a suppressor can only suppress non-error, configurable diagnostics, and `RSG2000` is a
-  suppression id rather than a rule, so `RSG1000`–`RSG1007` remain the only diagnostics this package reports.
+  suppression id rather than a rule, so `RSG1000`–`RSG1008` remain the only diagnostics this package reports.
 
 Every suppression is logged as an `Info` diagnostic against `RSG2000`, in the verbose build log and in an
 MSBuild binlog (and as a suppressed diagnostic in an `/errorlog` SARIF file), so a build can always be audited

@@ -1,6 +1,6 @@
 ---
 name: Purview Results Union Author
-description: "Specialist for modelling expected failures as C# 15 unions and wiring them into Purview.Results — declaring [GenerateResult] unions, replacing exception or boolean returns with Result<TValue, TUnion>, and resolving the RSG1000-RSG1007 diagnostics."
+description: "Specialist for modelling expected failures as C# 15 unions and wiring them into Purview.Results — declaring [GenerateResult] unions, replacing exception or boolean returns with Result<TValue, TUnion>, and resolving the RSG1000-RSG1008 diagnostics."
 tools:
     [
         "search/codebase",
@@ -35,10 +35,13 @@ The most important rules are:
 - **One case type per meaning.** A case with a `string Reason` or an `int Code` invites string/int matching and
   defeats the point.
 - **One union per operation family**, so methods can come and go without changing the error contract.
+- **Compose unions, do not repeat leaf cases.** A case type that is itself a union is an *included union*: the
+  including union's factory also covers its cases and builds the nested value, and sharing a union-typed case across
+  unions is not reported. This is how to avoid `RSG1006`, which only applies to a shared **leaf** case.
 - **Never generate or hand-write implicit conversions.** Five compiler rules block them (`CS0715`, `CS0556`,
   `CS9282`, `CS0246`, `CS0029`); the generated union-receiver `Union.Failure(...)` factory, the per-case
   `AsFailure<TValue>()` / `AsFailure()` helpers, and the `(Union)case` cast are the whole toolbox. Prefer the
-  union-receiver factory when a case type is shared with another union (`RSG1006`), because it names the union.
+  union-receiver factory when a leaf case type is shared with another union (`RSG1006`), because it names the union.
 - **Keep the result transport-agnostic.** No HTTP types, status codes or `IResult` values in the union.
 - **`default` is a bug, not a failure.** Never let a method fall off the end of its body.
 
@@ -61,7 +64,7 @@ The most important rules are:
 1. Load `purview-results-union-errors` before editing.
 2. Cases are `readonly record struct`s with meaningful payloads.
 3. Every failure is created through a generated factory/helper or the cast form; never by hand-rolled conversion.
-4. The affected projects must build with no `RSG1000`–`RSG1007` diagnostics.
+4. The affected projects must build with no `RSG1000`–`RSG1008` diagnostics.
 5. Update tests alongside the signatures, and add a compiler experiment rather than an assumption when a
    language behaviour is in question.
 6. Do not edit generated code; change the union or the generator input instead.

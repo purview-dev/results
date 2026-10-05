@@ -37,8 +37,9 @@ namespace Purview.Results.SourceGenerator.CodeFixes;
 /// A fix is only offered when the rewritten call will actually bind: the converted type must be
 /// <c>Purview.Results.Result&lt;TValue, TError&gt;</c> or <c>Purview.Results.Result&lt;TError&gt;</c>,
 /// <c>TError</c> must be a union opted in with <c>[GenerateResult]</c> (so the factory exists), the expression
-/// must be one of that union's case values, and the union must be reachable by its simple name at the call site
-/// (the factory is generated into the union's own namespace). A value result gets
+/// must be one of that union's case values — including a case reached through an included union, because the
+/// factory covers those too — and the union must be reachable by its simple name at the call site (the factory
+/// is generated into the union's own namespace). A value result gets
 /// <c>Union.Failure&lt;TValue&gt;(case)</c>; a unit result gets <c>Union.Failure(case)</c>.
 /// </para>
 /// </remarks>
@@ -158,17 +159,35 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 		if (caseType is null)
 			return false;
 
+		HashSet<INamedTypeSymbol> visited = [with(SymbolEqualityComparer.Default)];
+
+		return IsCaseOf(union, caseType, visited);
+	}
+
+	static bool IsCaseOf(INamedTypeSymbol union, ITypeSymbol caseType, HashSet<INamedTypeSymbol> visited)
+	{
+		// A case type that is itself a union is an included union: its own cases are reachable through the
+		// union-receiver factory of the outer union too, so the rewrite binds for them as well. The visited
+		// set keeps a recursive union graph from looping.
+		if (!visited.Add(union))
+			return false;
+
 		foreach (var constructor in union.InstanceConstructors)
 		{
 			if (
-				constructor.DeclaredAccessibility == Accessibility.Public
-				&& constructor.Parameters.Length == 1
-				&& constructor.Parameters[0].RefKind is RefKind.None or RefKind.In
-				&& SymbolEqualityComparer.Default.Equals(constructor.Parameters[0].Type, caseType)
+				constructor.DeclaredAccessibility != Accessibility.Public
+				|| constructor.Parameters.Length != 1
+				|| constructor.Parameters[0].RefKind is not (RefKind.None or RefKind.In)
 			)
-			{
+				continue;
+
+			var parameterType = constructor.Parameters[0].Type;
+
+			if (SymbolEqualityComparer.Default.Equals(parameterType, caseType))
 				return true;
-			}
+
+			if (parameterType is INamedTypeSymbol { IsUnion: true } included && IsCaseOf(included, caseType, visited))
+				return true;
 		}
 
 		return false;

@@ -3,8 +3,9 @@
 The [`Purview.Results`](https://www.nuget.org/packages/Purview.Results) package ships an incremental Roslyn
 source generator that makes C# 15 **union** error cases ergonomic with `Result<TValue, TError>` and the value-less
 `Result<TError>`. It generates the `[GenerateResult]` attribute, the per-case `AsFailure<TValue>()` and `AsFailure()`
-helpers, the union-receiver `Union.Failure(...)` and `Union.Success(...)` factories for every union case, and the
-diagnostics that keep unsupported shapes out of a build. It is not published as a separate package.
+helpers, the union-receiver `Union.Failure(...)` and `Union.Success(...)` factories for every union case (including
+the cases reachable through an included union), and the diagnostics that keep unsupported shapes out of a build. It
+is not published as a separate package.
 
 ## Installation
 
@@ -91,8 +92,15 @@ public static class TenantErrorResultExtensions
 
 The per-case `AsFailure` helpers let the *case* name the call (`new TenantNotFound(id).AsFailure<Tenant>()`); the
 union-receiver factory lets the *union* name it (`TenantError.Failure<Tenant>(new TenantNotFound(id))`). The
-factory is the **shared-case safe** form: when a case type belongs to more than one union, its per-case `AsFailure`
-helper is generated once and reported as `RSG1006`, while the factory is generated for every union.
+factory is the **shared-case safe** form: when a **leaf** case type belongs to more than one union, its per-case
+`AsFailure` helper is generated once and reported as `RSG1006`, while the factory is generated for every union.
+
+A case type that is itself a union is an **included union**. The factory then also covers every case reachable
+through it and constructs the nested value (`RegisterTenantError.Failure<Tenant>(new BillingAccountMissing(id))`
+builds `RegisterTenantError(BillingError(BillingAccountMissing))`). Inclusion is automatic and is the supported way
+to avoid `RSG1006`: list the callee's union as a case instead of repeating its leaf cases. A union-typed case shared
+by two unions is composition, so it is not reported as `RSG1006` and its ambiguous per-case helper is not generated
+at all. A case reachable through two different included unions is reported as `RSG1008` and skipped.
 
 The generated helpers are pure static methods that call the existing `Result<...>.Failure`/`.Success` factories:
 there is no reflection, no `dynamic`, no runtime type discovery and no mutable static state. The generator does not

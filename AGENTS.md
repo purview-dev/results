@@ -93,9 +93,9 @@ including the diagnostics table, build properties and activation rules.
 
 - **One analyzer, one generator, one diagnostics library.** `Diagnostics/DiagnosticLibrary.cs`,
   `Diagnostics/ResultDiagnostic.cs` and `Diagnostics/ResultUnionDiagnostics.cs` hold the single implementation
-  of the union rules. The analyzer reports the per-target rules (`RSG1000`–`RSG1004`, `RSG1007`); the generator
-  reports the compilation-wide rules (`RSG1005`, `RSG1006`). Never report the same rule from both hosts, and
-  keep `DiagnosticLibrary.IsBlocking` as the single blocking policy.
+  of the union rules. The analyzer reports the per-target rules (`RSG1000`–`RSG1004`, `RSG1007`, `RSG1008`); the
+  generator reports the compilation-wide rules (`RSG1005`, `RSG1006`). Never report the same rule from both
+  hosts, and keep `DiagnosticLibrary.IsBlocking` as the single blocking policy.
 - New or changed rules require an `AnalyzerReleases.Unshipped.md` entry (the compiler's RS2008 rule catalogue).
 - **One suppressor.** `Suppressors/UnionEqualityDiagnosticSuppressor.cs` is the only programmatic suppression in
   this repository: it suppresses `CA1815` and only `CA1815`, and only on a declaration that is both a union
@@ -137,10 +137,20 @@ including the diagnostics table, build properties and activation rules.
 - Also emit the **union-receiver factory** as a C# 14 extension block on the union type
   (`extension(TUnion) { public static ... }`): `Failure(case)`/`Failure<TValue>(case)` and `Success()`/
   `Success<TValue>(value)`. The factory names the union by its receiver, so it is the shared-case safe form: a
-  case type shared with another union (`RSG1006`) has its per-case `AsFailure` helper generated once, but every
-  union's factory covers all of its own cases. `ResultUnionModel.Cases` is the union's full case set (used by the
-  factory) and `ResultUnionModel.HelperCases` is the deduplicated subset (used by `AsFailure`); never conflate the
-  two. The code fix rewrites `CS0029` to the factory, not to `AsFailure`, so it cannot bind to the wrong union.
+  leaf case type shared with another union (`RSG1006`) has its per-case `AsFailure` helper generated once, but
+  every union's factory covers all of its own cases. `ResultUnionModel.Cases` is the union's full case set (used
+  by the factory) and `ResultUnionModel.HelperCases` is the deduplicated subset (used by `AsFailure`); never
+  conflate the two. The code fix rewrites `CS0029` to the factory, not to `AsFailure`, so it cannot bind to the
+  wrong union.
+- **Union inclusion.** A case type that is itself a union is an *included union*: the including union's factory
+  also covers every case reachable through it, constructing the nested value (`new Outer(new Inner(leaf))`).
+  `ResultUnionModel.IncludedCases` carries that expansion (the case plus its innermost-first construction path)
+  and the emitter writes one factory pair per included case. Inclusion is automatic for every union-typed case and
+  is the supported way to avoid `RSG1006`. A union-typed case shared by two unions is composition, not a shared
+  leaf: it is **not** reported as `RSG1006` and its per-case `AsFailure` helper is not generated for any owner. A
+  case reachable through two different included unions is reported as `RSG1008` and its inclusion factory is
+  skipped, because no single construction path can be named. Expansion walks the union's own case symbols during
+  `ResultUnionDiagnostics.Analyze`, so it needs no opted-in included union and no symbol in cached state.
 - Adding a code fix means adding it to `src/src/SourceGenerator.CodeFixes`, not to the generator project: the
   code fix needs `Microsoft.CodeAnalysis.*.Workspaces`, which must not enter the generator's analyzer closure.
   The two projects stay independent (no project reference, no `InternalsVisibleTo`) so no reference cycle can

@@ -185,6 +185,37 @@ public class GeneratedResultsRuntimeTests
 	}
 
 	[Test]
+	public async Task UnionFactoryFailure_GivenIncludedCase_ConstructsTheNestedUnion()
+	{
+		// Arrange
+		// BillingAccountMissing is not a direct case of RegisterTenantError: it is reachable through
+		// BillingError, which RegisterTenantError includes. The generated factory constructs the whole
+		// nested value.
+		BillingAccountMissing missing = new("account-1");
+
+		// Act
+#pragma warning disable IDE0007 // Use 'var' instead of explicit type
+		Result<Tenant, RegisterTenantError> result = RegisterTenantError.Failure<Tenant>(missing);
+#pragma warning restore IDE0007 // Use 'var' instead of explicit type
+
+		// Assert
+		await Assert.That(result.IsFailure).IsTrue();
+
+		// The active leaf is the included case, reached by matching through the included union.
+		BillingAccountMissing? activeCase = result.Error switch
+		{
+			BillingError billing => billing switch
+			{
+				BillingAccountMissing accountMissing => accountMissing,
+				_ => null,
+			},
+			_ => null,
+		};
+
+		await Assert.That(activeCase).IsEqualTo(missing);
+	}
+
+	[Test]
 	public async Task UnionFactorySuccess_ProducesAUnitSuccess()
 	{
 		// Arrange

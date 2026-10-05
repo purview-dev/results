@@ -95,6 +95,13 @@ ShowRegistration("Register(globex)", registration.Register(globexId, "Globex"));
 ShowRegistration("Register(hooli) again", registration.Register(hooliId, "Hooli"));
 ShowRegistration("guard(hooli)", registration.RegisterWithGuard(hooliId, "Hooli"));
 
+// BillingAccountMissing is a case of BillingError, which RegisterTenantError includes, so the outer union's
+// factory covers it directly and constructs the nested value RegisterTenantError(BillingError(...)).
+ShowRegistration(
+	"inclusion(BillingAccountMissing)",
+	RegisterTenantError.Failure<Tenant>(new BillingAccountMissing(hooliId))
+);
+
 Heading("9. Throw turns an expected failure into an exception at a boundary that must throw");
 
 try

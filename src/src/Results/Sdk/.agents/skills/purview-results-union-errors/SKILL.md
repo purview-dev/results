@@ -1,6 +1,6 @@
 ---
 name: purview-results-union-errors
-description: "Use when modelling expected failures as a C# 15 union and converting its cases into Purview.Results values — declaring [GenerateResult] unions, using the generated per-case AsFailure<TValue>()/AsFailure() helpers and the union-receiver Union.Failure(...)/Union.Success(...) factories, reacting to the RSG1000-RSG1007 diagnostics, or explaining why a union case cannot convert implicitly."
+description: "Use when modelling expected failures as a C# 15 union and converting its cases into Purview.Results values — declaring [GenerateResult] unions, using the generated per-case AsFailure<TValue>()/AsFailure() helpers and the union-receiver Union.Failure(...)/Union.Success(...) factories, reacting to the RSG1000-RSG1008 diagnostics, or explaining why a union case cannot convert implicitly."
 ---
 
 # Modelling error unions for Purview.Results
@@ -50,7 +50,8 @@ Result<Tenant, TenantError> created = TenantError.Success(tenant);
 
 Prefer the union-receiver factory when a case type is shared with another union (`RSG1006`): the per-case
 `AsFailure` helper is generated once and can bind to the wrong union, while `Union.Failure(...)` always names the
-union you want.
+union you want. A case type that is itself a union is an *included union*: sharing it is composition, so it is not
+reported, and the factory also covers the included union's cases by building the nested value.
 
 ## Why the helper is required
 
@@ -95,10 +96,12 @@ Result<Tenant, RegisterTenantError> Register(TenantId id, string name) =>
         .Bind(quota => CreateTenant(quota, name), error => error);   // BillingError -> RegisterTenantError
 ```
 
-List the union as a case, not its leaf cases: a leaf shared with the callee's union raises `RSG1006` and its per-case
-helper is generated for only one of the unions, so a case-receiver call site can bind to the wrong union; convert it
-with the union-receiver factory (`CallerUnion.Failure(leaf)`) instead. To keep the callee's types out
-of the caller's contract, map its cases into the caller's own case types with `MapError` instead — the compiler
+List the union as a case, not its leaf cases: the caller's union-receiver factory then covers the callee's cases and
+builds the nested value (`CallerUnion.Failure(leaf)`), so no leaf is shared and no `RSG1006` is raised. A leaf listed
+in two unions is a shared leaf: its per-case helper is generated for only one of them, so a case-receiver call site
+can bind to the wrong union; convert it with the union-receiver factory instead. A case reachable through two
+different included unions is reported as `RSG1008` and its inclusion factory is skipped. To keep the callee's types
+out of the caller's contract, map its cases into the caller's own case types with `MapError` instead — the compiler
 then forces the mapping to stay exhaustive as the callee's union grows. The ASP.NET Core mapper resolves a union
 error to its innermost case, so a leaf mapping wins and an enclosing-union mapping still applies when the leaf has
 none.
@@ -128,10 +131,12 @@ The package ships an analyzer and a generator that share one diagnostics library
 | `RSG1003` | Error | A type generated code must reference is not accessible (for example a `file` type) |
 | `RSG1004` | Error | The same union is configured more than once; the helpers are generated once |
 | `RSG1005` | Error | Two unions produce the same generated class name in one namespace |
-| `RSG1006` | Warning | A case type is shared with another union, so its per-case `AsFailure` helper is generated once; the union-receiver `Failure(...)` factory is generated for every union |
+| `RSG1006` | Warning | A **leaf** case type is shared with another union, so its per-case `AsFailure` helper is generated once; the union-receiver `Failure(...)` factory is generated for every union. A union-typed case shared across unions is composition and is not reported |
 | `RSG1007` | Error | The union uses an `IUnionMembers` member provider, which is not supported |
+| `RSG1008` | Warning | A case is reachable through two different included unions, so no inclusion factory can name its construction path; that case's inclusion factory is skipped |
 
-`RSG1004` and `RSG1006` are non-blocking: the union (or the shared case) is skipped and reported.
+`RSG1004`, `RSG1006` and `RSG1008` are non-blocking: the union (or the shared/ambiguous case) is skipped and
+reported.
 
 Unsupported by design: `IUnionMembers` member providers (`RSG1007`) and generic unions (`RSG1002`).
 
@@ -166,5 +171,5 @@ compared by value.
    success carries no value.
 4. Failures are produced with `new Case(...).AsFailure<TValue>()` (or `AsFailure()` for a unit result, the
    union-receiver `Union.Failure<TValue>(case)` / `Union.Failure(case)` factory, or the cast form).
-5. The build is clean of `RSG1000`–`RSG1007`.
+5. The build is clean of `RSG1000`–`RSG1008`.
 6. The union is mapped to responses once, in the host (see `purview-results-http-mapping`).

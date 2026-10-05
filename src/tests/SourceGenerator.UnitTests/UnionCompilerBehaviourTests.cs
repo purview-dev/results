@@ -321,6 +321,37 @@ public class UnionCompilerBehaviourTests
 	}
 
 	[Test]
+	public async Task Union_GivenNestedUnionConstruction_Compiles(CancellationToken cancellationToken)
+	{
+		// The union-inclusion factory constructs a nested union value with the union's own public case
+		// constructor: `new Outer(new Inner(leaf))`. This proves that shape compiles, which is what the
+		// generated inclusion factory relies on.
+		const string source = """
+			namespace Test
+			{
+				public readonly record struct NotFound(int Id);
+
+				public readonly union InnerError(NotFound);
+
+				public readonly union OuterError(InnerError);
+			}
+			""";
+		const string usage = """
+			namespace Test
+			{
+				public static class Usage
+				{
+					public static OuterError Create(NotFound error) => new OuterError(new InnerError(error));
+				}
+			}
+			""";
+
+		var result = await GenerateAsync([source, usage], cancellationToken);
+
+		result.AssertNoCompilationErrors();
+	}
+
+	[Test]
 	public async Task Result_GivenUnionCastedCase_Compiles(CancellationToken cancellationToken)
 	{
 		// The cast closes the case -> union conversion, so returning the union result needs only the

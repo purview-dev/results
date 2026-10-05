@@ -27,9 +27,10 @@ readonly record struct BillingServiceUnavailable(string Reason);
 /// service's error union, each as one case.
 /// </summary>
 /// <remarks>
-/// The case types are the two unions rather than their leaf cases, so a billing failure lifts into this
-/// contract with one union conversion and no case type is shared with <see cref="BillingError"/> (which would
-/// raise <c>RSG1006</c>).
+/// The case types are the two unions rather than their leaf cases. A union-typed case is an <em>included
+/// union</em>: the generator's factory covers the included union's cases and constructs the nested value
+/// (<c>RegisterTenantError.Failure&lt;Tenant&gt;(new BillingAccountMissing(id))</c>), so no leaf case is shared
+/// with <see cref="BillingError"/> and <c>RSG1006</c> is never raised.
 /// </remarks>
 [GenerateResult]
 readonly union RegisterTenantError(TenantError, BillingError);

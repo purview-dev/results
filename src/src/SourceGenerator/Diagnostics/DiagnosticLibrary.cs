@@ -150,6 +150,20 @@ static class DiagnosticLibrary
 	);
 
 	/// <summary>
+	/// A case is reachable through more than one of a union's included unions, so no inclusion factory can
+	/// be generated for it unambiguously.
+	/// </summary>
+	public static readonly DiagnosticDescriptor AmbiguousIncludedCase = new(
+		id: "RSG1008",
+		title: "Union inclusion case is ambiguous",
+		messageFormat: "The case type '{0}' is reachable through more than one included union of '{1}', so no inclusion factory is generated for it; convert it through the union that directly declares it instead",
+		category: Category,
+		defaultSeverity: DiagnosticSeverity.Warning,
+		isEnabledByDefault: true,
+		description: "A union may include another union as a case, which exposes the included union's cases through the union-receiver factory. When the same case type is reachable through two included unions, no single factory can name the construction path, so the case is skipped and reported. Only that case's inclusion factory is skipped; the union is still generated."
+	);
+
+	/// <summary>
 	/// Gets every rule in the catalogue, which is exactly the analyzer's supported diagnostics.
 	/// </summary>
 	public static readonly ImmutableArray<DiagnosticDescriptor> AllDescriptors =
@@ -162,6 +176,7 @@ static class DiagnosticLibrary
 		GeneratedClassNameCollision,
 		SharedCaseType,
 		UnsupportedMemberProvider,
+		AmbiguousIncludedCase,
 	];
 
 	/// <summary>
@@ -188,6 +203,7 @@ static class DiagnosticLibrary
 	/// <item><description><c>RSG1005</c> (generated class-name collision): blocking for the colliding union, which is skipped.</description></item>
 	/// <item><description><c>RSG1006</c> (shared case type): non-blocking; only the shared case's helper is skipped.</description></item>
 	/// <item><description><c>RSG1007</c> (member provider): nothing can be generated.</description></item>
+	/// <item><description><c>RSG1008</c> (ambiguous included case): non-blocking; only the ambiguous case's inclusion factory is skipped.</description></item>
 	/// </list>
 	/// </para>
 	/// </remarks>
@@ -207,6 +223,7 @@ static class DiagnosticLibrary
 			"RSG1005" => true,
 			"RSG1006" => false,
 			"RSG1007" => true,
+			"RSG1008" => false,
 			_ => descriptor.DefaultSeverity == DiagnosticSeverity.Error,
 		};
 }

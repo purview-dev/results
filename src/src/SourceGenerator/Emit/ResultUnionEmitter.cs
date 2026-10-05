@@ -169,6 +169,12 @@ static class ResultUnionEmitter
 					EmitValueFactory(body, union, unionCase);
 				}
 
+				foreach (var includedCase in union.IncludedCases)
+				{
+					EmitIncludedUnitFactory(body, union, includedCase);
+					EmitIncludedValueFactory(body, union, includedCase);
+				}
+
 				EmitUnitSuccessFactory(body, union);
 				EmitValueSuccessFactory(body, union);
 			}
@@ -244,6 +250,99 @@ static class ResultUnionEmitter
 				},
 			body => body.Return($"{resultTypeName}.Failure({PropertyLibrary.ErrorParameterName})")
 		);
+	}
+
+	/// <summary>
+	/// Emits the unit factory for a case reached through an included union, constructing the nested union
+	/// value so the case can be converted by naming this union.
+	/// </summary>
+	static void EmitIncludedUnitFactory(CodeWriter writer, ResultUnionModel union, IncludedUnionCaseModel includedCase)
+	{
+		var resultType = CreateUnitResultTypeReference(union);
+		var resultTypeName = resultType.RenderFullName;
+
+		writer.XmlSummary(
+			$"Creates a failed unit result containing the {XmlInlineCode(DocText.Escape(includedCase.FullyQualifiedName))} case of {XmlInlineCode(DocText.Escape(union.FullyQualifiedName))}, reached through the union(s) that include it."
+		);
+		writer.XmlParam(
+			PropertyLibrary.ErrorParameterName,
+			$"The {XmlInlineCode(DocText.Escape(includedCase.FullyQualifiedName))} case to convert."
+		);
+		writer.XmlReturn(
+			$"A failed {XmlInlineCode(DocText.Escape(PropertyLibrary.ResultUnitTypeName))} whose error is {XmlParamRef(PropertyLibrary.ErrorParameterName)}."
+		);
+
+		writer.Method(
+			PropertyLibrary.FailureFactoryName,
+			resultType,
+			union.Accessibility,
+			options =>
+				options with
+				{
+					IsStatic = true,
+					Parameters =
+					[
+						new ParameterDeclarationOptions(PropertyLibrary.ErrorParameterName, includedCase.CaseType),
+					],
+				},
+			body => body.Return($"{resultTypeName}.Failure({RenderIncludedValue(union, includedCase)})")
+		);
+	}
+
+	/// <summary>
+	/// Emits the value factory for a case reached through an included union, constructing the nested union
+	/// value so the case can be converted by naming this union.
+	/// </summary>
+	static void EmitIncludedValueFactory(CodeWriter writer, ResultUnionModel union, IncludedUnionCaseModel includedCase)
+	{
+		var resultType = CreateResultTypeReference(union);
+		var resultTypeName = resultType.RenderFullName;
+
+		writer.XmlSummary(
+			$"Creates a failed result containing the {XmlInlineCode(DocText.Escape(includedCase.FullyQualifiedName))} case of {XmlInlineCode(DocText.Escape(union.FullyQualifiedName))}, reached through the union(s) that include it."
+		);
+		writer.XmlTypeParam(
+			PropertyLibrary.ValueTypeParameterName,
+			"The type of the successful value of the created result."
+		);
+		writer.XmlParam(
+			PropertyLibrary.ErrorParameterName,
+			$"The {XmlInlineCode(DocText.Escape(includedCase.FullyQualifiedName))} case to convert."
+		);
+		writer.XmlReturn(
+			$"A failed {XmlInlineCode(DocText.Escape(PropertyLibrary.ResultTypeName))} whose error is {XmlParamRef(PropertyLibrary.ErrorParameterName)}."
+		);
+
+		writer.Method(
+			PropertyLibrary.FailureFactoryName,
+			resultType,
+			union.Accessibility,
+			options =>
+				options with
+				{
+					IsStatic = true,
+					GenericTypes = [new GenericTypeParameterOptions(PropertyLibrary.ValueTypeParameterName)],
+					Parameters =
+					[
+						new ParameterDeclarationOptions(PropertyLibrary.ErrorParameterName, includedCase.CaseType),
+					],
+				},
+			body => body.Return($"{resultTypeName}.Failure({RenderIncludedValue(union, includedCase)})")
+		);
+	}
+
+	/// <summary>
+	/// Renders the nested union value for a case reached through an included union: the case wrapped in each
+	/// path union innermost first, and finally in the declaring union.
+	/// </summary>
+	static string RenderIncludedValue(ResultUnionModel union, IncludedUnionCaseModel includedCase)
+	{
+		var current = PropertyLibrary.ErrorParameterName;
+
+		foreach (var unionType in includedCase.UnionPath)
+			current = $"new {unionType.RenderFullName}({current})";
+
+		return $"new {union.UnionType.RenderFullName}({current})";
 	}
 
 	static void EmitUnitSuccessFactory(CodeWriter writer, ResultUnionModel union)

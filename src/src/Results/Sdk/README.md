@@ -130,9 +130,12 @@ Result<TenantError> ok = TenantError.Success();
 Result<Tenant, TenantError> created = TenantError.Success(tenant);
 ```
 
-Use the union-receiver factory when a case type is shared with another union: the per-case `AsFailure` helper is
-generated once (for the union that sorts first) and reported as `RSG1006`, so it can bind to the wrong union, while
-`Union.Failure(...)` always names the union you want.
+Use the union-receiver factory when a **leaf** case type is shared with another union: the per-case `AsFailure`
+helper is generated once (for the union that sorts first) and reported as `RSG1006`, so it can bind to the wrong
+union, while `Union.Failure(...)` always names the union you want. A case type that is itself a union is an
+*included union*: sharing it is composition, so it is not reported, and the factory also covers the included
+union's cases by building the nested value
+(`RegisterTenantError.Failure<Tenant>(new BillingAccountMissing(id))`).
 
 The generator cannot declare that conversion for you: C# forbids user-defined operators in a static class,
 forbids conversion operators in extension members, and permits only one user-defined conversion per conversion
@@ -148,8 +151,10 @@ Result<Tenant, TenantError> GetTenant(TenantId tenantId) => (TenantError)new Ten
 
 When one service calls another, widen the callee's error union into the caller's operation-family union with the
 widening `Bind`, or lift it at a guard with the generated helper. List the callee's union as a case rather than its
-leaf cases, so no case type is shared between the two unions; if a case type must be shared, convert it with the
-union-receiver `Union.Failure(...)` factory, which is generated for every union.
+leaf cases: the caller's factory then covers the callee's cases by constructing the nested value, and a leaf is
+never shared. If a **leaf** case type must be shared, convert it with the union-receiver `Union.Failure(...)`
+factory, which is generated for every union. A case reachable through two different included unions is reported as
+`RSG1008` and skipped.
 
 ## Examples
 

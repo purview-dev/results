@@ -52,7 +52,7 @@ case types and a `Result<TValue, TUnion>` return type built with the generated h
 
 ### Verification
 
-- Build the solution and confirm no `RSG1000`–`RSG1007` diagnostics.
+- Build the solution and confirm no `RSG1000`–`RSG1008` diagnostics.
 - Run the affected tests.
 - Confirm no remaining `throw` for an outcome the caller is expected to handle.
 - Confirm the union appears in exactly one mapper.
