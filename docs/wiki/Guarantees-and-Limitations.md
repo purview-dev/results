@@ -39,8 +39,9 @@ change must not break.
 - `[GenerateResult]` is supported on union declarations only. Generic unions are unsupported (`RSG1002`), and so
   are `IUnionMembers` member providers (`RSG1007`).
 - Generated implicit conversions are not possible — see [Union Errors](Union-Errors.md) for the five compiler
-  rules. The per-case `AsFailure<TValue>()` and `AsFailure()` helpers and the IDE code fix are the ergonomics the
-  language allows; the helper-free alternative is the `(TenantError)caseValue` cast.
+  rules. The per-case `AsFailure<TValue>()` and `AsFailure()` helpers, the union-receiver
+  `Union.Failure(...)`/`Union.Success(...)` factories and the IDE code fix are the ergonomics the language allows;
+  the helper-free alternative is the `(TenantError)caseValue` cast.
 - Accessibility never widens: a union or case type that is not visible produces an `internal` generated class
   (`RSG1003` covers the case where generated code could not reference a type at all).
 

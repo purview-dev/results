@@ -1,6 +1,6 @@
 ---
 name: purview-results-union-errors
-description: "Use when modelling expected failures as a C# 15 union and converting its cases into Purview.Results values — declaring [GenerateResult] unions, using the generated AsFailure<TValue>() and AsFailure() helpers, reacting to the RSG1000-RSG1007 diagnostics, or explaining why a union case cannot convert implicitly."
+description: "Use when modelling expected failures as a C# 15 union and converting its cases into Purview.Results values — declaring [GenerateResult] unions, using the generated per-case AsFailure<TValue>()/AsFailure() helpers and the union-receiver Union.Failure(...)/Union.Success(...) factories, reacting to the RSG1000-RSG1007 diagnostics, or explaining why a union case cannot convert implicitly."
 ---
 
 # Modelling error unions for Purview.Results
@@ -38,6 +38,20 @@ Result<Tenant, TenantError> Get(TenantId id) => new TenantNotFound(id).AsFailure
 Result<TenantError> Delete(TenantId id) => new TenantNotFound(id).AsFailure();
 ```
 
+The same class declares a C# 14 extension block on the union type, so the union can name the call instead of the
+case:
+
+```csharp
+Result<Tenant, TenantError> Get(TenantId id) => TenantError.Failure<Tenant>(new TenantNotFound(id));
+Result<TenantError> Delete(TenantId id) => TenantError.Failure(new TenantNotFound(id));
+Result<TenantError> ok = TenantError.Success();
+Result<Tenant, TenantError> created = TenantError.Success(tenant);
+```
+
+Prefer the union-receiver factory when a case type is shared with another union (`RSG1006`): the per-case
+`AsFailure` helper is generated once and can bind to the wrong union, while `Union.Failure(...)` always names the
+union you want.
+
 ## Why the helper is required
 
 The generator cannot declare an implicit conversion from a case to the result, and neither can you. Five
@@ -62,9 +76,10 @@ Result<Tenant, TenantError> Get(TenantId id) => (TenantError)new TenantNotFound(
 
 `Purview.Results` also ships an IDE code fix: when you write
 `return new TenantNotFound(id);` in a `Result<TValue, TUnion>`- or `Result<TUnion>`-returning member, the
-lightbulb offers the `AsFailure<TValue>()` or `AsFailure()` rewrite. The fix is only offered when the rewrite
-will bind (the converted type is a result, the error type is a `[GenerateResult]` union, the value is one of its
-cases, and the union is in scope by simple name).
+lightbulb offers the `Union.Failure<TValue>(case)` or `Union.Failure(case)` rewrite. The fix names the union, so it
+is correct even when the case type is shared with another union. It is only offered when the rewrite will bind (the
+converted type is a result, the error type is a `[GenerateResult]` union, the value is one of its cases, and the
+union is in scope by simple name).
 
 ## Chaining across services
 
@@ -80,8 +95,9 @@ Result<Tenant, RegisterTenantError> Register(TenantId id, string name) =>
         .Bind(quota => CreateTenant(quota, name), error => error);   // BillingError -> RegisterTenantError
 ```
 
-List the union as a case, not its leaf cases: a leaf shared with the callee's union raises `RSG1006` and its helper
-is generated for only one of the unions, so a call site can bind to the wrong union. To keep the callee's types out
+List the union as a case, not its leaf cases: a leaf shared with the callee's union raises `RSG1006` and its per-case
+helper is generated for only one of the unions, so a case-receiver call site can bind to the wrong union; convert it
+with the union-receiver factory (`CallerUnion.Failure(leaf)`) instead. To keep the callee's types out
 of the caller's contract, map its cases into the caller's own case types with `MapError` instead — the compiler
 then forces the mapping to stay exhaustive as the callee's union grows. The ASP.NET Core mapper resolves a union
 error to its innermost case, so a leaf mapping wins and an enclosing-union mapping still applies when the leaf has
@@ -112,7 +128,7 @@ The package ships an analyzer and a generator that share one diagnostics library
 | `RSG1003` | Error | A type generated code must reference is not accessible (for example a `file` type) |
 | `RSG1004` | Error | The same union is configured more than once; the helpers are generated once |
 | `RSG1005` | Error | Two unions produce the same generated class name in one namespace |
-| `RSG1006` | Warning | A case type is shared with another union, so its helper is generated once |
+| `RSG1006` | Warning | A case type is shared with another union, so its per-case `AsFailure` helper is generated once; the union-receiver `Failure(...)` factory is generated for every union |
 | `RSG1007` | Error | The union uses an `IUnionMembers` member provider, which is not supported |
 
 `RSG1004` and `RSG1006` are non-blocking: the union (or the shared case) is skipped and reported.
@@ -148,7 +164,7 @@ compared by value.
 2. The union is a `union` declaration annotated with `[GenerateResult]`.
 3. Every method that fails for an expected reason returns `Result<TValue, TUnion>`, or `Result<TUnion>` when the
    success carries no value.
-4. Failures are produced with `new Case(...).AsFailure<TValue>()` (or `AsFailure()` for a unit result, or the cast
-   form).
+4. Failures are produced with `new Case(...).AsFailure<TValue>()` (or `AsFailure()` for a unit result, the
+   union-receiver `Union.Failure<TValue>(case)` / `Union.Failure(case)` factory, or the cast form).
 5. The build is clean of `RSG1000`–`RSG1007`.
 6. The union is mapped to responses once, in the host (see `purview-results-http-mapping`).

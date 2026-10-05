@@ -20,7 +20,7 @@ The union rules live in one shared library (`Diagnostics/DiagnosticLibrary.cs`,
 | `RSG1003` | Error | Analyzer | Union: yes / case: no | A type that generated code must reference is not accessible (for example a `file` type). |
 | `RSG1004` | Error | Analyzer | No | The same union is configured more than once (for example on two partial declarations); the helpers are generated once. |
 | `RSG1005` | Error | Generator | Yes (the colliding union is skipped) | Two unions produce the same generated class name in one namespace. |
-| `RSG1006` | Warning | Generator | No (only the shared case's helper is skipped) | A case type is shared with another union, so its helper is generated once to keep call sites unambiguous. |
+| `RSG1006` | Warning | Generator | No (only the shared case's `AsFailure` helper is skipped) | A case type is shared with another union, so its per-case helper is generated once; the union-receiver `Failure(...)` factory is generated for every union and is the shared-case safe form. |
 | `RSG1007` | Error | Analyzer | Yes | The union uses an `IUnionMembers` member provider, which the first implementation does not support. |
 
 Case-level findings never block the union: the remaining cases are still generated and the skipped case is

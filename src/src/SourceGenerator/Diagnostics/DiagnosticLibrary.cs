@@ -129,11 +129,11 @@ static class DiagnosticLibrary
 	public static readonly DiagnosticDescriptor SharedCaseType = new(
 		id: "RSG1006",
 		title: "Union case type is shared with another union",
-		messageFormat: "The case type '{0}' is also a case of '{1}', so its result helper is generated for '{1}' only to keep the call site unambiguous",
+		messageFormat: "The case type '{0}' is also a case of '{1}', so its AsFailure helper is generated for '{1}' only; use the union-receiver factory '{2}.Failure(...)' to convert the case for this union without ambiguity",
 		category: Category,
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true,
-		description: "A case type may belong to more than one union. Generating the same helper for both would make extension method resolution ambiguous, so the helper is generated once."
+		description: "A case type may belong to more than one union. Generating the same per-case AsFailure helper for both would make extension method resolution ambiguous, so the helper is generated once. The union-receiver Failure(...) factory is generated for every union, including the shared case, and is the shared-case safe form."
 	);
 
 	/// <summary>

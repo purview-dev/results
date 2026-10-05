@@ -21,11 +21,11 @@ public readonly record struct TenantAlreadyExists(TenantId TenantId);
 so the consuming project does not declare it and needs no second package reference. Opt-in is explicit: a
 compilation that never applies the attribute gets no helpers.
 
-## The generated helper
+## The generated helpers
 
-For each case type the generator emits two overloads in a `{Union}ResultExtensions` static class in the union's
-own namespace — a value-producing `AsFailure<TValue>()` and a non-generic `AsFailure()` that produces a unit
-result:
+For each case type the generator emits two per-case overloads in a `{Union}ResultExtensions` static class in the
+union's own namespace — a value-producing `AsFailure<TValue>()` and a non-generic `AsFailure()` that produces a
+unit result:
 
 ```csharp
 public static class TenantErrorResultExtensions
@@ -52,8 +52,26 @@ Result<TenantError> DeleteTenant(TenantId tenantId) =>
         : new TenantNotFound(tenantId).AsFailure();
 ```
 
-One overload **per case type** is generated rather than one for the union, because C# does not apply union
-conversions to an extension-method receiver (`CS1929`), so a helper declared on the union itself would never bind.
+The same class also declares a C# 14 extension block on the union type, so the union can name the call instead of
+the case:
+
+```csharp
+Result<Tenant, TenantError> GetTenant(TenantId tenantId) =>
+    TenantError.Failure<Tenant>(new TenantNotFound(tenantId));
+
+Result<TenantError> DeleteTenant(TenantId tenantId) =>
+    TenantError.Failure(new TenantNotFound(tenantId));
+
+Result<TenantError> ok = TenantError.Success();
+Result<Tenant, TenantError> created = TenantError.Success(tenant);
+```
+
+The per-case `AsFailure` helper is generated **once per case type**, not once per union, because C# does not apply
+union conversions to an *instance* extension-method receiver (`CS1929`). A case type shared by two unions therefore
+gets a single `AsFailure` helper, reported as `RSG1006`, which can bind to the wrong union. The union-receiver
+factory is a **static** extension member (`extension(Union) { public static ... }`): the receiver is the union type
+itself and the case is an argument, so it is generated for every union and every case and is the form to use when a
+case type is shared.
 
 ## Why there is no implicit conversion
 
@@ -92,15 +110,16 @@ Returning a bare case value where a result is expected is a compiler error (`CS0
 `UnionCaseResultCodeFixProvider`, which offers the rewrite in the IDE from the lightbulb:
 
 ```csharp
-return new TenantNotFound(id);                        // CS0029
-return new TenantNotFound(id).AsFailure<Tenant>();    // after the fix, for a value result
-return new TenantNotFound(id).AsFailure();            // after the fix, for a unit result
+return new TenantNotFound(id);                                 // CS0029
+return TenantError.Failure<Tenant>(new TenantNotFound(id));    // after the fix, for a value result
+return TenantError.Failure(new TenantNotFound(id));            // after the fix, for a unit result
 ```
 
 A fix is offered only when the rewrite will bind: the converted type is `Purview.Results.Result<TValue, TError>` or
 the unit `Purview.Results.Result<TError>`, `TError` is a union **and** opted in with `[GenerateResult]`, the
 expression's type is one of that union's case types, and the union is reachable by its simple name at the call
-site. A value result gets `AsFailure<TValue>()`; a unit result gets the non-generic `AsFailure()`.
+site. A value result gets `Union.Failure<TValue>(case)`; a unit result gets `Union.Failure(case)`. The rewrite names
+the union, so it is correct even when the case type is shared with another union.
 
 ## Chaining across services
 
@@ -122,14 +141,15 @@ Result<Tenant, RegisterTenantError> Register(TenantId id, string name) =>
     billing.ReserveQuota(id)
         .Bind(quota => CreateTenant(quota, name), error => error);
 
-// Guard idiom: BillingError is a case of RegisterTenantError, so its generated helper produces the composite
-// failure directly.
+// Guard idiom: BillingError is a case of RegisterTenantError, so the union-receiver factory produces the
+// composite failure directly.
 if (reserved.TryGetError(out var billingError))
-    return billingError.AsFailure<Tenant>();
+    return RegisterTenantError.Failure<Tenant>(billingError);
 ```
 
 List the callee's **union** as the case, not its leaf cases. A leaf listed in two unions is a shared case, which
-raises `RSG1006` and generates the helper for only one of them, so a call site can bind to the wrong union. If the
+raises `RSG1006` and generates the per-case `AsFailure` helper for only one of them, so a case-receiver call site
+can bind to the wrong union; convert it with the union-receiver factory (`CallerUnion.Failure(leaf)`) instead. If the
 caller must not expose the callee's types at all, map the callee's cases into the caller's own case types with
 `MapError(error => error switch { ... })` instead — the compiler then forces the mapping to stay exhaustive as the
 callee's union grows.
@@ -144,7 +164,7 @@ mapping for the leaf (`Map<BillingServiceUnavailable>`) wins, and a mapping for 
 | --- | --- |
 | A union declaration whose cases are public single-parameter constructors | Yes |
 | A type marked `[Union]` with public single-parameter constructors | Yes |
-| A case type shared by two unions | Yes — `RSG1006` warning; the helper is generated once |
+| A case type shared by two unions | Yes — `RSG1006` warning; the per-case `AsFailure` helper is generated once, and the union-receiver `Failure(...)` factory is generated for both |
 | A generic union | No — `RSG1002` |
 | A case type that itself contains type parameters | No — `RSG1002` (the remaining cases still generate) |
 | `IUnionMembers` member providers | No — `RSG1007` |

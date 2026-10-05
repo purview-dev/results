@@ -15,9 +15,9 @@ using Microsoft.CodeAnalysis.Text;
 namespace Purview.Results.SourceGenerator.CodeFixes;
 
 /// <summary>
-/// Offers the generated <c>AsFailure&lt;TValue&gt;()</c> and <c>AsFailure()</c> helpers when a union case value
-/// is returned where a <c>Result&lt;TValue, TError&gt;</c> or a unit <c>Result&lt;TError&gt;</c> is expected
-/// (<c>CS0029</c>).
+/// Offers the generated union-receiver factories <c>Union.Failure&lt;TValue&gt;(case)</c> and
+/// <c>Union.Failure(case)</c> when a union case value is returned where a
+/// <c>Result&lt;TValue, TError&gt;</c> or a unit <c>Result&lt;TError&gt;</c> is expected (<c>CS0029</c>).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -28,23 +28,29 @@ namespace Purview.Results.SourceGenerator.CodeFixes;
 /// recorded in <c>UnionCompilerBehaviourTests</c> in this repository.
 /// </para>
 /// <para>
+/// The fix names the union by its receiver (<c>Union.Failure(case)</c>) rather than the case, because the
+/// union-receiver factory is generated for every case of every union. The per-case <c>AsFailure</c> helpers
+/// are generated once when a case type is shared with another union, so a case-receiver rewrite could bind to
+/// the wrong union; the factory cannot.
+/// </para>
+/// <para>
 /// A fix is only offered when the rewritten call will actually bind: the converted type must be
 /// <c>Purview.Results.Result&lt;TValue, TError&gt;</c> or <c>Purview.Results.Result&lt;TError&gt;</c>,
-/// <c>TError</c> must be a union opted in with <c>[GenerateResult]</c> (so the helper exists), the expression
+/// <c>TError</c> must be a union opted in with <c>[GenerateResult]</c> (so the factory exists), the expression
 /// must be one of that union's case values, and the union must be reachable by its simple name at the call site
-/// (the helper is generated into the union's own namespace). A value result gets
-/// <c>AsFailure&lt;TValue&gt;()</c>; a unit result gets the non-generic <c>AsFailure()</c>.
+/// (the factory is generated into the union's own namespace). A value result gets
+/// <c>Union.Failure&lt;TValue&gt;(case)</c>; a unit result gets <c>Union.Failure(case)</c>.
 /// </para>
 /// </remarks>
 [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(UnionCaseResultCodeFixProvider)), Shared]
 public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 {
-	const string EquivalenceKey = "PurviewResultsUseAsFailure";
+	const string EquivalenceKey = "PurviewResultsUseUnionFailureFactory";
 	const string ResultNamespace = "Purview.Results";
 	const string ResultMetadataName = "Result`2";
 	const string ResultUnitMetadataName = "Result`1";
 	const string GenerateResultAttributeMetadataName = "GenerateResultAttribute";
-	const string FailureHelperName = "AsFailure";
+	const string FailureFactoryName = "Failure";
 
 	/// <inheritdoc />
 	public override ImmutableArray<string> FixableDiagnosticIds => ["CS0029"];
@@ -83,14 +89,14 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 				continue;
 
 			var title = isUnit
-				? $"Convert the union case to a failed unit result with {FailureHelperName}()"
-				: $"Convert the union case to a failed result with {FailureHelperName}<{valueType!.Name}>()";
+				? $"Convert the union case to a failed unit result with {unionType.Name}.{FailureFactoryName}()"
+				: $"Convert the union case to a failed result with {unionType.Name}.{FailureFactoryName}<{valueType!.Name}>()";
 
 			context.RegisterCodeFix(
 				CodeAction.Create(
 					title: title,
 					createChangedDocument: token =>
-						UseAsFailureAsync(context.Document, expression, isUnit ? null : valueType, token),
+						UseUnionFactoryAsync(context.Document, expression, unionType, isUnit ? null : valueType, token),
 					equivalenceKey: EquivalenceKey
 				),
 				diagnostic
@@ -185,9 +191,10 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 	static bool HasMetadataName(INamedTypeSymbol type, string @namespace, string metadataName) =>
 		type.MetadataName == metadataName && type.ContainingNamespace.ToDisplayString() == @namespace;
 
-	static async Task<Document> UseAsFailureAsync(
+	static async Task<Document> UseUnionFactoryAsync(
 		Document document,
 		ExpressionSyntax expression,
+		INamedTypeSymbol unionType,
 		ITypeSymbol? valueType,
 		CancellationToken cancellationToken
 	)
@@ -196,11 +203,16 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 		if (root is null)
 			return document;
 
-		// A unit result uses the non-generic AsFailure(); a value result names its value type.
-		SimpleNameSyntax helperName;
+		// The union-receiver factory is named on the union type: Union.Failure(case) for a unit result and
+		// Union.Failure<TValue>(case) for a value result.
+		var unionName = SyntaxFactory
+			.ParseTypeName(unionType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat))
+			.WithAdditionalAnnotations(Simplifier.Annotation);
+
+		SimpleNameSyntax factoryName;
 		if (valueType is null)
 		{
-			helperName = SyntaxFactory.IdentifierName(FailureHelperName);
+			factoryName = SyntaxFactory.IdentifierName(FailureFactoryName);
 		}
 		else
 		{
@@ -208,18 +220,17 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 				.ParseTypeName(valueType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat))
 				.WithAdditionalAnnotations(Simplifier.Annotation);
 
-			helperName = SyntaxFactory.GenericName(
-				SyntaxFactory.Identifier(FailureHelperName),
+			factoryName = SyntaxFactory.GenericName(
+				SyntaxFactory.Identifier(FailureFactoryName),
 				SyntaxFactory.TypeArgumentList(SyntaxFactory.SingletonSeparatedList(typeArgument))
 			);
 		}
 
 		var invocation = SyntaxFactory
 			.InvocationExpression(
-				SyntaxFactory.MemberAccessExpression(
-					SyntaxKind.SimpleMemberAccessExpression,
-					expression.WithoutTrivia(),
-					helperName
+				SyntaxFactory.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, unionName, factoryName),
+				SyntaxFactory.ArgumentList(
+					SyntaxFactory.SingletonSeparatedList(SyntaxFactory.Argument(expression.WithoutTrivia()))
 				)
 			)
 			.WithTriviaFrom(expression)

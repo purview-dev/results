@@ -37,6 +37,18 @@ static class PropertyLibrary
 	public const string FailureHelperName = "AsFailure";
 
 	/// <summary>
+	/// The name of the generated union-receiver failure factory method, declared as a static extension
+	/// member on the union type so the union is named by the receiver.
+	/// </summary>
+	public const string FailureFactoryName = "Failure";
+
+	/// <summary>
+	/// The name of the generated union-receiver success factory method, declared as a static extension
+	/// member on the union type so the union is named by the receiver.
+	/// </summary>
+	public const string SuccessFactoryName = "Success";
+
+	/// <summary>
 	/// The name of the generic value type parameter used by the generated helpers.
 	/// </summary>
 	public const string ValueTypeParameterName = "TValue";
@@ -45,6 +57,11 @@ static class PropertyLibrary
 	/// The name of the generated helper's union-case parameter.
 	/// </summary>
 	public const string ErrorParameterName = "error";
+
+	/// <summary>
+	/// The name of the value parameter used by the generated success factory.
+	/// </summary>
+	public const string ValueParameterName = "value";
 
 	/// <summary>
 	/// The fully-qualified name of the runtime <c>Result&lt;TValue, TError&gt;</c> type, used when the

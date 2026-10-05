@@ -121,6 +121,19 @@ Result<Tenant, TenantError> GetTenant(TenantId tenantId) => new TenantNotFound(t
 Result<TenantError> DeleteTenant(TenantId tenantId) => new TenantNotFound(tenantId).AsFailure();
 ```
 
+The generator also declares a C# 14 extension block on the union type itself, so the union names the error:
+
+```csharp
+Result<Tenant, TenantError> GetTenant(TenantId tenantId) => TenantError.Failure<Tenant>(new TenantNotFound(tenantId));
+Result<TenantError> DeleteTenant(TenantId tenantId) => TenantError.Failure(new TenantNotFound(tenantId));
+Result<TenantError> ok = TenantError.Success();
+Result<Tenant, TenantError> created = TenantError.Success(tenant);
+```
+
+Use the union-receiver factory when a case type is shared with another union: the per-case `AsFailure` helper is
+generated once (for the union that sorts first) and reported as `RSG1006`, so it can bind to the wrong union, while
+`Union.Failure(...)` always names the union you want.
+
 The generator cannot declare that conversion for you: C# forbids user-defined operators in a static class,
 forbids conversion operators in extension members, and permits only one user-defined conversion per conversion
 sequence. The same package ships a code fix that offers the rewrite in the IDE when a case value is returned
@@ -135,7 +148,8 @@ Result<Tenant, TenantError> GetTenant(TenantId tenantId) => (TenantError)new Ten
 
 When one service calls another, widen the callee's error union into the caller's operation-family union with the
 widening `Bind`, or lift it at a guard with the generated helper. List the callee's union as a case rather than its
-leaf cases, so no case type is shared between the two unions.
+leaf cases, so no case type is shared between the two unions; if a case type must be shared, convert it with the
+union-receiver `Union.Failure(...)` factory, which is generated for every union.
 
 ## Examples
 

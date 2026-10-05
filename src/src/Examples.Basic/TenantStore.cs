@@ -23,7 +23,7 @@ sealed class InMemoryTenantStore
 	public Result<Tenant, TenantError> GetTenant(TenantId tenantId) =>
 		_tenants.TryGetValue(tenantId, out var tenant)
 			? Result<Tenant, TenantError>.Success(tenant)
-			: new TenantNotFound(tenantId).AsFailure<Tenant>();
+			: TenantError.Failure<Tenant>(new TenantNotFound(tenantId));
 
 	/// <summary>
 	/// Creates a tenant.
@@ -34,7 +34,7 @@ sealed class InMemoryTenantStore
 	public Result<Tenant, TenantError> CreateTenant(TenantId tenantId, string name)
 	{
 		if (_tenants.ContainsKey(tenantId))
-			return new TenantAlreadyExists(tenantId).AsFailure<Tenant>();
+			return TenantError.Failure<Tenant>(new TenantAlreadyExists(tenantId));
 
 		Tenant tenant = new(tenantId, name, Enabled: true);
 		_tenants[tenantId] = tenant;
@@ -51,5 +51,5 @@ sealed class InMemoryTenantStore
 	/// failure.
 	/// </returns>
 	public Result<TenantError> DeleteTenant(TenantId tenantId) =>
-		_tenants.Remove(tenantId) ? Result<TenantError>.Success() : new TenantNotFound(tenantId).AsFailure();
+		_tenants.Remove(tenantId) ? Result<TenantError>.Success() : TenantError.Failure(new TenantNotFound(tenantId));
 }

@@ -79,7 +79,7 @@ static class ResultUnionValidator
 
 			generatedTypes[generatedTypeKey] = union;
 
-			var cases = ImmutableArray.CreateBuilder<ResultUnionCaseModel>(union.Cases.Count);
+			var helperCases = ImmutableArray.CreateBuilder<ResultUnionCaseModel>(union.Cases.Count);
 
 			foreach (var unionCase in union.Cases)
 			{
@@ -91,23 +91,20 @@ static class ResultUnionValidator
 						DiagnosticScope.Compilation,
 						union,
 						unionCase.FullyQualifiedName,
-						caseOwner.FullyQualifiedName
+						caseOwner.FullyQualifiedName,
+						union.FullyQualifiedName
 					);
 					continue;
 				}
 
 				caseOwners[unionCase.CaseType] = union;
-				cases.Add(unionCase);
+				helperCases.Add(unionCase);
 			}
 
-			if (cases.Count == 0)
-			{
-				// Every case was either shared with another union (reported above) or the union has no cases
-				// (reported by the analyzer); either way there is nothing left to generate for this union.
-				continue;
-			}
-
-			unions.Add(cases.Count == union.Cases.Count ? union : union with { Cases = cases.ToImmutable() });
+			// The union is always generated: its union-receiver factory covers every case in union.Cases, even
+			// one shared with another union. Only the shared case's per-case AsFailure helper is dropped, which
+			// is why the union keeps its own HelperCases subset.
+			unions.Add(union with { HelperCases = helperCases.ToImmutable() });
 		}
 
 		return new ResultUnionGenerationModel(context, unions.ToImmutable(), diagnostics.ToImmutable());

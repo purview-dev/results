@@ -44,7 +44,7 @@ public sealed class UnionCaseResultCodeFixProviderTests
 		var result = await UnionCodeFixTestHarness.ApplyAsync(source, cancellationToken);
 
 		await Assert.That(result.FixOffered).IsTrue();
-		await Assert.That(result.FixedCode).Contains(".AsFailure<Tenant>()");
+		await Assert.That(result.FixedCode).Contains("TenantError.Failure<Tenant>(");
 		await Assert.That(result.RewriteCompiles).IsTrue();
 	}
 
@@ -72,8 +72,8 @@ public sealed class UnionCaseResultCodeFixProviderTests
 		var result = await UnionCodeFixTestHarness.ApplyAsync(source, cancellationToken);
 
 		await Assert.That(result.FixOffered).IsTrue();
-		await Assert.That(result.FixedCode).Contains(".AsFailure()");
-		await Assert.That(result.FixedCode).DoesNotContain(".AsFailure<");
+		await Assert.That(result.FixedCode).Contains("TenantError.Failure(");
+		await Assert.That(result.FixedCode).DoesNotContain("Failure<");
 		await Assert.That(result.RewriteCompiles).IsTrue();
 	}
 
@@ -99,7 +99,7 @@ public sealed class UnionCaseResultCodeFixProviderTests
 		var result = await UnionCodeFixTestHarness.ApplyAsync(source, cancellationToken);
 
 		await Assert.That(result.FixOffered).IsTrue();
-		await Assert.That(result.FixedCode).Contains(".AsFailure<Tenant>()");
+		await Assert.That(result.FixedCode).Contains("TenantError.Failure<Tenant>(");
 		await Assert.That(result.RewriteCompiles).IsTrue();
 	}
 
@@ -225,5 +225,44 @@ public sealed class UnionCaseResultCodeFixProviderTests
 		var result = await UnionCodeFixTestHarness.ApplyAsync(source, cancellationToken);
 
 		await Assert.That(result.FixOffered).IsFalse();
+	}
+
+	[Test]
+	public async Task UnionCaseResultCodeFixProvider_GivenCaseSharedWithAnotherUnion_ShouldRewriteToTheNamedUnionFactory(
+		CancellationToken cancellationToken
+	)
+	{
+		// NotFound is shared with GetError, so the per-case AsFailure helper is generated for GetError (the
+		// ordinal winner). A case-receiver rewrite would bind to the wrong union; naming SetError cannot.
+		const string source = """
+			using Purview.Results;
+
+			namespace Test
+			{
+				public readonly record struct NotFound(int Id);
+
+				public readonly record struct Rejected(string Reason);
+
+				[GenerateResult]
+				public readonly union GetError(NotFound);
+
+				[GenerateResult]
+				public readonly union SetError(NotFound, Rejected);
+
+				public static class Usage
+				{
+					public static Result<SetError> Set(NotFound error)
+					{
+						return error;
+					}
+				}
+			}
+			""";
+
+		var result = await UnionCodeFixTestHarness.ApplyAsync(source, cancellationToken);
+
+		await Assert.That(result.FixOffered).IsTrue();
+		await Assert.That(result.FixedCode).Contains("SetError.Failure(error)");
+		await Assert.That(result.RewriteCompiles).IsTrue();
 	}
 }

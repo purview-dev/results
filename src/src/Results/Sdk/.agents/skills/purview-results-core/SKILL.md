@@ -36,7 +36,14 @@ Result.Failure<Tenant, TenantError>(new TenantNotFound(id));
 
 // Implicit conversions (one hop only)
 Result<Tenant, TenantError> ok = tenant;
-Result<Tenant, TenantError> failed = new TenantNotFound(id);
+TenantError error = new TenantNotFound(id);          // case -> union is one hop
+Result<Tenant, TenantError> failed = error;          // union -> result is the next hop
+
+// Union-receiver factory (generated for [GenerateResult] unions; shared-case safe)
+TenantError.Failure(new TenantNotFound(id));
+TenantError.Failure<Tenant>(new TenantNotFound(id));
+TenantError.Success();
+TenantError.Success(tenant);
 ```
 
 The implicit conversions accept `TValue` or `TError` directly. They do **not** compose: a union *case* cannot

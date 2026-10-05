@@ -65,14 +65,23 @@ ShowResult("implicit value", fromValue);
 ShowResult("implicit error", fromError);
 ShowResult("error factory", fromFactory);
 
-Heading("7. The generated AsFailure<TValue>() helper is what makes union cases ergonomic");
+Heading("7. The generated helpers name either the case or the union");
 
 // `return new TenantNotFound(id);` does not compile (CS0029): the case converts to the union and the union
-// converts to the result, but C# never composes two user-defined conversions. The generator emits one helper
-// per case of every [GenerateResult] union, which is the ergonomics the language allows.
+// converts to the result, but C# never composes two user-defined conversions. The generator emits a per-case
+// AsFailure helper and a union-receiver factory for every [GenerateResult] union. The factory names the union,
+// so it stays unambiguous even when a case type is shared with another union (RSG1006).
 var helper = new TenantNotFound(missingId).AsFailure<Tenant>();
+var factoryFailure = TenantError.Failure<Tenant>(new TenantNotFound(missingId));
+var factoryUnitFailure = TenantError.Failure(new TenantNotFound(missingId));
+var factorySuccess = TenantError.Success();
+var factoryValueSuccess = TenantError.Success(new Tenant(acmeId, "Acme", Enabled: true));
 
 ShowResult("AsFailure<Tenant>()", helper);
+ShowResult("TenantError.Failure<Tenant>()", factoryFailure);
+ShowUnit("TenantError.Failure()", factoryUnitFailure);
+ShowUnit("TenantError.Success()", factorySuccess);
+ShowResult("TenantError.Success(tenant)", factoryValueSuccess);
 
 Heading("8. Chain services by widening one error union into another");
 

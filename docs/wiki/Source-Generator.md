@@ -2,9 +2,9 @@
 
 The [`Purview.Results`](https://www.nuget.org/packages/Purview.Results) package ships an incremental Roslyn
 source generator that makes C# 15 **union** error cases ergonomic with `Result<TValue, TError>` and the value-less
-`Result<TError>`. It generates the `[GenerateResult]` attribute, the `AsFailure<TValue>()` and `AsFailure()`
-helpers for every union case, and the diagnostics that keep unsupported shapes out of a build. It is not published
-as a separate package.
+`Result<TError>`. It generates the `[GenerateResult]` attribute, the per-case `AsFailure<TValue>()` and `AsFailure()`
+helpers, the union-receiver `Union.Failure(...)` and `Union.Success(...)` factories for every union case, and the
+diagnostics that keep unsupported shapes out of a build. It is not published as a separate package.
 
 ## Installation
 
@@ -69,12 +69,34 @@ public static class TenantErrorResultExtensions
         Result<TenantError>.Failure(error);
 
     // ... the same pair for TenantDisabled and TenantAlreadyExists
+
+    extension(TenantError)
+    {
+        public static Result<TenantError> Failure(TenantNotFound error) =>
+            Result<TenantError>.Failure(error);
+
+        public static Result<TValue, TenantError> Failure<TValue>(TenantNotFound error) =>
+            Result<TValue, TenantError>.Failure(error);
+
+        // ... the same Failure pair per case ...
+
+        public static Result<TenantError> Success() =>
+            Result<TenantError>.Success();
+
+        public static Result<TValue, TenantError> Success<TValue>(TValue value) =>
+            Result<TValue, TenantError>.Success(value);
+    }
 }
 ```
 
-The generated helpers are pure static methods that call the existing `Result<...>.Failure` factory: there is no
-reflection, no `dynamic`, no runtime type discovery and no mutable static state. The generator does not change,
-wrap or replace `Result<TValue, TError>` or `Result<TError>`.
+The per-case `AsFailure` helpers let the *case* name the call (`new TenantNotFound(id).AsFailure<Tenant>()`); the
+union-receiver factory lets the *union* name it (`TenantError.Failure<Tenant>(new TenantNotFound(id))`). The
+factory is the **shared-case safe** form: when a case type belongs to more than one union, its per-case `AsFailure`
+helper is generated once and reported as `RSG1006`, while the factory is generated for every union.
+
+The generated helpers are pure static methods that call the existing `Result<...>.Failure`/`.Success` factories:
+there is no reflection, no `dynamic`, no runtime type discovery and no mutable static state. The generator does not
+change, wrap or replace `Result<TValue, TError>` or `Result<TError>`.
 
 ## Build properties
 

@@ -50,8 +50,8 @@ This wiki is the project documentation hub. Packages are published under the `Pu
 - **Throw-on-misuse, never silent** — `Value` and `Error` throw in the wrong state, and `Match`/`Map`/`Bind`/
   `MapError` throw for `default`; probing (`TryGetValue`, `TryGetError`) is the non-throwing way in.
 - **Union error types** — a C# 15 union keeps every error case strongly typed while the result stays a single
-  value, and the generator supplies the per-case `AsFailure<TValue>()` and `AsFailure()` helpers the language
-  cannot express itself.
+  value, and the generator supplies the per-case `AsFailure<TValue>()` and `AsFailure()` helpers plus the
+  union-receiver `Union.Failure(...)`/`Union.Success(...)` factories the language cannot express itself.
 - **Compile-time diagnostics** — `RSG1000`–`RSG1007` report unsupported union shapes at build time, and the one
   suppression (`RSG2000`) answers `CA1815` only for opted-in unions.
 - **Host-controlled HTTP** — the ASP.NET Core package resolves an error **case**, then the **error type**, then

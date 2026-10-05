@@ -72,7 +72,14 @@ readonly record struct ResultUnionCaseModel(TypeReference CaseType, string Fully
 /// <param name="HintName">The deterministic hint name of the generated source file.</param>
 /// <param name="Location">The declaration location of the union.</param>
 /// <param name="Cases">
-/// The union's case types in deterministic (ordinal, fully-qualified name) order.
+/// The union's full set of case types in deterministic (ordinal, fully-qualified name) order. The
+/// union-receiver factory is generated for every one of these, including a case type shared with another
+/// union.
+/// </param>
+/// <param name="HelperCases">
+/// The subset of <paramref name="Cases"/> whose per-case <c>AsFailure</c> helpers are generated for this
+/// union. A case type shared with another union is owned by the union that sorts first, so it is absent here
+/// for the others; the union-receiver factory still covers it through <paramref name="Cases"/>.
 /// </param>
 readonly record struct ResultUnionModel(
 	string Namespace,
@@ -83,7 +90,8 @@ readonly record struct ResultUnionModel(
 	string ExtensionClassName,
 	string HintName,
 	ResultSourceLocation Location,
-	EquatableArray<ResultUnionCaseModel> Cases
+	EquatableArray<ResultUnionCaseModel> Cases,
+	EquatableArray<ResultUnionCaseModel> HelperCases
 )
 {
 	/// <summary>

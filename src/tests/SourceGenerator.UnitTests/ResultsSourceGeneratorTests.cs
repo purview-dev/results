@@ -79,6 +79,85 @@ public class ResultsSourceGeneratorTests
 	}
 
 	[Test]
+	public async Task GenerateAsync_GivenOptedInUnion_EmitsUnionFactoryExtensionBlock(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		// Act
+		var result = await GenerateAsync(TenantUnionSource, cancellationToken);
+
+		// Assert
+		// The union-receiver factory is a C# 14 static extension block on the union type, so a case can be
+		// converted by naming the union (Union.Failure(case)) rather than the case. The writer wraps the long
+		// parameter list onto its own line, so the assertions target the signature head and the parameter.
+		var generated = result.AssertSingleGeneratedSource();
+		await Assert.That(generated).Contains("extension(global::Test.TenantError)");
+		await Assert.That(generated).Contains("> Failure(");
+		await Assert.That(generated).Contains("> Failure<TValue>(");
+		await Assert.That(generated).Contains("global::Test.TenantNotFound error");
+		await Assert.That(generated).Contains("> Success()");
+		await Assert.That(generated).Contains("> Success<TValue>(");
+		await Assert.That(generated).Contains("Result<global::Test.TenantError>.Success()");
+		await Assert
+			.That(generated)
+			.Contains("global::Purview.Results.Result<TValue, global::Test.TenantError>.Success(value)");
+	}
+
+	[Test]
+	public async Task GenerateAsync_GivenSharedCaseType_EmitsTheUnionFactoryForBothUnions(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		// NotFound is shared by both unions (RSG1006), so its per-case AsFailure helper is generated once —
+		// but each union still owns its factory, which is the shared-case safe form.
+		const string source = """
+			using Purview.Results;
+
+			namespace Test
+			{
+				public readonly record struct NotFound(int Id);
+
+				public readonly record struct Rejected(string Reason);
+
+				[GenerateResult]
+				public readonly union GetError(NotFound);
+
+				[GenerateResult]
+				public readonly union SetError(NotFound, Rejected);
+
+				public static class Usage
+				{
+					public static Result<SetError> Unit(NotFound error) => SetError.Failure(error);
+
+					public static Result<int, SetError> Value(NotFound error) => SetError.Failure<int>(error);
+				}
+			}
+			""";
+
+		// Act
+		var result = await GenerateAsync(source, cancellationToken);
+
+		// Assert
+		result.AssertNoCompilationErrors();
+
+		var setTree = result.PrimarySyntaxTrees.Single(static tree =>
+			tree.FilePath.EndsWith("SetErrorResultExtensions.g.cs", StringComparison.Ordinal)
+		);
+		var setSource = (await setTree.GetTextAsync(cancellationToken)).ToString();
+
+		// The shared case's factory is present on the union that lost the AsFailure helper.
+		await Assert.That(setSource).Contains("> Failure(");
+		await Assert.That(setSource).Contains("> Failure<TValue>(");
+		await Assert.That(setSource).Contains("global::Test.NotFound error");
+
+		// The per-case AsFailure helper is generated once, for GetError (the ordinal winner).
+		await Assert.That(setSource).DoesNotContain("this global::Test.NotFound error");
+		await Assert.That(setSource).Contains("this global::Test.Rejected error");
+	}
+
+	[Test]
 	public async Task GenerateAsync_GivenOptedInUnion_EmitsNullableEnabledFullyQualifiedSource(
 		CancellationToken cancellationToken
 	)

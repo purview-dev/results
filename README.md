@@ -11,7 +11,7 @@ Exceptional circumstances still throw; expected outcomes are values.
 
 | Package | Purpose | Targets |
 | --- | --- | --- |
-| [`Purview.Results`](src/src/Results/Sdk/README.md) | `Result<TValue, TError>` and its value-less counterpart `Result<TError>`, the `Result` factories, and the bundled source generator that emits `AsFailure<TValue>()` and `AsFailure()` helpers for `[GenerateResult]` unions. No runtime dependencies. | `net11.0` |
+| [`Purview.Results`](src/src/Results/Sdk/README.md) | `Result<TValue, TError>` and its value-less counterpart `Result<TError>`, the `Result` factories, and the bundled source generator that emits per-case `AsFailure<TValue>()`/`AsFailure()` helpers and union-receiver `Union.Failure(...)`/`Union.Success(...)` factories for `[GenerateResult]` unions. No runtime dependencies. | `net11.0` |
 | [`Purview.Results.ZodSharp`](src/src/ZodSharp/Sdk/README.md) | Bridges ZodSharp `ValidationResult<T>` values into results. | `net11.0` |
 | [`Purview.Results.AspNetCore`](src/src/AspNetCore/Sdk/README.md) | Maps results onto ASP.NET Core responses (`IResult`, `ProblemDetails`). | `net11.0` |
 | [`Purview.Results.ZodSharp.AspNetCore`](src/src/ZodSharp.AspNetCore/Sdk/README.md) | Maps result failures that carry validation errors onto `HttpValidationProblemDetails`. | `net11.0` |
@@ -45,6 +45,13 @@ public readonly record struct TenantDisabled(TenantId TenantId);
 public readonly record struct TenantAlreadyExists(TenantId TenantId);
 ```
 
+The generator also declares a C# 14 extension block on the union itself, so the union names the error and the
+call site stays unambiguous: `TenantError.Failure(tenantNotFound)` produces `Result<TenantError>`,
+`TenantError.Failure<Tenant>(tenantNotFound)` produces `Result<Tenant, TenantError>`, and
+`TenantError.Success()` / `TenantError.Success(tenant)` produce the success shapes. This union-receiver factory is
+the shared-case safe form: when a case type belongs to more than one union, the per-case `AsFailure` helper is
+generated once and reported as `RSG1006`, so the factory is the call that always binds to the union you name.
+
 The generator cannot make a bare case value convert implicitly — C# forbids operators in a static class,
 conversion operators in extension members, and more than one user-defined conversion per sequence — so the
 per-case helper is the ergonomics the language allows. `Purview.Results` also ships a code fix for the IDE and
@@ -71,7 +78,7 @@ Tenancy domain the Quick start uses, so one error-union vocabulary drives every 
 
 | Example | Packages | Demonstrates |
 | --- | --- | --- |
-| [`Examples.Basic`](src/src/Examples.Basic) | `Purview.Results` | States, `Match`/`Map`/`Bind`/`MapError`/`Ensure`, probing, the throw-on-misuse contract, the generated `AsFailure<TValue>()` and `AsFailure()` helpers, cross-service error-union widening, value-less `Result<TError>` commands, and `Throw()` |
+| [`Examples.Basic`](src/src/Examples.Basic) | `Purview.Results` | States, `Match`/`Map`/`Bind`/`MapError`/`Ensure`, probing, the throw-on-misuse contract, the generated `AsFailure<TValue>()` and `AsFailure()` helpers and the union-receiver `Union.Failure(...)`/`Union.Success(...)` factories, cross-service error-union widening, value-less `Result<TError>` commands, and `Throw()` |
 | [`Examples.Zod`](src/src/Examples.Zod) | + `Purview.Results.ZodSharp` | A `[ZodSchema]` input validated into a result, where the rejection carries its `ValidationError`s, and a value-discarding `ToUnitResult` validation |
 | [`Examples.AspNetCore`](src/src/Examples.AspNetCore) | + `Purview.Results.AspNetCore` | `AddResultsHttp`/`Map`/`WithResultsHttp`, nested error-union leaf mapping, a successful unit result answering `204`, the mapping-gap and uninitialized-result paths |
 | [`Examples.AspNetCore.Zod`](src/src/Examples.AspNetCore.Zod) | + `Purview.Results.ZodSharp.AspNetCore` | A validation-carrying failure rendered as `HttpValidationProblemDetails`, with a case mapping winning over the fallback |
@@ -94,7 +101,7 @@ dotnet run --project src/src/Examples.ValueObjects.Zod
 Result<Tenant, TenantError> GetTenant(TenantId tenantId) =>
     _tenants.TryGetValue(tenantId, out var tenant)
         ? Result<Tenant, TenantError>.Success(tenant)
-        : new TenantNotFound(tenantId).AsFailure<Tenant>();
+        : TenantError.Failure<Tenant>(new TenantNotFound(tenantId));
 
 var loaded = GetTenant(tenantId);
 

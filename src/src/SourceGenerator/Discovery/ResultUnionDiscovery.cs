@@ -51,6 +51,7 @@ static class ResultUnionDiscovery
 			: union.ContainingNamespace.ToDisplayString();
 
 		var extensionClassName = CreateExtensionClassName(union);
+		var cases = CreateCaseModels(analysis.CaseTypes);
 
 		return GeneratorResult<ResultUnionModel>.Create(
 			new ResultUnionModel(
@@ -66,7 +67,8 @@ static class ResultUnionDiscovery
 					? extensionClassName + ".g.cs"
 					: namespaceName + "." + extensionClassName + ".g.cs",
 				Location: ToSourceLocation(union),
-				Cases: CreateCaseModels(analysis.CaseTypes)
+				Cases: cases,
+				HelperCases: cases
 			),
 			diagnostics
 		);

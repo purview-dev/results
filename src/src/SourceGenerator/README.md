@@ -56,6 +56,47 @@ Result<Tenant, TenantError> result = new TenantNotFound(tenantId).AsFailure<Tena
 Result<TenantError> unitResult = new TenantNotFound(tenantId).AsFailure();
 ```
 
+The same class also declares a C# 14 extension block on the union type itself, so a case can be converted by
+naming the union (`TenantError.Failure(case)`) rather than the case:
+
+```csharp
+public static class TenantErrorResultExtensions
+{
+	// ... the per-case AsFailure helpers above ...
+
+	extension(TenantError)
+	{
+		public static Result<TenantError> Failure(TenantNotFound error) =>
+			Result<TenantError>.Failure(error);
+
+		public static Result<TValue, TenantError> Failure<TValue>(TenantNotFound error) =>
+			Result<TValue, TenantError>.Failure(error);
+
+		// ... one Failure pair per case: TenantDisabled, TenantAlreadyExists ...
+
+		public static Result<TenantError> Success() =>
+			Result<TenantError>.Success();
+
+		public static Result<TValue, TenantError> Success<TValue>(TValue value) =>
+			Result<TValue, TenantError>.Success(value);
+	}
+}
+```
+
+Usage:
+
+```csharp
+Result<Tenant, TenantError> result = TenantError.Failure<Tenant>(new TenantNotFound(tenantId));
+Result<TenantError> unitResult = TenantError.Failure(new TenantNotFound(tenantId));
+Result<TenantError> success = TenantError.Success();
+Result<Tenant, TenantError> valueSuccess = TenantError.Success(tenant);
+```
+
+The union-receiver factory is the **shared-case safe** form. When a case type is a case of more than one union, the
+per-case `AsFailure` helper is generated once — for the union that sorts first — and reported as `RSG1006`, so a
+case-receiver call can bind to the wrong union. The factory names the union by its receiver, so it is generated for
+every union and covers every one of the union's cases, including a shared one.
+
 ## Why the generator exists
 
 C# composes a union *case* into its union and `Result<TValue, TError>` composes the *union* into a result,
@@ -151,7 +192,7 @@ The diagnostics live in one shared library (`Diagnostics/DiagnosticLibrary.cs` +
 | `RSG1003` | Error | Analyzer | Union: yes / case: no | A type that generated code must reference is not accessible (for example a `file` type). |
 | `RSG1004` | Error | Analyzer | No | The same union is configured more than once (for example on two partial declarations); the helpers are generated once. |
 | `RSG1005` | Error | Generator | Yes (the colliding union is skipped) | Two unions produce the same generated class name in one namespace. |
-| `RSG1006` | Warning | Generator | No (only the shared case's helper is skipped) | A case type is shared with another union, so its helper is generated once to keep call sites unambiguous. |
+| `RSG1006` | Warning | Generator | No (only the shared case's `AsFailure` helper is skipped) | A case type is shared with another union, so its per-case helper is generated once; the union-receiver `Failure(...)` factory is generated for every union and is the shared-case safe form. |
 | `RSG1007` | Error | Analyzer | Yes | The union uses an `IUnionMembers` member provider, which the first implementation does not support. |
 
 Case-level findings never block the union: the remaining cases are still generated, and the skipped case is
@@ -213,23 +254,24 @@ consumers too.
 
 ## Call-site ergonomics: the code fix
 
-Because the generator cannot make a case value convert (`AsFailure<TValue>()` and `AsFailure()` are the best the
-language allows), the package also ships an IDE code fix: `UnionCaseResultCodeFixProvider` in the companion
-`SourceGenerator.CodeFixes` component (`src/src/SourceGenerator.CodeFixes`).
+Because the generator cannot make a case value convert (`Union.Failure(...)` and the per-case `AsFailure<TValue>()`
+are the best the language allows), the package also ships an IDE code fix: `UnionCaseResultCodeFixProvider` in the
+companion `SourceGenerator.CodeFixes` component (`src/src/SourceGenerator.CodeFixes`).
 
 It answers the compiler's `CS0029` ("cannot implicitly convert") and rewrites a returned case value into the
-generated helper, so `return new TenantNotFound(id);` becomes
-`return new TenantNotFound(id).AsFailure<Tenant>();` from the lightbulb, or `...AsFailure();` when the method
-returns a unit `Result<TenantError>`.
+union-receiver factory, so `return new TenantNotFound(id);` becomes
+`return TenantError.Failure<Tenant>(new TenantNotFound(id));` from the lightbulb, or
+`TenantError.Failure(new TenantNotFound(id))` when the method returns a unit `Result<TenantError>`. Naming the union
+keeps the rewrite correct even when the case type is shared with another union (`RSG1006`).
 
 A fix is only offered when the rewrite will bind:
 
 | Guard | Why |
 | --- | --- |
-| The converted type is `Purview.Results.Result<TValue, TError>` or the unit `Purview.Results.Result<TError>` | Only results have generated helpers; a value result gets `AsFailure<TValue>()` and a unit result the non-generic `AsFailure()` |
-| `TError` is a union **and** opted in with `[GenerateResult]` | The helper is only generated for opted-in unions |
-| The expression's type is one of `TError`'s case types | The helper exists once per case |
-| The union is reachable by its simple name at the call site | The helper class is generated into the union's own namespace |
+| The converted type is `Purview.Results.Result<TValue, TError>` or the unit `Purview.Results.Result<TError>` | Only results have generated factories; a value result gets `Failure<TValue>(case)` and a unit result `Failure(case)` |
+| `TError` is a union **and** opted in with `[GenerateResult]` | The factory is only generated for opted-in unions |
+| The expression's type is one of `TError`'s case types | The factory exists once per case |
+| The union is reachable by its simple name at the call site | The factory extension block is generated into the union's own namespace |
 
 The component is not packable on its own: it needs `Microsoft.CodeAnalysis.CSharp.Workspaces`, which only the
 IDE host provides, so `Purview.Results` packs it into `analyzers/dotnet/cs/` as a second analyzer assembly

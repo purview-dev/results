@@ -46,7 +46,7 @@ static class ResultUnionEmitter
 			writer.FileScopedNamespace(union.Namespace);
 
 		writer.XmlSummary(
-			$"Provides strongly typed failure helpers that create {XmlInlineCode(DocText.Escape(PropertyLibrary.ResultTypeName))} and {XmlInlineCode(DocText.Escape(PropertyLibrary.ResultUnitTypeName))} values from the union cases of {XmlInlineCode(DocText.Escape(union.FullyQualifiedName))}."
+			$"Provides strongly typed failure and success helpers that create {XmlInlineCode(DocText.Escape(PropertyLibrary.ResultTypeName))} and {XmlInlineCode(DocText.Escape(PropertyLibrary.ResultUnitTypeName))} values from the union cases of {XmlInlineCode(DocText.Escape(union.FullyQualifiedName))}."
 		);
 
 		writer.Class(
@@ -55,8 +55,10 @@ static class ResultUnionEmitter
 			options => options with { IsStatic = true, IsPartial = false },
 			body =>
 			{
-				foreach (var unionCase in union.Cases)
+				foreach (var unionCase in union.HelperCases)
 					EmitHelper(body, union, unionCase);
+
+				EmitUnionFactory(body, union);
 			}
 		);
 
@@ -143,6 +145,165 @@ static class ResultUnionEmitter
 					],
 				},
 			body => body.Return($"{resultTypeName}.Failure({PropertyLibrary.ErrorParameterName})")
+		);
+	}
+
+	/// <summary>
+	/// Emits the union-receiver factory members as a C# 14 extension block on the union type.
+	/// </summary>
+	/// <remarks>
+	/// Naming the union by the receiver (<c>Union.Failure(case)</c>) rather than the case
+	/// (<c>case.AsFailure&lt;TValue&gt;()</c>) keeps the call site unambiguous when a case type is shared with
+	/// another union, because each union owns its own factory set. The factory is therefore the shared-case
+	/// safe form of the per-case helpers.
+	/// </remarks>
+	static void EmitUnionFactory(CodeWriter writer, ResultUnionModel union)
+	{
+		writer.ExtensionBlock(
+			new TypeReference(union.UnionType),
+			body =>
+			{
+				foreach (var unionCase in union.Cases)
+				{
+					EmitUnitFactory(body, union, unionCase);
+					EmitValueFactory(body, union, unionCase);
+				}
+
+				EmitUnitSuccessFactory(body, union);
+				EmitValueSuccessFactory(body, union);
+			}
+		);
+	}
+
+	static void EmitUnitFactory(CodeWriter writer, ResultUnionModel union, ResultUnionCaseModel unionCase)
+	{
+		var resultType = CreateUnitResultTypeReference(union);
+		var resultTypeName = resultType.RenderFullName;
+
+		writer.XmlSummary(
+			$"Creates a failed unit result containing the {XmlInlineCode(DocText.Escape(unionCase.FullyQualifiedName))} union case of {XmlInlineCode(DocText.Escape(union.FullyQualifiedName))}."
+		);
+		writer.XmlParam(
+			PropertyLibrary.ErrorParameterName,
+			$"The {XmlInlineCode(DocText.Escape(unionCase.FullyQualifiedName))} union case to convert."
+		);
+		writer.XmlReturn(
+			$"A failed {XmlInlineCode(DocText.Escape(PropertyLibrary.ResultUnitTypeName))} whose error is {XmlParamRef(PropertyLibrary.ErrorParameterName)}."
+		);
+
+		writer.Method(
+			PropertyLibrary.FailureFactoryName,
+			resultType,
+			union.Accessibility,
+			options =>
+				options with
+				{
+					IsStatic = true,
+					Parameters =
+					[
+						new ParameterDeclarationOptions(PropertyLibrary.ErrorParameterName, unionCase.CaseType),
+					],
+				},
+			body => body.Return($"{resultTypeName}.Failure({PropertyLibrary.ErrorParameterName})")
+		);
+	}
+
+	static void EmitValueFactory(CodeWriter writer, ResultUnionModel union, ResultUnionCaseModel unionCase)
+	{
+		var resultType = CreateResultTypeReference(union);
+		var resultTypeName = resultType.RenderFullName;
+
+		writer.XmlSummary(
+			$"Creates a failed result containing the {XmlInlineCode(DocText.Escape(unionCase.FullyQualifiedName))} union case of {XmlInlineCode(DocText.Escape(union.FullyQualifiedName))}."
+		);
+		writer.XmlTypeParam(
+			PropertyLibrary.ValueTypeParameterName,
+			"The type of the successful value of the created result."
+		);
+		writer.XmlParam(
+			PropertyLibrary.ErrorParameterName,
+			$"The {XmlInlineCode(DocText.Escape(unionCase.FullyQualifiedName))} union case to convert."
+		);
+		writer.XmlReturn(
+			$"A failed {XmlInlineCode(DocText.Escape(PropertyLibrary.ResultTypeName))} whose error is {XmlParamRef(PropertyLibrary.ErrorParameterName)}."
+		);
+
+		writer.Method(
+			PropertyLibrary.FailureFactoryName,
+			resultType,
+			union.Accessibility,
+			options =>
+				options with
+				{
+					IsStatic = true,
+					GenericTypes = [new GenericTypeParameterOptions(PropertyLibrary.ValueTypeParameterName)],
+					Parameters =
+					[
+						new ParameterDeclarationOptions(PropertyLibrary.ErrorParameterName, unionCase.CaseType),
+					],
+				},
+			body => body.Return($"{resultTypeName}.Failure({PropertyLibrary.ErrorParameterName})")
+		);
+	}
+
+	static void EmitUnitSuccessFactory(CodeWriter writer, ResultUnionModel union)
+	{
+		var resultType = CreateUnitResultTypeReference(union);
+		var resultTypeName = resultType.RenderFullName;
+
+		writer.XmlSummary(
+			$"Creates a successful unit result for {XmlInlineCode(DocText.Escape(union.FullyQualifiedName))}."
+		);
+		writer.XmlReturn($"A successful {XmlInlineCode(DocText.Escape(PropertyLibrary.ResultUnitTypeName))}.");
+
+		writer.Method(
+			PropertyLibrary.SuccessFactoryName,
+			resultType,
+			union.Accessibility,
+			options => options with { IsStatic = true },
+			body => body.Return($"{resultTypeName}.Success()")
+		);
+	}
+
+	static void EmitValueSuccessFactory(CodeWriter writer, ResultUnionModel union)
+	{
+		var resultType = CreateResultTypeReference(union);
+		var resultTypeName = resultType.RenderFullName;
+
+		writer.XmlSummary(
+			$"Creates a successful result carrying a value for {XmlInlineCode(DocText.Escape(union.FullyQualifiedName))}."
+		);
+		writer.XmlTypeParam(
+			PropertyLibrary.ValueTypeParameterName,
+			"The type of the successful value of the created result."
+		);
+		writer.XmlParam(PropertyLibrary.ValueParameterName, "The successful value.");
+		writer.XmlReturn(
+			$"A successful {XmlInlineCode(DocText.Escape(PropertyLibrary.ResultTypeName))} carrying {XmlParamRef(PropertyLibrary.ValueParameterName)}."
+		);
+
+		writer.Method(
+			PropertyLibrary.SuccessFactoryName,
+			resultType,
+			union.Accessibility,
+			options =>
+				options with
+				{
+					IsStatic = true,
+					GenericTypes = [new GenericTypeParameterOptions(PropertyLibrary.ValueTypeParameterName)],
+					Parameters =
+					[
+						// The method's own type parameter is referenced as a literal named argument, the same
+						// representation the generic result type reference uses: the framework's
+						// TypeReference.ForTypeParameter carries no identity, and the writer's parameter
+						// validation rejects a parameter whose reference has no identity name.
+						new ParameterDeclarationOptions(
+							PropertyLibrary.ValueParameterName,
+							new TypeReference(new TypeIdentity(PropertyLibrary.ValueTypeParameterName, null))
+						),
+					],
+				},
+			body => body.Return($"{resultTypeName}.Success({PropertyLibrary.ValueParameterName})")
 		);
 	}
 

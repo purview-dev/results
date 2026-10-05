@@ -1,6 +1,6 @@
 ---
 agent: ask
-description: "Migrate ad-hoc failure signalling (domain exceptions, bool/out pairs, error enums) in the selected files to a C# 15 union of case types with Purview.Results and generated AsFailure<TValue>() and AsFailure() helpers."
+description: "Migrate ad-hoc failure signalling (domain exceptions, bool/out pairs, error enums) in the selected files to a C# 15 union of case types with Purview.Results and the generated union-receiver Union.Failure(...)/Union.Success(...) factories and per-case AsFailure<TValue>()/AsFailure() helpers."
 ---
 
 You are modernising error handling in this repository. Apply the `purview-results-union-errors` skill for union
@@ -30,13 +30,13 @@ case types and a `Result<TValue, TUnion>` return type built with the generated h
    ```
 
 2. Change the affected signatures to `Result<TValue, TenantError>` — or the value-less `Result<TenantError>` when
-   the member has nothing to return on success — and produce failures with `new Case(...).AsFailure<TValue>()` or
-   `new Case(...).AsFailure()`.
+   the member has nothing to return on success — and produce failures with `TenantError.Failure<TValue>(case)` /
+   `TenantError.Failure(case)` (or the per-case `new Case(...).AsFailure<TValue>()` / `AsFailure()` helpers).
 3. Leave genuinely exceptional exits throwing when `keepExceptions` is true — a lost connection or a violated
    invariant is not a domain outcome.
 4. Do **not** attempt implicit conversions from a case to a result, and do not add operators, extension
    conversions or wrapper types: `CS0715`, `CS0556`, `CS9282`, `CS0246` and `CS0029` each block that route. Use
-   the generated helper, or `(TenantError)new TenantNotFound(id)` when a cast reads better.
+   the generated factory/helper, or `(TenantError)new TenantNotFound(id)` when a cast reads better.
 5. Remove the replaced mechanism — thrown domain exceptions, error enums, `out` error parameters, sentinel
    values — rather than leaving both paths in place.
 6. Keep the union free of transport concerns: no `IResult`, no status codes, no HTTP types.

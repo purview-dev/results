@@ -21,7 +21,7 @@ generator that makes C# 15 union error cases ergonomic), and the ZodSharp and AS
 | `src/Results.slnx` | Canonical solution for restore, build, test and pack |
 | `src/src/Results` | `Result<TValue, TError>`, the value-less `Result<TError>`, the `Success` marker, the `Result` factories, `IResultValue` |
 | `src/src/SourceGenerator` | Roslyn incremental generator, diagnostic analyzer and `[GenerateResult]` attribute; not a package of its own, packed into `Purview.Results` |
-| `src/src/SourceGenerator.CodeFixes` | IDE code fix for `CS0029`: rewrites a returned union case into the generated `AsFailure<TValue>()` (value result) or `AsFailure()` (unit result) |
+| `src/src/SourceGenerator.CodeFixes` | IDE code fix for `CS0029`: rewrites a returned union case into the generated union-receiver factory `Union.Failure<TValue>(case)` (value result) or `Union.Failure(case)` (unit result) |
 | `src/src/AspNetCore` | Result-to-response mapping, endpoint filter, DI registration |
 | `src/src/ZodSharp` | ZodSharp `ValidationResult<T>` bridge |
 | `src/src/ZodSharp.AspNetCore` | Validation-problem mapping for validation-carrying failures |
@@ -130,10 +130,17 @@ including the diagnostics table, build properties and activation rules.
   is unavailable for a non-generic case type (`CS0246`), and only one user-defined conversion may participate in
   a sequence (`CS0029`). All five are recorded in `UnionCompilerBehaviourTests.cs`. Improve call-site
   ergonomics through the code fix in `src/src/SourceGenerator.CodeFixes` instead.
-- Emit **two helpers per case**: the value-producing `AsFailure<TValue>()` (`Result<TValue, TUnion>`) and the
+- Emit **two per-case helpers**: the value-producing `AsFailure<TValue>()` (`Result<TValue, TUnion>`) and the
   non-generic `AsFailure()` (`Result<TUnion>` unit result). Keep them overloads of the same name in the one
   generated extension class, keep the bodies pure `Result<...>.Failure(error)` calls, and keep case ordering
   deterministic.
+- Also emit the **union-receiver factory** as a C# 14 extension block on the union type
+  (`extension(TUnion) { public static ... }`): `Failure(case)`/`Failure<TValue>(case)` and `Success()`/
+  `Success<TValue>(value)`. The factory names the union by its receiver, so it is the shared-case safe form: a
+  case type shared with another union (`RSG1006`) has its per-case `AsFailure` helper generated once, but every
+  union's factory covers all of its own cases. `ResultUnionModel.Cases` is the union's full case set (used by the
+  factory) and `ResultUnionModel.HelperCases` is the deduplicated subset (used by `AsFailure`); never conflate the
+  two. The code fix rewrites `CS0029` to the factory, not to `AsFailure`, so it cannot bind to the wrong union.
 - Adding a code fix means adding it to `src/src/SourceGenerator.CodeFixes`, not to the generator project: the
   code fix needs `Microsoft.CodeAnalysis.*.Workspaces`, which must not enter the generator's analyzer closure.
   The two projects stay independent (no project reference, no `InternalsVisibleTo`) so no reference cycle can
@@ -255,8 +262,9 @@ including the diagnostics table, build properties and activation rules.
 ## Examples
 
 `src/src/Examples.*` holds one runnable example per integration aspect, all on the Tenant* domain the READMEs
-document: `Examples.Basic` (the result type, the value-less `Result<TError>` and the generated `AsFailure<TValue>()`
-and `AsFailure()` helpers), `Examples.Zod` (`Purview.Results.ZodSharp`, including `ToUnitResult`),
+document: `Examples.Basic` (the result type, the value-less `Result<TError>`, the generated `AsFailure<TValue>()`
+and `AsFailure()` helpers, and the union-receiver `Union.Failure(...)`/`Union.Success(...)` factories),
+`Examples.Zod` (`Purview.Results.ZodSharp`, including `ToUnitResult`),
 `Examples.AspNetCore` (`Purview.Results.AspNetCore`, including a unit result answering `204`),
 `Examples.AspNetCore.Zod` (`Purview.Results.ZodSharp.AspNetCore`) and `Examples.ValueObjects.Zod`
 (`Purview.Results.ZodSharp` + `Purview.ValueObjects`, a type-level `[ZodRule]` whose code and origin flow into the
