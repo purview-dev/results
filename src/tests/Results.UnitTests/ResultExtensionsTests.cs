@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Purview.Results;
 
 public sealed class ResultExtensionsTests
@@ -469,8 +471,639 @@ public sealed class ResultExtensionsTests
 
 	#endregion
 
+	#region Error-widening composition
+
+	[Test]
+	public async Task Bind_WhenSuccessAndBindingSucceeds_ShouldReturnBoundSuccess()
+	{
+		var result = Successful("123");
+
+		var actual = result.Bind(
+			value => Result<int, OtherTestError>.Success(int.Parse(value, CultureInfo.InvariantCulture)),
+			error => new OtherTestError(error.Message.Length)
+		);
+
+		await Assert.That(actual.IsSuccess).IsTrue();
+		await Assert.That(actual.Value).IsEqualTo(123);
+	}
+
+	[Test]
+	public async Task Bind_WhenSuccessAndBindingSucceeds_ShouldNotInvokeMapError()
+	{
+		var result = Successful();
+		var invoked = false;
+
+		result.Bind(
+			_ => Result<int, OtherTestError>.Success(0),
+			_ =>
+			{
+				invoked = true;
+
+				return new OtherTestError(0);
+			}
+		);
+
+		await Assert.That(invoked).IsFalse();
+	}
+
+	[Test]
+	public async Task Bind_WhenSuccessAndBindingFails_ShouldReturnBoundFailure()
+	{
+		var result = Successful();
+		OtherTestError error = new(42);
+
+		var actual = result.Bind(_ => Result<int, OtherTestError>.Failure(error), _ => new OtherTestError(0));
+
+		await Assert.That(actual.IsFailure).IsTrue();
+		await Assert.That(actual.Error).IsEqualTo(error);
+	}
+
+	[Test]
+	public async Task Bind_WhenFailure_ShouldMapErrorAndNotInvokeBinding()
+	{
+		var result = Failed();
+		var invoked = false;
+
+		var actual = result.Bind(
+			value =>
+			{
+				invoked = true;
+
+				return Result<int, OtherTestError>.Success(value.Length);
+			},
+			error => new OtherTestError(error.Message.Length)
+		);
+
+		await Assert.That(invoked).IsFalse();
+		await Assert.That(actual.IsFailure).IsTrue();
+		await Assert.That(actual.Error).IsEqualTo(new OtherTestError(Error.Length));
+	}
+
+	[Test]
+	public async Task Bind_WhenFailure_ShouldInvokeMapErrorOnce()
+	{
+		var result = Failed();
+		var invoked = 0;
+
+		result.Bind(
+			_ => Result<int, OtherTestError>.Success(0),
+			_ =>
+			{
+				invoked++;
+
+				return new OtherTestError(0);
+			}
+		);
+
+		await Assert.That(invoked).IsEqualTo(1);
+	}
+
+	[Test]
+	public async Task Bind_WhenUninitialized_ShouldThrow()
+	{
+		Result<string, TestError> result = default;
+
+		Result<int, OtherTestError> Act() =>
+			result.Bind(value => Result<int, OtherTestError>.Success(value.Length), _ => new OtherTestError(0));
+
+		await Assert
+			.That(Act)
+			.ThrowsExactly<InvalidOperationException>()
+			.WithMessage("The result is uninitialized.", StringComparison.Ordinal);
+	}
+
+	[Test]
+	public async Task Bind_WhenBindIsNull_ShouldThrow()
+	{
+		var result = Successful();
+
+		Result<int, OtherTestError> Act() =>
+			result.Bind((Func<string, Result<int, OtherTestError>>)null!, _ => new OtherTestError(0));
+
+		await Assert.That(Act).ThrowsExactly<ArgumentNullException>();
+	}
+
+	[Test]
+	public async Task Bind_WhenMapErrorIsNull_ShouldThrow()
+	{
+		var result = Successful();
+
+		Result<int, OtherTestError> Act() => result.Bind(_ => Result<int, OtherTestError>.Success(0), null!);
+
+		await Assert.That(Act).ThrowsExactly<ArgumentNullException>();
+	}
+
+	[Test]
+	public async Task BindAsyncWithMapError_WhenSuccessAndBindingSucceeds_ShouldReturnBoundSuccess()
+	{
+		var result = Successful("123");
+
+		var actual = await result.BindAsync(
+			value =>
+				Task.FromResult(Result<int, OtherTestError>.Success(int.Parse(value, CultureInfo.InvariantCulture))),
+			error => new OtherTestError(error.Message.Length)
+		);
+
+		await Assert.That(actual.IsSuccess).IsTrue();
+		await Assert.That(actual.Value).IsEqualTo(123);
+	}
+
+	[Test]
+	public async Task BindAsync_WhenSuccessAndBindingSucceeds_ShouldNotInvokeMapError()
+	{
+		var result = Successful();
+		var invoked = false;
+
+		await result.BindAsync(
+			_ => Task.FromResult(Result<int, OtherTestError>.Success(0)),
+			_ =>
+			{
+				invoked = true;
+
+				return new OtherTestError(0);
+			}
+		);
+
+		await Assert.That(invoked).IsFalse();
+	}
+
+	[Test]
+	public async Task BindAsync_WhenFailure_ShouldMapErrorAndNotInvokeBinding()
+	{
+		var result = Failed();
+		var invoked = false;
+
+		var actual = await result.BindAsync(
+			value =>
+			{
+				invoked = true;
+
+				return Task.FromResult(Result<int, OtherTestError>.Success(value.Length));
+			},
+			error => new OtherTestError(error.Message.Length)
+		);
+
+		await Assert.That(invoked).IsFalse();
+		await Assert.That(actual.IsFailure).IsTrue();
+		await Assert.That(actual.Error).IsEqualTo(new OtherTestError(Error.Length));
+	}
+
+	[Test]
+	public async Task BindAsync_WhenUninitialized_ShouldThrow()
+	{
+		Result<string, TestError> result = default;
+
+		async Task Act() =>
+			await result.BindAsync(
+				value => Task.FromResult(Result<int, OtherTestError>.Success(value.Length)),
+				_ => new OtherTestError(0)
+			);
+
+		await Assert
+			.That(Act)
+			.ThrowsExactly<InvalidOperationException>()
+			.WithMessage("The result is uninitialized.", StringComparison.Ordinal);
+	}
+
+	[Test]
+	public async Task BindAsyncWithMapError_WhenBindIsNull_ShouldThrow()
+	{
+		var result = Successful();
+
+		async Task Act() =>
+			await result.BindAsync((Func<string, Task<Result<int, OtherTestError>>>)null!, _ => new OtherTestError(0));
+
+		await Assert.That(Act).ThrowsExactly<ArgumentNullException>();
+	}
+
+	[Test]
+	public async Task BindAsync_WhenMapErrorIsNull_ShouldThrow()
+	{
+		var result = Successful();
+
+		async Task Act() => await result.BindAsync(_ => Task.FromResult(Result<int, OtherTestError>.Success(0)), null!);
+
+		await Assert.That(Act).ThrowsExactly<ArgumentNullException>();
+	}
+
+	#endregion
+
+	#region Throwing
+
+	[Test]
+	public async Task Throw_WhenSuccess_ShouldReturnValue()
+	{
+		var result = Successful();
+
+		await Assert.That(result.Throw()).IsEqualTo(Value);
+	}
+
+	[Test]
+	public async Task Throw_WhenFailure_ShouldThrowResultException()
+	{
+		var result = Failed();
+
+		string Act() => result.Throw();
+
+		await Assert.That(Act).ThrowsExactly<ResultException<TestError>>();
+	}
+
+	[Test]
+	public async Task Throw_WhenFailure_ShouldExposeTheError()
+	{
+		var result = Failed();
+
+		var exception = ThrowAndCapture(result);
+
+		await Assert.That(exception.Error).IsEqualTo(new TestError(Error));
+	}
+
+	[Test]
+	public async Task Throw_WhenFailure_ShouldIncludeTheErrorInTheMessage()
+	{
+		var result = Failed();
+
+		var exception = ThrowAndCapture(result);
+
+		await Assert.That(exception.Message).IsEqualTo($"The result represents a failure: {Error}");
+	}
+
+	[Test]
+	public async Task Throw_WhenFailure_ShouldBeCatchableAsTheNonGenericBase()
+	{
+		var result = Failed();
+		var caught = false;
+
+		try
+		{
+			result.Throw();
+		}
+		catch (ResultException exception)
+		{
+			caught = exception.Error is TestError;
+		}
+
+		await Assert.That(caught).IsTrue();
+	}
+
+	[Test]
+	public async Task Throw_WhenUninitialized_ShouldThrowInvalidOperationException()
+	{
+		Result<string, TestError> result = default;
+
+		string Act() => result.Throw();
+
+		await Assert
+			.That(Act)
+			.ThrowsExactly<InvalidOperationException>()
+			.WithMessage("The result is uninitialized.", StringComparison.Ordinal);
+	}
+
+	#endregion
+
+	#region Unit result extensions
+
+	static Result<TestError> UnitSuccessful() => Result<TestError>.Success();
+
+	static Result<TestError> UnitFailed() => Result<TestError>.Failure(new(Error));
+
+	[Test]
+	public async Task TryGetError_WhenUnitFailure_ShouldReturnTrueAndError()
+	{
+		var result = UnitFailed();
+
+		var found = result.TryGetError(out var error);
+
+		await Assert.That(found).IsTrue();
+		await Assert.That(error).IsEqualTo(new TestError(Error));
+	}
+
+	[Test]
+	public async Task TryGetError_WhenUnitSuccess_ShouldReturnFalse()
+	{
+		var result = UnitSuccessful();
+
+		var found = result.TryGetError(out var error);
+
+		await Assert.That(found).IsFalse();
+		await Assert.That(error).IsEqualTo(default);
+	}
+
+	[Test]
+	public async Task TryGetError_WhenUnitUninitialized_ShouldReturnFalse()
+	{
+		Result<TestError> result = default;
+
+		var found = result.TryGetError(out var error);
+
+		await Assert.That(found).IsFalse();
+		await Assert.That(error).IsEqualTo(default);
+	}
+
+	[Test]
+	public async Task GetErrorOrDefault_WhenUnitFailure_ShouldReturnError()
+	{
+		var result = UnitFailed();
+
+		await Assert.That(result.GetErrorOrDefault(new TestError("fallback"))).IsEqualTo(new TestError(Error));
+	}
+
+	[Test]
+	public async Task GetErrorOrDefault_WhenUnitSuccess_ShouldReturnFallback()
+	{
+		var result = UnitSuccessful();
+
+		await Assert.That(result.GetErrorOrDefault(new TestError("fallback"))).IsEqualTo(new TestError("fallback"));
+	}
+
+	[Test]
+	public async Task OrElse_WhenUnitFailure_ShouldReturnFallback()
+	{
+		var result = UnitFailed();
+
+		var actual = result.OrElse(UnitSuccessful());
+
+		await Assert.That(actual.IsSuccess).IsTrue();
+	}
+
+	[Test]
+	public async Task OrElse_WhenUnitSuccess_ShouldReturnOriginal()
+	{
+		var result = UnitSuccessful();
+
+		var actual = result.OrElse(UnitFailed());
+
+		await Assert.That(actual.IsSuccess).IsTrue();
+	}
+
+	[Test]
+	public async Task Switch_WhenUnitSuccess_ShouldInvokeSuccessOnly()
+	{
+		var result = UnitSuccessful();
+		var successInvoked = false;
+		var failureInvoked = false;
+
+		result.Switch(() => successInvoked = true, _ => failureInvoked = true);
+
+		await Assert.That(successInvoked).IsTrue();
+		await Assert.That(failureInvoked).IsFalse();
+	}
+
+	[Test]
+	public async Task Switch_WhenUnitFailure_ShouldInvokeFailureOnly()
+	{
+		var result = UnitFailed();
+		var successInvoked = false;
+		var failureInvoked = false;
+
+		result.Switch(() => successInvoked = true, _ => failureInvoked = true);
+
+		await Assert.That(successInvoked).IsFalse();
+		await Assert.That(failureInvoked).IsTrue();
+	}
+
+	[Test]
+	public async Task Tap_WhenUnitSuccess_ShouldInvokeAndReturnResult()
+	{
+		var result = UnitSuccessful();
+		var invoked = false;
+
+		var actual = result.Tap(() => invoked = true);
+
+		await Assert.That(invoked).IsTrue();
+		await Assert.That(actual.IsSuccess).IsTrue();
+	}
+
+	[Test]
+	public async Task TapError_WhenUnitFailure_ShouldInvokeAndReturnResult()
+	{
+		var result = UnitFailed();
+		TestError? observed = null;
+
+		var actual = result.TapError(error => observed = error);
+
+		await Assert.That(observed).IsEqualTo(new TestError(Error));
+		await Assert.That(actual.IsFailure).IsTrue();
+	}
+
+	[Test]
+	public async Task Ensure_WhenUnitPredicateFails_ShouldReturnFailureWithCreatedError()
+	{
+		var result = UnitSuccessful();
+
+		var actual = result.Ensure(() => false, () => new TestError("constraint failed"));
+
+		await Assert.That(actual.IsFailure).IsTrue();
+		await Assert.That(actual.Error).IsEqualTo(new TestError("constraint failed"));
+	}
+
+	[Test]
+	public async Task Ensure_WhenUnitPredicateSucceeds_ShouldReturnOriginalSuccess()
+	{
+		var result = UnitSuccessful();
+
+		var actual = result.Ensure(() => true, () => new TestError("constraint failed"));
+
+		await Assert.That(actual.IsSuccess).IsTrue();
+	}
+
+	[Test]
+	public async Task MapAsync_WhenUnitSuccess_ShouldProduceValue()
+	{
+		var result = UnitSuccessful();
+
+		var actual = await result.MapAsync(() => Task.FromResult(Value.Length));
+
+		await Assert.That(actual.IsSuccess).IsTrue();
+		await Assert.That(actual.Value).IsEqualTo(Value.Length);
+	}
+
+	[Test]
+	public async Task MapAsync_WhenUnitFailure_ShouldPreserveError()
+	{
+		var result = UnitFailed();
+
+		var actual = await result.MapAsync(() => Task.FromResult(Value.Length));
+
+		await Assert.That(actual.IsFailure).IsTrue();
+		await Assert.That(actual.Error).IsEqualTo(new TestError(Error));
+	}
+
+	[Test]
+	public async Task BindAsync_WhenUnitSuccess_ShouldReturnBoundUnitSuccess()
+	{
+		var result = UnitSuccessful();
+
+		var actual = await result.BindAsync(() => Task.FromResult(UnitSuccessful()));
+
+		await Assert.That(actual.IsSuccess).IsTrue();
+	}
+
+	[Test]
+	public async Task BindAsyncToValue_WhenUnitSuccess_ShouldReturnBoundValueResult()
+	{
+		var result = UnitSuccessful();
+
+		var actual = await result.BindAsync(() => Task.FromResult(Result<int, TestError>.Success(123)));
+
+		await Assert.That(actual.IsSuccess).IsTrue();
+		await Assert.That(actual.Value).IsEqualTo(123);
+	}
+
+	[Test]
+	public async Task BindAsync_WhenUnitFailure_ShouldPreserveErrorAndNotInvokeBinding()
+	{
+		var result = UnitFailed();
+		var invoked = false;
+
+		var actual = await result.BindAsync(() =>
+		{
+			invoked = true;
+
+			return Task.FromResult(UnitSuccessful());
+		});
+
+		await Assert.That(invoked).IsFalse();
+		await Assert.That(actual.Error).IsEqualTo(new TestError(Error));
+	}
+
+	[Test]
+	public async Task Bind_WhenUnitSuccessAndBindingSucceeds_ShouldWidenAndReturnBoundUnitSuccess()
+	{
+		var result = UnitSuccessful();
+
+		var actual = result.Bind(Result<OtherTestError>.Success, error => new OtherTestError(error.Message.Length));
+
+		await Assert.That(actual.IsSuccess).IsTrue();
+	}
+
+	[Test]
+	public async Task BindToValue_WhenUnitFailure_ShouldMapError()
+	{
+		var result = UnitFailed();
+
+		var actual = result.Bind(
+			() => Result<int, OtherTestError>.Success(123),
+			error => new OtherTestError(error.Message.Length)
+		);
+
+		await Assert.That(actual.IsFailure).IsTrue();
+		await Assert.That(actual.Error).IsEqualTo(new OtherTestError(Error.Length));
+	}
+
+	[Test]
+	public async Task BindAsyncWithMapError_WhenUnitFailure_ShouldMapError()
+	{
+		var result = UnitFailed();
+
+		var actual = await result.BindAsync(
+			() => Task.FromResult(Result<OtherTestError>.Success()),
+			error => new OtherTestError(error.Message.Length)
+		);
+
+		await Assert.That(actual.IsFailure).IsTrue();
+		await Assert.That(actual.Error).IsEqualTo(new OtherTestError(Error.Length));
+	}
+
+	[Test]
+	public async Task Throw_WhenUnitSuccess_ShouldReturnTheSuccessMarker()
+	{
+		var result = UnitSuccessful();
+
+		await Assert.That(result.Throw()).IsEqualTo(Success.Instance);
+	}
+
+	[Test]
+	public async Task Throw_WhenUnitFailure_ShouldThrowResultException()
+	{
+		var result = UnitFailed();
+
+		var exception = ThrowUnitAndCapture(result);
+
+		await Assert.That(exception.Error).IsEqualTo(new TestError(Error));
+	}
+
+	[Test]
+	public async Task Throw_WhenUnitUninitialized_ShouldThrowInvalidOperationException()
+	{
+		Result<TestError> result = default;
+
+		Success Act() => result.Throw();
+
+		await Assert
+			.That(Act)
+			.ThrowsExactly<InvalidOperationException>()
+			.WithMessage("The result is uninitialized.", StringComparison.Ordinal);
+	}
+
+	[Test]
+	public async Task DiscardValue_WhenValueSuccess_ShouldReturnUnitSuccess()
+	{
+		var result = Successful();
+
+		var actual = result.DiscardValue();
+
+		await Assert.That(actual.IsSuccess).IsTrue();
+	}
+
+	[Test]
+	public async Task DiscardValue_WhenValueFailure_ShouldPreserveError()
+	{
+		var result = Failed();
+
+		var actual = result.DiscardValue();
+
+		await Assert.That(actual.IsFailure).IsTrue();
+		await Assert.That(actual.Error).IsEqualTo(new TestError(Error));
+	}
+
+	[Test]
+	public async Task DiscardValue_WhenValueUninitialized_ShouldThrow()
+	{
+		Result<string, TestError> result = default;
+
+		Result<TestError> Act() => result.DiscardValue();
+
+		await Assert
+			.That(Act)
+			.ThrowsExactly<InvalidOperationException>()
+			.WithMessage("The result is uninitialized.", StringComparison.Ordinal);
+	}
+
+	#endregion
+
+	static ResultException<TestError> ThrowAndCapture(Result<string, TestError> result)
+	{
+		try
+		{
+			result.Throw();
+		}
+		catch (ResultException<TestError> exception)
+		{
+			return exception;
+		}
+
+		throw new InvalidOperationException("The result did not throw.");
+	}
+
+	static ResultException<TestError> ThrowUnitAndCapture(Result<TestError> result)
+	{
+		try
+		{
+			result.Throw();
+		}
+		catch (ResultException<TestError> exception)
+		{
+			return exception;
+		}
+
+		throw new InvalidOperationException("The result did not throw.");
+	}
+
 	readonly record struct TestError(string Message)
 	{
 		public override string ToString() => Message;
 	}
+
+	readonly record struct OtherTestError(int Code);
 }

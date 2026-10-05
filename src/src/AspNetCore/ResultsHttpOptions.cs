@@ -7,10 +7,12 @@ namespace Purview.Results.AspNetCore;
 /// Configures how <see cref="IResultValue"/> values are mapped onto ASP.NET Core responses.
 /// </summary>
 /// <remarks>
-/// Mappings are keyed by the runtime type of the error value: for a union error the declared case type is used,
-/// so <c>Map&lt;TenantNotFound&gt;(...)</c> handles that case, while <c>Map&lt;TenantError&gt;(...)</c> handles every
-/// case that has no mapping of its own. A non-union error type is keyed by the error type itself. Registering the
-/// same type twice replaces the earlier mapping.
+/// Mappings are keyed by the runtime type of the error value: for a union error the most specific case wins, so
+/// <c>Map&lt;TenantNotFound&gt;(...)</c> handles that case, while <c>Map&lt;TenantError&gt;(...)</c> handles every
+/// case that has no mapping of its own. A nested union resolves to its innermost case, and each enclosing union
+/// type is tried in turn, so <c>Map&lt;BillingError&gt;(...)</c> can handle a whole nested union while
+/// <c>Map&lt;BillingUnavailable&gt;(...)</c> handles one of its leaves. A non-union error type is keyed by the error
+/// type itself. Registering the same type twice replaces the earlier mapping.
 /// <para>
 /// A failure that no mapping handled reaches the fallback stage, which is the single ordered list
 /// <see cref="AddFallback"/> and <see cref="AddFailureMapper{TMapper}"/> append to: the order they are called in
@@ -25,6 +27,11 @@ public sealed class ResultsHttpOptions
 	/// <summary>
 	/// Gets or sets the status code used when a result succeeded. Defaults to <c>200 OK</c>.
 	/// </summary>
+	/// <remarks>
+	/// This applies to a successful value result. A successful unit <see cref="Result{TError}"/> carries no
+	/// payload, so it answers <c>204 No Content</c> regardless of this value; set <see cref="SuccessMapper"/> to
+	/// override that.
+	/// </remarks>
 	public int SuccessStatusCode { get; set; } = StatusCodes.Status200OK;
 
 	/// <summary>

@@ -40,6 +40,66 @@ public sealed class DefaultResultsHttpMapperTests
 	}
 
 	[Test]
+	public async Task Map_GivenSuccessfulUnitResult_ReturnsNoContent()
+	{
+		// Arrange
+		var mapper = ResultsHttpTestFactory.CreateMapper();
+		var context = ResultsHttpTestFactory.CreateContext();
+
+		// Act
+		var response = await ResultsHttpTestFactory.ExecuteAsync(
+			mapper.Map(Result<HttpTestError>.Success(), context),
+			context
+		);
+
+		// Assert
+		await Assert.That(response.StatusCode).IsEqualTo(StatusCodes.Status204NoContent);
+		await Assert.That(response.Body).IsEqualTo(string.Empty);
+	}
+
+	[Test]
+	public async Task Map_GivenSuccessfulUnitResultAndSuccessMapper_ReturnsTheMapperResponse()
+	{
+		// Arrange
+		var mapper = ResultsHttpTestFactory.CreateMapper(options =>
+			options.SuccessMapper = (_, _) => TypedResults.Ok("overridden")
+		);
+		var context = ResultsHttpTestFactory.CreateContext();
+
+		// Act
+		var response = await ResultsHttpTestFactory.ExecuteAsync(
+			mapper.Map(Result<HttpTestError>.Success(), context),
+			context
+		);
+
+		// Assert
+		await Assert.That(response.StatusCode).IsEqualTo(StatusCodes.Status200OK);
+		await Assert.That(response.Body).Contains("overridden");
+	}
+
+	[Test]
+	public async Task Map_GivenUnitFailure_ReturnsTheMappedResponse()
+	{
+		// Arrange
+		var mapper = ResultsHttpTestFactory.CreateMapper(options =>
+			options.Map<ItemNotFound>(notFound =>
+				TypedResults.Problem(statusCode: StatusCodes.Status404NotFound, title: $"Item {notFound.ItemId}.")
+			)
+		);
+		var context = ResultsHttpTestFactory.CreateContext();
+
+		// Act
+		var response = await ResultsHttpTestFactory.ExecuteAsync(
+			mapper.Map(new ItemNotFound(7).AsFailure(), context),
+			context
+		);
+
+		// Assert
+		await Assert.That(response.StatusCode).IsEqualTo(StatusCodes.Status404NotFound);
+		await Assert.That(response.Body).Contains("Item 7.");
+	}
+
+	[Test]
 	public async Task Map_GivenMappedCase_ReturnsTheMappedResponse()
 	{
 		// Arrange
@@ -168,4 +228,139 @@ public sealed class DefaultResultsHttpMapperTests
 		await Assert.That(response.StatusCode).IsEqualTo(StatusCodes.Status404NotFound);
 		await Assert.That(fallbackInvocations).IsEqualTo(0);
 	}
+
+	[Test]
+	public async Task Map_GivenNestedUnionFailure_ReturnsTheLeafCaseMapping()
+	{
+		// Arrange
+		var mapper = ResultsHttpTestFactory.CreateMapper(options =>
+			options.Map<ItemBillingUnavailable>(unavailable =>
+				TypedResults.Problem(statusCode: StatusCodes.Status503ServiceUnavailable, title: unavailable.Reason)
+			)
+		);
+		var context = ResultsHttpTestFactory.CreateContext();
+
+		// Act
+		var response = await ResultsHttpTestFactory.ExecuteAsync(
+			mapper.Map(CreateNestedBillingFailure(), context),
+			context
+		);
+
+		// Assert
+		await Assert.That(response.StatusCode).IsEqualTo(StatusCodes.Status503ServiceUnavailable);
+		await Assert.That(response.Body).Contains("down");
+	}
+
+	[Test]
+	public async Task Map_GivenNestedUnionFailure_LeafMappingBeatsTheNestedUnionAndErrorMappings()
+	{
+		// Arrange
+		var mapper = ResultsHttpTestFactory.CreateMapper(options =>
+		{
+			options.Map<HttpTestOuterError>(_ => TypedResults.Problem(statusCode: StatusCodes.Status409Conflict));
+			options.Map<HttpTestBillingError>(_ => TypedResults.Problem(statusCode: StatusCodes.Status502BadGateway));
+			options.Map<ItemBillingUnavailable>(_ =>
+				TypedResults.Problem(statusCode: StatusCodes.Status503ServiceUnavailable)
+			);
+		});
+		var context = ResultsHttpTestFactory.CreateContext();
+
+		// Act
+		var response = await ResultsHttpTestFactory.ExecuteAsync(
+			mapper.Map(CreateNestedBillingFailure(), context),
+			context
+		);
+
+		// Assert
+		await Assert.That(response.StatusCode).IsEqualTo(StatusCodes.Status503ServiceUnavailable);
+	}
+
+	[Test]
+	public async Task Map_GivenNestedUnionFailureWithoutLeafMapping_ReturnsTheNestedUnionMapping()
+	{
+		// Arrange
+		var mapper = ResultsHttpTestFactory.CreateMapper(options =>
+		{
+			options.Map<HttpTestOuterError>(_ => TypedResults.Problem(statusCode: StatusCodes.Status409Conflict));
+			options.Map<HttpTestBillingError>(_ => TypedResults.Problem(statusCode: StatusCodes.Status502BadGateway));
+		});
+		var context = ResultsHttpTestFactory.CreateContext();
+
+		// Act
+		var response = await ResultsHttpTestFactory.ExecuteAsync(
+			mapper.Map(CreateNestedBillingFailure(), context),
+			context
+		);
+
+		// Assert
+		await Assert.That(response.StatusCode).IsEqualTo(StatusCodes.Status502BadGateway);
+	}
+
+	[Test]
+	public async Task Map_GivenNestedUnionFailureWithoutInnerMapping_ReturnsTheErrorTypeMapping()
+	{
+		// Arrange
+		var mapper = ResultsHttpTestFactory.CreateMapper(options =>
+			options.Map<HttpTestOuterError>(_ => TypedResults.Problem(statusCode: StatusCodes.Status409Conflict))
+		);
+		var context = ResultsHttpTestFactory.CreateContext();
+
+		// Act
+		var response = await ResultsHttpTestFactory.ExecuteAsync(
+			mapper.Map(CreateNestedBillingFailure(), context),
+			context
+		);
+
+		// Assert
+		await Assert.That(response.StatusCode).IsEqualTo(StatusCodes.Status409Conflict);
+	}
+
+	[Test]
+	public async Task Map_GivenNestedUnionFailure_ReturnsTheFallbackResponseForTheLeafCase()
+	{
+		// Arrange
+		var mapper = ResultsHttpTestFactory.CreateMapper(options =>
+			options.AddFallback(
+				(error, _) =>
+					error is ItemBillingUnavailable unavailable
+						? TypedResults.Problem(
+							statusCode: StatusCodes.Status422UnprocessableEntity,
+							title: unavailable.Reason
+						)
+						: null
+			)
+		);
+		var context = ResultsHttpTestFactory.CreateContext();
+
+		// Act
+		var response = await ResultsHttpTestFactory.ExecuteAsync(
+			mapper.Map(CreateNestedBillingFailure(), context),
+			context
+		);
+
+		// Assert
+		await Assert.That(response.StatusCode).IsEqualTo(StatusCodes.Status422UnprocessableEntity);
+		await Assert.That(response.Body).Contains("down");
+	}
+
+	[Test]
+	public async Task Map_GivenUnmappedNestedUnionFailure_NamesTheLeafCase()
+	{
+		// Arrange
+		var mapper = ResultsHttpTestFactory.CreateMapper();
+		var context = ResultsHttpTestFactory.CreateContext();
+
+		// Act
+		var response = await ResultsHttpTestFactory.ExecuteAsync(
+			mapper.Map(CreateNestedBillingFailure(), context),
+			context
+		);
+
+		// Assert
+		await Assert.That(response.StatusCode).IsEqualTo(StatusCodes.Status500InternalServerError);
+		await Assert.That(response.Body).Contains(typeof(ItemBillingUnavailable).FullName!);
+	}
+
+	static Result<int, HttpTestOuterError> CreateNestedBillingFailure() =>
+		((HttpTestBillingError)new ItemBillingUnavailable("down")).AsFailure<int>();
 }

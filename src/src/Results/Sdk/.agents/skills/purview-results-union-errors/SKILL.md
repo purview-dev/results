@@ -1,12 +1,12 @@
 ---
 name: purview-results-union-errors
-description: "Use when modelling expected failures as a C# 15 union and converting its cases into Purview.Results values — declaring [GenerateResult] unions, using the generated AsFailure<TValue>() helpers, reacting to the RSG1000-RSG1007 diagnostics, or explaining why a union case cannot convert implicitly."
+description: "Use when modelling expected failures as a C# 15 union and converting its cases into Purview.Results values — declaring [GenerateResult] unions, using the generated AsFailure<TValue>() and AsFailure() helpers, reacting to the RSG1000-RSG1007 diagnostics, or explaining why a union case cannot convert implicitly."
 ---
 
 # Modelling error unions for Purview.Results
 
 Use this skill when a codebase models expected failures as a **union** and returns
-`Result<TValue, TUnion>` from the `Purview.Results` package.
+`Result<TValue, TUnion>` or the value-less `Result<TUnion>` from the `Purview.Results` package.
 
 ## The shape
 
@@ -28,8 +28,15 @@ public static Result<Tenant, TenantError> Get(TenantId id) =>
         : new TenantNotFound(id).AsFailure<Tenant>();   // generated
 ```
 
-`AsFailure<TValue>()` is generated **once per case type**, into `public static class {Union}ResultExtensions` in
-the union's own namespace, and it calls `Result<TValue, TUnion>.Failure(case)`.
+`AsFailure<TValue>()` and the non-generic `AsFailure()` are generated **once per case type**, into
+`public static class {Union}ResultExtensions` in the union's own namespace. The generic helper calls
+`Result<TValue, TUnion>.Failure(case)`; the non-generic one calls `Result<TUnion>.Failure(case)` and produces a
+value-less unit result:
+
+```csharp
+Result<Tenant, TenantError> Get(TenantId id) => new TenantNotFound(id).AsFailure<Tenant>();
+Result<TenantError> Delete(TenantId id) => new TenantNotFound(id).AsFailure();
+```
 
 ## Why the helper is required
 
@@ -54,10 +61,31 @@ Result<Tenant, TenantError> Get(TenantId id) => (TenantError)new TenantNotFound(
 ```
 
 `Purview.Results` also ships an IDE code fix: when you write
-`return new TenantNotFound(id);` in a `Result<TValue, TUnion>`-returning member, the lightbulb offers the
-`AsFailure<TValue>()` rewrite. The fix is only offered when the rewrite will bind (the converted type is a
-result, the error type is a `[GenerateResult]` union, the value is one of its cases, and the union is in scope
-by simple name).
+`return new TenantNotFound(id);` in a `Result<TValue, TUnion>`- or `Result<TUnion>`-returning member, the
+lightbulb offers the `AsFailure<TValue>()` or `AsFailure()` rewrite. The fix is only offered when the rewrite
+will bind (the converted type is a result, the error type is a `[GenerateResult]` union, the value is one of its
+cases, and the union is in scope by simple name).
+
+## Chaining across services
+
+When one service calls another, the caller's operation-family union takes the callee's **error union** as a case,
+then the widening `Bind` (or a `TryGetError` guard) lifts the callee's failure into the caller's contract:
+
+```csharp
+[GenerateResult]
+public readonly union RegisterTenantError(TenantError, BillingError);
+
+Result<Tenant, RegisterTenantError> Register(TenantId id, string name) =>
+    billing.ReserveQuota(id)
+        .Bind(quota => CreateTenant(quota, name), error => error);   // BillingError -> RegisterTenantError
+```
+
+List the union as a case, not its leaf cases: a leaf shared with the callee's union raises `RSG1006` and its helper
+is generated for only one of the unions, so a call site can bind to the wrong union. To keep the callee's types out
+of the caller's contract, map its cases into the caller's own case types with `MapError` instead — the compiler
+then forces the mapping to stay exhaustive as the callee's union grows. The ASP.NET Core mapper resolves a union
+error to its innermost case, so a leaf mapping wins and an enclosing-union mapping still applies when the leaf has
+none.
 
 ## Rules of thumb
 
@@ -108,7 +136,8 @@ compared by value.
 ## Requirements and switches
 
 - **.NET 11 SDK or later** with `LangVersion=preview` — union declarations are a preview language feature.
-- A reference to `Purview.Results`, which provides both the result type and this generator.
+- A reference to `Purview.Results`, which provides both result shapes (`Result<TValue, TError>` and
+  `Result<TError>`) and this generator.
 - `-p:DisableResultsSourceGenerator=true` (or a `Directory.Build.props` setting) disables the helpers while
   the opt-in attribute is still emitted, which is useful when the generated code has to be inspected in
   isolation.
@@ -117,7 +146,9 @@ compared by value.
 
 1. Cases are small records with meaningful payloads.
 2. The union is a `union` declaration annotated with `[GenerateResult]`.
-3. Every method that fails for an expected reason returns `Result<TValue, TUnion>`.
-4. Failures are produced with `new Case(...).AsFailure<TValue>()` (or the cast form).
+3. Every method that fails for an expected reason returns `Result<TValue, TUnion>`, or `Result<TUnion>` when the
+   success carries no value.
+4. Failures are produced with `new Case(...).AsFailure<TValue>()` (or `AsFailure()` for a unit result, or the cast
+   form).
 5. The build is clean of `RSG1000`–`RSG1007`.
 6. The union is mapped to responses once, in the host (see `purview-results-http-mapping`).

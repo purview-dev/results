@@ -52,4 +52,11 @@ static class PropertyLibrary
 	/// <see cref="DocText.Escape"/> before it is written into documentation text.
 	/// </summary>
 	public const string ResultTypeName = ResultsNamespace + ".Result<TValue, TError>";
+
+	/// <summary>
+	/// The fully-qualified name of the runtime <c>Result&lt;TError&gt;</c> unit result type, used when the
+	/// generated source is described in XML documentation. The value is raw, so callers escape it with
+	/// <see cref="DocText.Escape"/> before it is written into documentation text.
+	/// </summary>
+	public const string ResultUnitTypeName = ResultsNamespace + ".Result<TError>";
 }

@@ -55,6 +55,30 @@ public class ResultsSourceGeneratorTests
 	}
 
 	[Test]
+	public async Task GenerateAsync_GivenOptedInUnion_EmitsAUnitFailureHelperPerCase(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		// Act
+		var result = await GenerateAsync(TenantUnionSource, cancellationToken);
+
+		// Assert
+		var generated = result.AssertSingleGeneratedSource();
+
+		// The unit helper's body names Result<TUnion> with no value type argument, which distinguishes it from
+		// the generic AsFailure<TValue>() helper's Result<TValue, TUnion> body.
+		await Assert
+			.That(generated)
+			.Contains("global::Purview.Results.Result<global::Test.TenantError>.Failure(error)");
+
+		// The generic value helper is still emitted alongside it.
+		await Assert
+			.That(generated)
+			.Contains("global::Purview.Results.Result<TValue, global::Test.TenantError>.Failure(error)");
+	}
+
+	[Test]
 	public async Task GenerateAsync_GivenOptedInUnion_EmitsNullableEnabledFullyQualifiedSource(
 		CancellationToken cancellationToken
 	)

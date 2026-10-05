@@ -117,4 +117,36 @@ public class GeneratedResultsRuntimeTests
 		await Assert.That(result.IsSuccess).IsTrue();
 		await Assert.That(result.Value).IsEqualTo(tenant);
 	}
+
+	[Test]
+	public async Task AsFailureUnit_GivenNotFoundCase_ProducesAUnitFailure()
+	{
+		// Arrange
+		TenantNotFound tenantNotFound = new(new TenantId("tenant-1"));
+
+		// Act
+		// The explicit type is the compile-time proof that the non-generic helper produces exactly a
+		// Result<TError> for this union.
+#pragma warning disable IDE0007 // Use 'var' instead of explicit type
+		Result<TenantError> result = tenantNotFound.AsFailure();
+#pragma warning restore IDE0007 // Use 'var' instead of explicit type
+
+		// Assert
+		await Assert.That(result.IsInitialized).IsTrue();
+		await Assert.That(result.IsFailure).IsTrue();
+		await Assert.That(result.IsSuccess).IsFalse();
+		await Assert.That(result.Error is TenantNotFound).IsTrue();
+	}
+
+	[Test]
+	public async Task AsFailureUnit_GivenDisabledCase_ProducesAFailureWhoseToStringNamesTheState()
+	{
+		// Arrange
+		// Act
+		var result = new TenantDisabled(new TenantId("tenant-2")).AsFailure();
+
+		// Assert
+		await Assert.That(result.IsFailure).IsTrue();
+		await Assert.That(result.ToString()).StartsWith("Failure(");
+	}
 }

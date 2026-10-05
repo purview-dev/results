@@ -23,8 +23,9 @@ compilation that never applies the attribute gets no helpers.
 
 ## The generated helper
 
-For each case type the generator emits one overload in a `{Union}ResultExtensions` static class in the union's
-own namespace:
+For each case type the generator emits two overloads in a `{Union}ResultExtensions` static class in the union's
+own namespace — a value-producing `AsFailure<TValue>()` and a non-generic `AsFailure()` that produces a unit
+result:
 
 ```csharp
 public static class TenantErrorResultExtensions
@@ -32,11 +33,10 @@ public static class TenantErrorResultExtensions
     public static Result<TValue, TenantError> AsFailure<TValue>(this TenantNotFound error) =>
         Result<TValue, TenantError>.Failure(error);
 
-    public static Result<TValue, TenantError> AsFailure<TValue>(this TenantDisabled error) =>
-        Result<TValue, TenantError>.Failure(error);
+    public static Result<TenantError> AsFailure(this TenantNotFound error) =>
+        Result<TenantError>.Failure(error);
 
-    public static Result<TValue, TenantError> AsFailure<TValue>(this TenantAlreadyExists error) =>
-        Result<TValue, TenantError>.Failure(error);
+    // ... the same pair for TenantDisabled and TenantAlreadyExists
 }
 ```
 
@@ -45,9 +45,14 @@ Result<Tenant, TenantError> GetTenant(TenantId tenantId) =>
     _tenants.TryGetValue(tenantId, out var tenant)
         ? Result<Tenant, TenantError>.Success(tenant)
         : new TenantNotFound(tenantId).AsFailure<Tenant>();
+
+Result<TenantError> DeleteTenant(TenantId tenantId) =>
+    _tenants.Remove(tenantId)
+        ? Result<TenantError>.Success()
+        : new TenantNotFound(tenantId).AsFailure();
 ```
 
-One overload is generated **per case type** rather than one for the union, because C# does not apply union
+One overload **per case type** is generated rather than one for the union, because C# does not apply union
 conversions to an extension-method receiver (`CS1929`), so a helper declared on the union itself would never bind.
 
 ## Why there is no implicit conversion
@@ -87,13 +92,51 @@ Returning a bare case value where a result is expected is a compiler error (`CS0
 `UnionCaseResultCodeFixProvider`, which offers the rewrite in the IDE from the lightbulb:
 
 ```csharp
-return new TenantNotFound(id);                  // CS0029
-return new TenantNotFound(id).AsFailure<Tenant>();   // after the fix
+return new TenantNotFound(id);                        // CS0029
+return new TenantNotFound(id).AsFailure<Tenant>();    // after the fix, for a value result
+return new TenantNotFound(id).AsFailure();            // after the fix, for a unit result
 ```
 
-A fix is offered only when the rewrite will bind: the converted type is `Purview.Results.Result<TValue, TError>`,
-`TError` is a union **and** opted in with `[GenerateResult]`, the expression's type is one of that union's case
-types, and the union is reachable by its simple name at the call site.
+A fix is offered only when the rewrite will bind: the converted type is `Purview.Results.Result<TValue, TError>` or
+the unit `Purview.Results.Result<TError>`, `TError` is a union **and** opted in with `[GenerateResult]`, the
+expression's type is one of that union's case types, and the union is reachable by its simple name at the call
+site. A value result gets `AsFailure<TValue>()`; a unit result gets the non-generic `AsFailure()`.
+
+## Chaining across services
+
+When one service calls another, the caller's error type has to include the callee's. Declare the operation
+family's union with the callee's error union as a case, then widen with `Bind`'s `mapError` argument or a guard:
+
+```csharp
+[GenerateResult]
+public readonly union BillingError(BillingAccountMissing, BillingServiceUnavailable);
+
+// The caller's operation-family error: its own cases plus the callee's whole error union as one case.
+[GenerateResult]
+public readonly union RegisterTenantError(TenantError, BillingError);
+```
+
+```csharp
+// Widening Bind: map a billing failure into the registration contract and chain.
+Result<Tenant, RegisterTenantError> Register(TenantId id, string name) =>
+    billing.ReserveQuota(id)
+        .Bind(quota => CreateTenant(quota, name), error => error);
+
+// Guard idiom: BillingError is a case of RegisterTenantError, so its generated helper produces the composite
+// failure directly.
+if (reserved.TryGetError(out var billingError))
+    return billingError.AsFailure<Tenant>();
+```
+
+List the callee's **union** as the case, not its leaf cases. A leaf listed in two unions is a shared case, which
+raises `RSG1006` and generates the helper for only one of them, so a call site can bind to the wrong union. If the
+caller must not expose the callee's types at all, map the callee's cases into the caller's own case types with
+`MapError(error => error switch { ... })` instead — the compiler then forces the mapping to stay exhaustive as the
+callee's union grows.
+
+Nesting also works with the HTTP layer: the ASP.NET Core mapper resolves a union error to its innermost case, so a
+mapping for the leaf (`Map<BillingServiceUnavailable>`) wins, and a mapping for the enclosing union
+(`Map<BillingError>` or `Map<RegisterTenantError>`) still applies when the leaf has none.
 
 ## Union shapes that are supported
 

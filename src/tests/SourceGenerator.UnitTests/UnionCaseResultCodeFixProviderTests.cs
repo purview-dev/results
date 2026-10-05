@@ -49,6 +49,35 @@ public sealed class UnionCaseResultCodeFixProviderTests
 	}
 
 	[Test]
+	public async Task UnionCaseResultCodeFixProvider_GivenUnionCaseReturnedFromUnitResultMethod_ShouldOfferTheUnitFix(
+		CancellationToken cancellationToken
+	)
+	{
+		var source =
+			UnionSource
+			+ """
+
+				namespace Test
+				{
+					public static class Usage
+					{
+						public static Result<TenantError> DeleteTenant(TenantId tenantId)
+						{
+							return new TenantNotFound(tenantId);
+						}
+					}
+				}
+				""";
+
+		var result = await UnionCodeFixTestHarness.ApplyAsync(source, cancellationToken);
+
+		await Assert.That(result.FixOffered).IsTrue();
+		await Assert.That(result.FixedCode).Contains(".AsFailure()");
+		await Assert.That(result.FixedCode).DoesNotContain(".AsFailure<");
+		await Assert.That(result.RewriteCompiles).IsTrue();
+	}
+
+	[Test]
 	public async Task UnionCaseResultCodeFixProvider_GivenUnionCaseReturnedFromExpressionBody_ShouldOfferTheFix(
 		CancellationToken cancellationToken
 	)

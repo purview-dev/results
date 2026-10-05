@@ -8,13 +8,22 @@ change must not break.
 - `Result<TValue, TError>` is a `readonly record struct` with exactly three observable states: `Uninitialized`
   (the `default` value), `Success` and `Failure`, each observable through `IsInitialized`, `IsSuccess` and
   `IsFailure`.
+- `Result<TError>` is the value-less counterpart: a `readonly record struct` with the same three states and the
+  same throw-on-misuse contract, whose success holds the `Success` marker instead of a value. `Error` throws in
+  the wrong state, `Match`, `Map`, `Bind`, `MapError` and the extension operations throw
+  `"The result is uninitialized."` for `default`, `Throw()` returns the `Success` marker or throws
+  `ResultException<TError>`, and `ToString()` stays `Success` / `Failure(error)` / `Uninitialized`.
 - The throw-on-misuse contract holds: `Value` and `Error` throw `InvalidOperationException` in the wrong state,
   and `Match`, `Map`, `Bind` and `MapError` throw `"The result is uninitialized."` for `default`. An uninitialized
   result is never silently coerced into a success or a failure.
+- `Throw()` returns the successful value, throws `ResultException<TError>` carrying the error on failure, and
+  throws `"The result is uninitialized."` for `default`. It is the one deliberate result-to-exception escape hatch.
 - `ToString()` stays `Success(value)` / `Failure(error)` / `Uninitialized`.
-- `IResultValue` accessors never throw; the accessor that does not describe the current state returns `null`.
-- The implicit conversions from `TValue` and `TError`, and the `Result.Success`/`Result.Failure` and
-  `Result<TValue, TError>.Success`/`.Failure` factories, are public contract.
+- `IResultValue` accessors never throw; the accessor that does not describe the current state returns `null`. A
+  successful unit result's `SuccessValue` is the `Success` marker.
+- The implicit conversions from `TValue`, `TError` and `Success`, and the `Result.Success`/`Result.Failure`,
+  `Result<TValue, TError>.Success`/`.Failure` and `Result<TError>.Success`/`.Failure` factories, are public
+  contract.
 
 ## Dependency guarantees
 
@@ -30,8 +39,8 @@ change must not break.
 - `[GenerateResult]` is supported on union declarations only. Generic unions are unsupported (`RSG1002`), and so
   are `IUnionMembers` member providers (`RSG1007`).
 - Generated implicit conversions are not possible — see [Union Errors](Union-Errors.md) for the five compiler
-  rules. The per-case `AsFailure<TValue>()` helper and the IDE code fix are the ergonomics the language allows;
-  the helper-free alternative is the `(TenantError)caseValue` cast.
+  rules. The per-case `AsFailure<TValue>()` and `AsFailure()` helpers and the IDE code fix are the ergonomics the
+  language allows; the helper-free alternative is the `(TenantError)caseValue` cast.
 - Accessibility never widens: a union or case type that is not visible produces an `internal` generated class
   (`RSG1003` covers the case where generated code could not reference a type at all).
 
@@ -56,9 +65,10 @@ change must not break.
 
 ## Not in scope
 
-- No exception-to-result conversion: exceptions remain for exceptional circumstances.
+- No exception-to-result conversion: exceptions remain for exceptional circumstances. The reverse — turning a
+  result failure into an exception — is available explicitly through `Throw()`.
 - No runtime union inspection: matching an error case is ordinary C# pattern matching.
-- No replacement for `Result<TValue, TError>`: the generator only adds call-site ergonomics.
+- No replacement for `Result<TValue, TError>` or `Result<TError>`: the generator only adds call-site ergonomics.
 - No `Task`/`ValueTask`-specific async combinators beyond `MapAsync` and `BindAsync`.
 
 ## Related

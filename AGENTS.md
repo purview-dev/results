@@ -19,9 +19,9 @@ generator that makes C# 15 union error cases ergonomic), and the ZodSharp and AS
 | Path | Purpose |
 | --- | --- |
 | `src/Results.slnx` | Canonical solution for restore, build, test and pack |
-| `src/src/Results` | `Result<TValue, TError>`, the `Result` factories, `IResultValue` |
+| `src/src/Results` | `Result<TValue, TError>`, the value-less `Result<TError>`, the `Success` marker, the `Result` factories, `IResultValue` |
 | `src/src/SourceGenerator` | Roslyn incremental generator, diagnostic analyzer and `[GenerateResult]` attribute; not a package of its own, packed into `Purview.Results` |
-| `src/src/SourceGenerator.CodeFixes` | IDE code fix for `CS0029`: rewrites a returned union case into the generated `AsFailure<TValue>()` |
+| `src/src/SourceGenerator.CodeFixes` | IDE code fix for `CS0029`: rewrites a returned union case into the generated `AsFailure<TValue>()` (value result) or `AsFailure()` (unit result) |
 | `src/src/AspNetCore` | Result-to-response mapping, endpoint filter, DI registration |
 | `src/src/ZodSharp` | ZodSharp `ValidationResult<T>` bridge |
 | `src/src/ZodSharp.AspNetCore` | Validation-problem mapping for validation-carrying failures |
@@ -53,14 +53,32 @@ generator that makes C# 15 union error cases ergonomic), and the ZodSharp and AS
 - `Result<TValue, TError>` is a `readonly record struct` with three states: `Uninitialized` (the `default`
   value), `Success` and `Failure`. Keep all three observable through `IsInitialized`, `IsSuccess` and
   `IsFailure`.
+- `Result<TError>` is the value-less counterpart: the same `readonly record struct` state machine, the same
+  throw-on-misuse contract and the same three states, but a success holds the `Success` marker (a stateless
+  `readonly record struct` in `Purview.Results`) instead of a value. Its success callbacks take no argument
+  (`Match`, `Switch`, `Tap`, `Ensure`), `Error` throws in the wrong state, `ToString()` is `Success` /
+  `Failure(error)` / `Uninitialized`, and `IResultValue.SuccessValue` is the marker. Do not merge the two types or
+  let one silently convert into the other.
 - Keep the throw-on-misuse contract: `Value` and `Error` throw `InvalidOperationException` with the existing
   messages in the wrong state, and `Match`, `Map`, `Bind` and `MapError` throw `"The result is uninitialized."`
   for `default`. Never silently coerce an uninitialized result into a success or a failure.
-- `ToString()` stays `Success(value)` / `Failure(error)` / `Uninitialized`.
+- `ToString()` stays `Success(value)` / `Failure(error)` / `Uninitialized`; for `Result<TError>` a success is
+  `Success` with no value.
 - `IResultValue` is the non-generic view used by infrastructure. Its accessors must never throw; the accessor
   that does not describe the current state returns `null`.
-- Implicit conversions from `TValue` and `TError`, and the `Result.Success`/`Result.Failure` and
-  `Result<TValue, TError>.Success`/`.Failure` factories, are public contract.
+- Implicit conversions from `TValue`, `TError` and `Success`, and the `Result.Success`/`Result.Failure`,
+  `Result<TValue, TError>.Success`/`.Failure` and `Result<TError>.Success`/`.Failure` factories, are public
+  contract. `Result<TValue, TError>.DiscardValue()` (value result → unit result) is the value-style bridge between
+  the two shapes.
+- `Bind` preserves `TError`. Chaining a step that fails with a different error is the widening
+  `Bind(bind, mapError)` / `BindAsync(bind, mapError)` overload (equivalent to `MapError(mapError).Bind(bind)`), or
+  a `TryGetError` guard with the generated `AsFailure<TValue>()`. A caller union that includes the upstream error
+  union as a case keeps the lift to a single union conversion.
+- `Throw()` returns the successful value — or, for `Result<TError>`, the `Success` marker — throws
+  `ResultException<TError>` (with the error on `Error`, and a non-generic `ResultException` base carrying it as
+  `object?` for a catch-all) on failure, and throws `InvalidOperationException`
+  (`"The result is uninitialized."`) for `default`. It is the only deliberate result-to-exception escape hatch and
+  must never coerce `default`.
 - `Purview.Results` stays dependency-free. The ZodSharp and ASP.NET Core packages depend on it, never the
   reverse, and `Purview.Results.AspNetCore` deliberately knows nothing about ZodSharp.
 - Keep runtime packages free of reflection, `dynamic` and runtime type discovery. Union structure is inspected
@@ -112,6 +130,10 @@ including the diagnostics table, build properties and activation rules.
   is unavailable for a non-generic case type (`CS0246`), and only one user-defined conversion may participate in
   a sequence (`CS0029`). All five are recorded in `UnionCompilerBehaviourTests.cs`. Improve call-site
   ergonomics through the code fix in `src/src/SourceGenerator.CodeFixes` instead.
+- Emit **two helpers per case**: the value-producing `AsFailure<TValue>()` (`Result<TValue, TUnion>`) and the
+  non-generic `AsFailure()` (`Result<TUnion>` unit result). Keep them overloads of the same name in the one
+  generated extension class, keep the bodies pure `Result<...>.Failure(error)` calls, and keep case ordering
+  deterministic.
 - Adding a code fix means adding it to `src/src/SourceGenerator.CodeFixes`, not to the generator project: the
   code fix needs `Microsoft.CodeAnalysis.*.Workspaces`, which must not enter the generator's analyzer closure.
   The two projects stay independent (no project reference, no `InternalsVisibleTo`) so no reference cycle can
@@ -121,9 +143,15 @@ including the diagnostics table, build properties and activation rules.
 
 ## ASP.NET Core integration invariants
 
-- Keep the failure resolution order in `DefaultResultsHttpMapper`: the mapping for the error **case** type,
-  then the mapping for the **error** type (which covers every case without its own mapping), then the
-  registered fallbacks in order, then the unmapped-failure response.
+- A successful value result is serialized with `SuccessStatusCode`; a successful unit `Result<TError>` carries no
+  payload and answers `204 No Content`. `SuccessMapper` overrides both, and a successful value that is itself an
+  `IResult` still passes through untouched.
+- Keep the failure resolution order in `DefaultResultsHttpMapper`: the mapping for the most specific **case** type,
+  then the mapping for each enclosing **union** type from the inside out, then the mapping for the **error** type
+  (which covers every case without its own mapping), then the registered fallbacks in order, then the
+  unmapped-failure response. A union error resolves to its innermost active case, so a nested union resolves to its
+  leaf while a mapping for an enclosing union still applies when the leaf has none; the fallback stage receives that
+  leaf case.
 - **One fallback stage, one ordered list.** `ResultsHttpOptions.AddFallback(...)` delegates and
   `AddFailureMapper<TMapper>()` failure mappers append to the *same* list, in the order they are called, and an
   entry defers by returning `null`. `IResultsFailureMapper` (with `ResultsFailureContext`, which carries the case,
@@ -227,8 +255,9 @@ including the diagnostics table, build properties and activation rules.
 ## Examples
 
 `src/src/Examples.*` holds one runnable example per integration aspect, all on the Tenant* domain the READMEs
-document: `Examples.Basic` (the result type and the generated helpers), `Examples.Zod`
-(`Purview.Results.ZodSharp`), `Examples.AspNetCore` (`Purview.Results.AspNetCore`),
+document: `Examples.Basic` (the result type, the value-less `Result<TError>` and the generated `AsFailure<TValue>()`
+and `AsFailure()` helpers), `Examples.Zod` (`Purview.Results.ZodSharp`, including `ToUnitResult`),
+`Examples.AspNetCore` (`Purview.Results.AspNetCore`, including a unit result answering `204`),
 `Examples.AspNetCore.Zod` (`Purview.Results.ZodSharp.AspNetCore`) and `Examples.ValueObjects.Zod`
 (`Purview.Results.ZodSharp` + `Purview.ValueObjects`, a type-level `[ZodRule]` whose code and origin flow into the
 result and the HTTP mapping).

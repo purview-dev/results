@@ -118,4 +118,82 @@ public class GeneratedResultsIntegrationTests
 		await Assert.That(mapped.IsSuccess).IsTrue();
 		await Assert.That(mapped.Value).IsEqualTo("tenant-1");
 	}
+
+	[Test]
+	public async Task Bind_GivenBillingFailure_ShouldWidenTheErrorIntoTheCompositeUnion()
+	{
+		// Arrange
+		var billing = new BillingServiceUnavailable("down").AsFailure<Tenant>();
+
+		// Act
+		// The widening Bind maps the billing error into RegisterTenantError, so the binder may return the
+		// composite error type directly. The lambda returns the error unchanged; the union conversion lifts
+		// BillingError into RegisterTenantError.
+		var bound = billing.Bind(
+			_ => Result<TenantId, RegisterTenantError>.Success(new TenantId("tenant-1")),
+			error => error
+		);
+
+		// Assert
+		await Assert.That(bound.IsFailure).IsTrue();
+		await Assert.That(bound.Error is BillingError).IsTrue();
+	}
+
+	[Test]
+	public async Task Bind_GivenBillingSuccess_ShouldReturnTheBoundResult()
+	{
+		// Arrange
+		var billing = Result<Tenant, BillingError>.Success(new Tenant(new TenantId("t")));
+
+		// Act
+		var bound = billing.Bind(
+			// A tenant error is a case of the composite union, so its generated helper produces the composite
+			// failure directly once the case has been lifted to TenantError.
+			_ => ((TenantError)new TenantAlreadyExists(new TenantId("t"))).AsFailure<TenantId>(),
+			error => error
+		);
+
+		// Assert
+		await Assert.That(bound.IsFailure).IsTrue();
+		await Assert.That(bound.Error is TenantError).IsTrue();
+	}
+
+	[Test]
+	public async Task AsFailure_GivenNestedBillingUnionCase_ShouldProduceTheCompositeFailure()
+	{
+		// Arrange
+		var billing = new BillingServiceUnavailable("down").AsFailure<Tenant>();
+
+		// Act
+		// The guard idiom: a whole union case of the composite union has its own AsFailure helper, so the
+		// billing failure lifts into the registration contract without an explicit MapError.
+		await Assert.That(billing.TryGetError(out var billingError)).IsTrue();
+		var failure = billingError.AsFailure<TenantId>();
+
+		// Assert
+		await Assert.That(failure.IsFailure).IsTrue();
+		await Assert.That(failure.Error is BillingError).IsTrue();
+	}
+
+	[Test]
+	public async Task Throw_GivenGeneratedFailure_ShouldThrowResultExceptionCarryingTheUnion()
+	{
+		// Arrange
+		var result = new TenantNotFound(new TenantId("tenant-1")).AsFailure<Tenant>();
+		ResultException<TenantError>? exception = null;
+
+		// Act
+		try
+		{
+			result.Throw();
+		}
+		catch (ResultException<TenantError> caught)
+		{
+			exception = caught;
+		}
+
+		// Assert
+		await Assert.That(exception).IsNotNull();
+		await Assert.That(exception!.Error is TenantNotFound).IsTrue();
+	}
 }

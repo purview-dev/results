@@ -74,7 +74,31 @@ var helper = new TenantNotFound(missingId).AsFailure<Tenant>();
 
 ShowResult("AsFailure<Tenant>()", helper);
 
-Heading("8. Misuse throws: an uninitialized result is a bug, not a state");
+Heading("8. Chain services by widening one error union into another");
+
+TenantRegistrationService registration = new(store, new BillingService());
+TenantId hooliId = new("hooli");
+
+// RegisterTenantError has TenantError and BillingError as cases, so a failure from either service flows
+// through one result type; the widening Bind lifts a billing failure into the registration union.
+ShowRegistration("Register(hooli)", registration.Register(hooliId, "Hooli"));
+ShowRegistration("Register(globex)", registration.Register(globexId, "Globex"));
+ShowRegistration("Register(hooli) again", registration.Register(hooliId, "Hooli"));
+ShowRegistration("guard(hooli)", registration.RegisterWithGuard(hooliId, "Hooli"));
+
+Heading("9. Throw turns an expected failure into an exception at a boundary that must throw");
+
+try
+{
+	store.GetTenant(missingId).Throw();
+}
+catch (ResultException<TenantError> exception)
+{
+	// The exception exposes the error with its original type, so it can be described like any other failure.
+	Console.WriteLine($"  ResultException<TenantError>: {DescribeError(exception.Error)}");
+}
+
+Heading("10. Misuse throws: an uninitialized result is a bug, not a state");
 
 try
 {
@@ -84,6 +108,15 @@ catch (InvalidOperationException exception)
 {
 	Console.WriteLine($"  InvalidOperationException: {exception.Message}");
 }
+
+Heading("11. A unit Result<TError> succeeds with no value, so only the failure has to be carried");
+
+// A command that either completes or explains why not is a unit result: its success is the Success marker
+// rather than a value. DeleteTenant returns Result<TenantError>, and the generated AsFailure() helper (with
+// no value type parameter) builds one from a union case.
+ShowUnit("DeleteTenant(hooli)", store.DeleteTenant(hooliId));
+ShowUnit("DeleteTenant(hooli) again", store.DeleteTenant(hooliId));
+ShowUnit("Result<TError>.Success()", Result<TenantError>.Success());
 
 static void Heading(string title)
 {
@@ -103,6 +136,14 @@ static void ShowResult<TValue>(string label, Result<TValue, TenantError> result)
 	Console.WriteLine($"  {label, -28} -> {text}");
 }
 
+static void ShowUnit(string label, Result<TenantError> result)
+{
+	// A unit result's success arm takes no value; only the failure arm receives the error.
+	var text = result.Match(() => "Success", DescribeError);
+
+	Console.WriteLine($"  {label, -28} -> {text}");
+}
+
 static string DescribeError(TenantError error) =>
 	error switch
 	{
@@ -110,4 +151,27 @@ static string DescribeError(TenantError error) =>
 		TenantDisabled disabled => $"TenantDisabled({disabled.TenantId.Value})",
 		TenantAlreadyExists exists => $"TenantAlreadyExists({exists.TenantId.Value})",
 		_ => nameof(TenantError),
+	};
+
+static void ShowRegistration(string label, Result<Tenant, RegisterTenantError> result)
+{
+	var text = result.Match(value => $"Success({value.Name})", DescribeRegistrationError);
+
+	Console.WriteLine($"  {label, -28} -> {text}");
+}
+
+static string DescribeRegistrationError(RegisterTenantError error) =>
+	error switch
+	{
+		TenantError tenantError => DescribeError(tenantError),
+		BillingError billingError => DescribeBillingError(billingError),
+		_ => nameof(RegisterTenantError),
+	};
+
+static string DescribeBillingError(BillingError error) =>
+	error switch
+	{
+		BillingAccountMissing missing => $"BillingAccountMissing({missing.TenantId.Value})",
+		BillingServiceUnavailable unavailable => $"BillingServiceUnavailable({unavailable.Reason})",
+		_ => nameof(BillingError),
 	};

@@ -80,4 +80,39 @@ public static class ZodValidationResultExtensions
 			? Result<TValue, TError>.Success(validation.Value)
 			: Result<TValue, TError>.Failure(onFailure(validation.Errors));
 	}
+
+	/// <summary>
+	/// Converts a validation result into a unit result whose failure carries the error produced by
+	/// <paramref name="onFailure"/>, discarding the validated value.
+	/// </summary>
+	/// <typeparam name="TValue">The type of the validated value.</typeparam>
+	/// <typeparam name="TError">
+	/// The error type of the result. A union type must be named explicitly, as in
+	/// <c>ToUnitResult&lt;TenantInput, TenantError&gt;(...)</c>, because a union case does not carry the union
+	/// type that contains it.
+	/// </typeparam>
+	/// <param name="validation">The validation result to convert.</param>
+	/// <param name="onFailure">
+	/// Creates the error from the validation errors. Only invoked when validation failed, so a successful
+	/// validation allocates no error.
+	/// </param>
+	/// <returns>
+	/// A successful unit result, or a failed unit result carrying the created error.
+	/// </returns>
+	/// <remarks>
+	/// Reach for this when the surrounding method validates a value but succeeds with nothing — a command that
+	/// accepts an input and reports only why it was rejected. The validated value is deliberately dropped, which
+	/// is why the value type still has to be named; use <see cref="ToResult{TValue, TError}"/> when the success
+	/// has to carry it.
+	/// </remarks>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="onFailure"/> is null.</exception>
+	public static Result<TError> ToUnitResult<TValue, TError>(
+		this ValidationResult<TValue> validation,
+		Func<ImmutableArray<ValidationError>, TError> onFailure
+	)
+	{
+		ArgumentNullException.ThrowIfNull(onFailure);
+
+		return validation.IsSuccess ? Result<TError>.Success() : Result<TError>.Failure(onFailure(validation.Errors));
+	}
 }

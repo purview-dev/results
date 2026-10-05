@@ -19,8 +19,8 @@ You are a specialist for authoring Purview.Results error unions.
 ## Primary objective
 
 Replace ad-hoc failure signalling (thrown domain exceptions, `bool`/`out` pairs, sentinel return values,
-error-code enums) with a `union` of focused case types and a generated `AsFailure<TValue>()` helper, so
-callers match on types instead of parsing strings.
+error-code enums) with a `union` of focused case types and the generated `AsFailure<TValue>()` / `AsFailure()`
+helpers, so callers match on types instead of parsing strings.
 
 ## Background knowledge
 
@@ -35,8 +35,8 @@ The most important rules are:
   defeats the point.
 - **One union per operation family**, so methods can come and go without changing the error contract.
 - **Never generate or hand-write implicit conversions.** Five compiler rules block them (`CS0715`, `CS0556`,
-  `CS9282`, `CS0246`, `CS0029`); the generated `AsFailure<TValue>()` helper — or the `(Union)case` cast — is
-  the whole toolbox.
+  `CS9282`, `CS0246`, `CS0029`); the generated `AsFailure<TValue>()` / `AsFailure()` helpers — or the
+  `(Union)case` cast — are the whole toolbox.
 - **Keep the result transport-agnostic.** No HTTP types, status codes or `IResult` values in the union.
 - **`default` is a bug, not a failure.** Never let a method fall off the end of its body.
 
@@ -45,8 +45,9 @@ The most important rules are:
 1. Inventory the failure modes of the operation and name each one as a case type with the payload the caller
    needs.
 2. Declare the union with `[GenerateResult]` in the same namespace as the cases.
-3. Change the signature to `Result<TValue, TUnion>` and replace throwing exits with
-   `new Case(...).AsFailure<TValue>()`.
+3. Change the signature to `Result<TValue, TUnion>` — or the value-less `Result<TUnion>` when the member has
+   nothing to return on success — and replace throwing exits with `new Case(...).AsFailure<TValue>()` or
+   `new Case(...).AsFailure()`.
 4. Leave genuinely exceptional exits (`InvalidOperationException`, infrastructure faults) throwing.
 5. Keep the call sites honest: unwrap with `Match`/`Map`/`Bind` rather than `if (IsSuccess)` when a value has to
    come out.

@@ -1,9 +1,10 @@
 # Source Generator
 
 The [`Purview.Results`](https://www.nuget.org/packages/Purview.Results) package ships an incremental Roslyn
-source generator that makes C# 15 **union** error cases ergonomic with `Result<TValue, TError>`. It generates
-the `[GenerateResult]` attribute, one `AsFailure<TValue>()` helper per union case, and the diagnostics that keep
-unsupported shapes out of a build. It is not published as a separate package.
+source generator that makes C# 15 **union** error cases ergonomic with `Result<TValue, TError>` and the value-less
+`Result<TError>`. It generates the `[GenerateResult]` attribute, the `AsFailure<TValue>()` and `AsFailure()`
+helpers for every union case, and the diagnostics that keep unsupported shapes out of a build. It is not published
+as a separate package.
 
 ## Installation
 
@@ -64,14 +65,16 @@ public static class TenantErrorResultExtensions
     public static Result<TValue, TenantError> AsFailure<TValue>(this TenantNotFound error) =>
         Result<TValue, TenantError>.Failure(error);
 
-    public static Result<TValue, TenantError> AsFailure<TValue>(this TenantDisabled error) =>
-        Result<TValue, TenantError>.Failure(error);
+    public static Result<TenantError> AsFailure(this TenantNotFound error) =>
+        Result<TenantError>.Failure(error);
+
+    // ... the same pair for TenantDisabled and TenantAlreadyExists
 }
 ```
 
-The generated helpers are pure static methods that call the existing `Result<TValue, TError>.Failure` factory:
-there is no reflection, no `dynamic`, no runtime type discovery and no mutable static state. The generator does
-not change, wrap or replace `Result<TValue, TError>`.
+The generated helpers are pure static methods that call the existing `Result<...>.Failure` factory: there is no
+reflection, no `dynamic`, no runtime type discovery and no mutable static state. The generator does not change,
+wrap or replace `Result<TValue, TError>` or `Result<TError>`.
 
 ## Build properties
 

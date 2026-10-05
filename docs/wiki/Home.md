@@ -1,7 +1,8 @@
 # Purview.Results Wiki
 
 Purview.Results is the Purview result suite for .NET: a small, dependency-light `Result<TValue, TError>` value
-that makes **expected** failures part of a method's contract instead of an exception, a Roslyn source generator
+that makes **expected** failures part of a method's contract instead of an exception, its value-less
+`Result<TError>` counterpart for operations that have nothing to return on success, a Roslyn source generator
 that makes C# 15 union error cases ergonomic, and adapters that carry those results to ASP.NET Core and
 ZodSharp. Exceptional circumstances still throw; states you expect — not found, invalid, conflict — are values.
 
@@ -37,7 +38,7 @@ This wiki is the project documentation hub. Packages are published under the `Pu
 
 | Package | Purpose |
 | --- | --- |
-| `Purview.Results` | `Result<TValue, TError>`, the `Result` factories and `IResultValue`, plus the bundled source generator for `[GenerateResult]` unions. No runtime dependencies. |
+| `Purview.Results` | `Result<TValue, TError>` and the value-less `Result<TError>`, the `Result` factories and `IResultValue`, plus the bundled source generator for `[GenerateResult]` unions. No runtime dependencies. |
 | `Purview.Results.AspNetCore` | Maps results onto ASP.NET Core responses (`IResult`, `ProblemDetails`). |
 | `Purview.Results.ZodSharp` | Bridges ZodSharp `ValidationResult<T>` values into results. |
 | `Purview.Results.ZodSharp.AspNetCore` | Renders validation-carrying failures as `HttpValidationProblemDetails`. |
@@ -49,7 +50,8 @@ This wiki is the project documentation hub. Packages are published under the `Pu
 - **Throw-on-misuse, never silent** — `Value` and `Error` throw in the wrong state, and `Match`/`Map`/`Bind`/
   `MapError` throw for `default`; probing (`TryGetValue`, `TryGetError`) is the non-throwing way in.
 - **Union error types** — a C# 15 union keeps every error case strongly typed while the result stays a single
-  value, and the generator supplies the per-case `AsFailure<TValue>()` helper the language cannot express itself.
+  value, and the generator supplies the per-case `AsFailure<TValue>()` and `AsFailure()` helpers the language
+  cannot express itself.
 - **Compile-time diagnostics** — `RSG1000`–`RSG1007` report unsupported union shapes at build time, and the one
   suppression (`RSG2000`) answers `CA1815` only for opted-in unions.
 - **Host-controlled HTTP** — the ASP.NET Core package resolves an error **case**, then the **error type**, then

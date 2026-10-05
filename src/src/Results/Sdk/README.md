@@ -5,7 +5,7 @@
 
 A small, dependency-light `Result<TValue, TError>` for .NET that lets **expected** failures flow through a
 value instead of an exception. Exceptional circumstances still throw; states you expect — not found, invalid,
-conflict — are values.
+conflict — are values. A value-less `Result<TError>` covers operations that have nothing to return on success.
 
 ## Installation
 
@@ -54,7 +54,9 @@ Result<int, string> failed = "not a number";
 | `Match(success, failure)` | Fold both states into one value |
 | `Map(map)` | Transform the successful value, preserving the error |
 | `Bind(bind)` | Chain another operation that can fail, preserving the error type |
+| `Bind(bind, mapError)` | Chain another operation that fails with a different error type, widening the existing error |
 | `MapError(map)` | Transform the error, preserving the value |
+| `Throw()` | Return the successful value, or throw `ResultException<TError>` carrying the error |
 | `ToString()` | `Success(value)`, `Failure(error)` or `Uninitialized` |
 
 `Result<TValue, TError>` is a `readonly record struct`. `default` is *uninitialized*: `IsInitialized`,
@@ -66,14 +68,57 @@ Result<int, string> failed = "not a number";
 endpoint filter, for example. Its accessors never throw: the one that does not describe the current state
 returns `null`.
 
+`Throw()` is the deliberate escape hatch: it returns the successful value and throws a `ResultException<TError>`
+carrying the error on failure, so a boundary that must throw does not have to branch. The exception exposes the
+error with its original type through `Error`; a non-generic `ResultException` base carries it as `object?` for a
+catch-all. An uninitialized result is still a bug, so `Throw()` reports `default` with
+`InvalidOperationException`.
+
+## Unit results
+
+An operation that has nothing to return on success — a command, a validation-only step — uses the value-less
+`Result<TError>`. It has the same three states and the same throw-on-misuse contract, but its success holds the
+`Success` marker rather than a value, so its success callbacks take no argument:
+
+```csharp
+Result<TenantError> DeleteTenant(TenantId tenantId) =>
+    _tenants.Remove(tenantId)
+        ? Result<TenantError>.Success()
+        : new TenantNotFound(tenantId).AsFailure();
+
+var deleted = DeleteTenant(tenantId);
+
+deleted.Match(() => "deleted", error => $"could not delete: {error}");   // success takes no value
+deleted.Map(() => 1);                                                    // attach a value to a success
+deleted.Bind(() => GetTenant(tenantId));                                 // continue with another operation
+deleted.Ensure(() => _tenants.Count > 0, () => new TenantError());       // turn a success into a failure
+```
+
+| Member | Purpose |
+| --- | --- |
+| `Result<TError>.Success()` / `.Failure(error)` | Create a unit result |
+| `Result.Success<TError>()` / `Result.Failure<TError>(error)` | Create a unit result without naming the error twice |
+| `IsInitialized` / `IsSuccess` / `IsFailure` | The three states, shared with `Result<TValue, TError>` |
+| `Error` | The error; throws `InvalidOperationException` in the other state |
+| `Match(success, failure)` / `Map(map)` / `Bind(bind)` / `MapError(map)` | Fold or transform; the success callbacks take no value |
+| `Throw()` | Return the `Success` marker, or throw `ResultException<TError>` carrying the error |
+| `ToString()` | `Success`, `Failure(error)` or `Uninitialized` |
+| `Result<TValue, TError>.DiscardValue()` | Turn a value result into a unit result, preserving the error |
+| `Result<TError>.MapAsync` / `.BindAsync` / widening `Bind` / `Ensure` / `Tap` / `Switch` / `OrElse` | The unit-result counterparts of the value-result extensions, in `ResultExtensions` |
+
+The implicit conversions from `Success` and from `TError` are public contract, so a method returning
+`Result<TError>` can `return` either the marker or a plain error.
+
 ## Union error types
 
 A C# 15 union is a natural `TError`: the error cases stay strongly typed. Because C# never composes the union
 conversion with the result's own conversion, a case value cannot be returned directly — the source generator
-bundled in this package generates a per-case `AsFailure<TValue>()` helper for `[GenerateResult]` unions:
+bundled in this package generates a per-case `AsFailure<TValue>()` helper for `[GenerateResult]` unions, plus a
+non-generic `AsFailure()` that produces a unit result:
 
 ```csharp
 Result<Tenant, TenantError> GetTenant(TenantId tenantId) => new TenantNotFound(tenantId).AsFailure<Tenant>();
+Result<TenantError> DeleteTenant(TenantId tenantId) => new TenantNotFound(tenantId).AsFailure();
 ```
 
 The generator cannot declare that conversion for you: C# forbids user-defined operators in a static class,
@@ -88,11 +133,16 @@ case → union conversion so only the library's union → result conversion rema
 Result<Tenant, TenantError> GetTenant(TenantId tenantId) => (TenantError)new TenantNotFound(tenantId);
 ```
 
+When one service calls another, widen the callee's error union into the caller's operation-family union with the
+widening `Bind`, or lift it at a guard with the generated helper. List the callee's union as a case rather than its
+leaf cases, so no case type is shared between the two unions.
+
 ## Examples
 
 [`src/src/Examples.Basic`](https://github.com/purview-dev/results/tree/main/src/src/Examples.Basic) is a
 runnable console example over the Tenant* domain this README documents: the three result states, the combinators,
-probing, the throw-on-misuse contract and the generated `AsFailure<TValue>()` helper.
+probing, the throw-on-misuse contract, the generated `AsFailure<TValue>()` helper, chaining two services by
+widening one error union into another, and `Throw()`.
 
 ```bash
 dotnet run --project src/src/Examples.Basic

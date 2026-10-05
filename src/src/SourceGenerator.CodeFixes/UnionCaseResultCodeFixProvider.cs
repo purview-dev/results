@@ -15,8 +15,9 @@ using Microsoft.CodeAnalysis.Text;
 namespace Purview.Results.SourceGenerator.CodeFixes;
 
 /// <summary>
-/// Offers the generated <c>AsFailure&lt;TValue&gt;()</c> helper when a union case value is returned where a
-/// <c>Result&lt;TValue, TError&gt;</c> is expected (<c>CS0029</c>).
+/// Offers the generated <c>AsFailure&lt;TValue&gt;()</c> and <c>AsFailure()</c> helpers when a union case value
+/// is returned where a <c>Result&lt;TValue, TError&gt;</c> or a unit <c>Result&lt;TError&gt;</c> is expected
+/// (<c>CS0029</c>).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -28,10 +29,11 @@ namespace Purview.Results.SourceGenerator.CodeFixes;
 /// </para>
 /// <para>
 /// A fix is only offered when the rewritten call will actually bind: the converted type must be
-/// <c>Purview.Results.Result&lt;TValue, TError&gt;</c>, <c>TError</c> must be a union opted in with
-/// <c>[GenerateResult]</c> (so the helper exists), the expression must be one of that union's case values, and
-/// the union must be reachable by its simple name at the call site (the helper is generated into the union's
-/// own namespace).
+/// <c>Purview.Results.Result&lt;TValue, TError&gt;</c> or <c>Purview.Results.Result&lt;TError&gt;</c>,
+/// <c>TError</c> must be a union opted in with <c>[GenerateResult]</c> (so the helper exists), the expression
+/// must be one of that union's case values, and the union must be reachable by its simple name at the call site
+/// (the helper is generated into the union's own namespace). A value result gets
+/// <c>AsFailure&lt;TValue&gt;()</c>; a unit result gets the non-generic <c>AsFailure()</c>.
 /// </para>
 /// </remarks>
 [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(UnionCaseResultCodeFixProvider)), Shared]
@@ -40,6 +42,7 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 	const string EquivalenceKey = "PurviewResultsUseAsFailure";
 	const string ResultNamespace = "Purview.Results";
 	const string ResultMetadataName = "Result`2";
+	const string ResultUnitMetadataName = "Result`1";
 	const string GenerateResultAttributeMetadataName = "GenerateResultAttribute";
 	const string FailureHelperName = "AsFailure";
 
@@ -65,8 +68,8 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 			if (expression is null)
 				continue;
 
-			var (valueType, unionType) = ResolveResultTarget(model, expression, cancellationToken);
-			if (valueType is null || unionType is null)
+			var (valueType, unionType, isUnit) = ResolveResultTarget(model, expression, cancellationToken);
+			if (unionType is null || (!isUnit && valueType is null))
 				continue;
 
 			// The expression must be a case of the union, otherwise AsFailure<TValue>() would not exist for
@@ -79,10 +82,15 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 			if (!IsUnionVisibleBySimpleName(model, unionType, expression.SpanStart))
 				continue;
 
+			var title = isUnit
+				? $"Convert the union case to a failed unit result with {FailureHelperName}()"
+				: $"Convert the union case to a failed result with {FailureHelperName}<{valueType!.Name}>()";
+
 			context.RegisterCodeFix(
 				CodeAction.Create(
-					title: $"Convert the union case to a failed result with {FailureHelperName}<{valueType.Name}>()",
-					createChangedDocument: token => UseAsFailureAsync(context.Document, expression, valueType, token),
+					title: title,
+					createChangedDocument: token =>
+						UseAsFailureAsync(context.Document, expression, isUnit ? null : valueType, token),
 					equivalenceKey: EquivalenceKey
 				),
 				diagnostic
@@ -97,26 +105,30 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 		return node as ExpressionSyntax ?? node.FirstAncestorOrSelf<ExpressionSyntax>();
 	}
 
-	static (ITypeSymbol? ValueType, INamedTypeSymbol? UnionType) ResolveResultTarget(
+	static (ITypeSymbol? ValueType, INamedTypeSymbol? UnionType, bool IsUnit) ResolveResultTarget(
 		SemanticModel model,
 		ExpressionSyntax expression,
 		CancellationToken cancellationToken
 	)
 	{
 		if (model.GetTypeInfo(expression, cancellationToken).ConvertedType is not INamedTypeSymbol converted)
-			return (null, null);
+			return (null, null, false);
 
-		if (converted.Arity != 2 || !HasMetadataName(converted, ResultNamespace, ResultMetadataName))
-			return (null, null);
+		var isValueResult = converted.Arity == 2 && HasMetadataName(converted, ResultNamespace, ResultMetadataName);
+		var isUnitResult = converted.Arity == 1 && HasMetadataName(converted, ResultNamespace, ResultUnitMetadataName);
 
+		if (!isValueResult && !isUnitResult)
+			return (null, null, false);
+
+		// The union is the last type argument in both shapes: Result<TValue, TUnion> and Result<TUnion>.
 		if (
-			converted.TypeArguments[1] is not INamedTypeSymbol union
+			converted.TypeArguments[converted.Arity - 1] is not INamedTypeSymbol union
 			|| !union.IsUnion
 			|| !HasGenerateResultAttribute(union)
 		)
-			return (null, null);
+			return (null, null, false);
 
-		return (converted.TypeArguments[0], union);
+		return isUnitResult ? (null, union, true) : (converted.TypeArguments[0], union, false);
 	}
 
 	static bool HasGenerateResultAttribute(INamedTypeSymbol union)
@@ -176,7 +188,7 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 	static async Task<Document> UseAsFailureAsync(
 		Document document,
 		ExpressionSyntax expression,
-		ITypeSymbol valueType,
+		ITypeSymbol? valueType,
 		CancellationToken cancellationToken
 	)
 	{
@@ -184,19 +196,30 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 		if (root is null)
 			return document;
 
-		var typeArgument = SyntaxFactory
-			.ParseTypeName(valueType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat))
-			.WithAdditionalAnnotations(Simplifier.Annotation);
+		// A unit result uses the non-generic AsFailure(); a value result names its value type.
+		SimpleNameSyntax helperName;
+		if (valueType is null)
+		{
+			helperName = SyntaxFactory.IdentifierName(FailureHelperName);
+		}
+		else
+		{
+			var typeArgument = SyntaxFactory
+				.ParseTypeName(valueType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat))
+				.WithAdditionalAnnotations(Simplifier.Annotation);
+
+			helperName = SyntaxFactory.GenericName(
+				SyntaxFactory.Identifier(FailureHelperName),
+				SyntaxFactory.TypeArgumentList(SyntaxFactory.SingletonSeparatedList(typeArgument))
+			);
+		}
 
 		var invocation = SyntaxFactory
 			.InvocationExpression(
 				SyntaxFactory.MemberAccessExpression(
 					SyntaxKind.SimpleMemberAccessExpression,
 					expression.WithoutTrivia(),
-					SyntaxFactory.GenericName(
-						SyntaxFactory.Identifier(FailureHelperName),
-						SyntaxFactory.TypeArgumentList(SyntaxFactory.SingletonSeparatedList(typeArgument))
-					)
+					helperName
 				)
 			)
 			.WithTriviaFrom(expression)

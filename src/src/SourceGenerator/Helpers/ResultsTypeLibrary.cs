@@ -34,6 +34,16 @@ static class ResultsTypeLibrary
 	);
 
 	/// <summary>
+	/// The runtime <c>Result&lt;TError&gt;</c> unit result type. Callers apply the generic argument for a
+	/// specific union.
+	/// </summary>
+	public static readonly TypeIdentity ResultUnit = new(
+		typeName: "Result",
+		@namespace: PropertyLibrary.ResultsNamespace,
+		arity: 1
+	);
+
+	/// <summary>
 	/// The language-specific <c>System.Runtime.CompilerServices.IUnion</c> interface implemented by
 	/// declared unions.
 	/// </summary>

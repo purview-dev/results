@@ -4,9 +4,9 @@
 [![Release](https://github.com/purview-dev/results/actions/workflows/release.yml/badge.svg)](https://github.com/purview-dev/results/actions/workflows/release.yml)
 
 An incremental Roslyn source generator that makes C# 15 **union** error cases ergonomic to use with
-`Purview.Results.Result<TValue, TError>`. It ships inside the
-[`Purview.Results`](https://www.nuget.org/packages/Purview.Results) package; it is not published as a separate
-package.
+`Purview.Results.Result<TValue, TError>` and its value-less counterpart `Purview.Results.Result<TError>`. It ships
+inside the [`Purview.Results`](https://www.nuget.org/packages/Purview.Results) package; it is not published as a
+separate package.
 
 ## Installation
 
@@ -31,7 +31,8 @@ public readonly record struct TenantAlreadyExists(TenantId TenantId);
 ```
 
 For a union opted in with `[GenerateResult]` the generator emits one strongly typed extension class in the
-union's namespace:
+union's namespace, with two helpers per case — a value-producing `AsFailure<TValue>()` and a non-generic
+`AsFailure()` that produces a unit result:
 
 ```csharp
 namespace Test.Tenancy;
@@ -41,11 +42,10 @@ public static class TenantErrorResultExtensions
 	public static Result<TValue, TenantError> AsFailure<TValue>(this TenantNotFound error) =>
 		Result<TValue, TenantError>.Failure(error);
 
-	public static Result<TValue, TenantError> AsFailure<TValue>(this TenantDisabled error) =>
-		Result<TValue, TenantError>.Failure(error);
+	public static Result<TenantError> AsFailure(this TenantNotFound error) =>
+		Result<TenantError>.Failure(error);
 
-	public static Result<TValue, TenantError> AsFailure<TValue>(this TenantAlreadyExists error) =>
-		Result<TValue, TenantError>.Failure(error);
+	// ... one pair per case: TenantDisabled, TenantAlreadyExists
 }
 ```
 
@@ -53,6 +53,7 @@ Usage:
 
 ```csharp
 Result<Tenant, TenantError> result = new TenantNotFound(tenantId).AsFailure<Tenant>();
+Result<TenantError> unitResult = new TenantNotFound(tenantId).AsFailure();
 ```
 
 ## Why the generator exists
@@ -69,9 +70,9 @@ in `src/tests/SourceGenerator.UnitTests/UnionCompilerBehaviourTests.cs`. The sam
 extension method declared on the *union* type cannot help either (`CS1929`): C# does not apply union
 conversions to an extension-method receiver, which is why one helper is generated **per case type**.
 
-The generator does not change, wrap or replace `Result<TValue, TError>`; it only produces the missing call
-site ergonomics. There is no reflection, no `dynamic`, no runtime type discovery and no mutable static state:
-every helper is a pure static method that calls the existing `Result<TValue, TError>.Failure` factory.
+The generator does not change, wrap or replace `Result<TValue, TError>` or `Result<TError>`; it only produces
+the missing call site ergonomics. There is no reflection, no `dynamic`, no runtime type discovery and no mutable
+static state: every helper is a pure static method that calls the existing `Result<...>.Failure` factory.
 
 ## Why there are no implicit conversions
 
@@ -207,25 +208,27 @@ consumers too.
 ## Consumer requirements
 
 - A C# 15 compiler with union declaration support (`.NET 11` SDK or later) and `LangVersion=preview`.
-- A reference to `Purview.Results`, which provides both `Result<TValue, TError>` and this generator.
+- A reference to `Purview.Results`, which provides both `Result<TValue, TError>` and the unit `Result<TError>`,
+  and this generator.
 
 ## Call-site ergonomics: the code fix
 
-Because the generator cannot make a case value convert (`AsFailure<TValue>()` is the best the language allows),
-the package also ships an IDE code fix: `UnionCaseResultCodeFixProvider` in the companion
+Because the generator cannot make a case value convert (`AsFailure<TValue>()` and `AsFailure()` are the best the
+language allows), the package also ships an IDE code fix: `UnionCaseResultCodeFixProvider` in the companion
 `SourceGenerator.CodeFixes` component (`src/src/SourceGenerator.CodeFixes`).
 
 It answers the compiler's `CS0029` ("cannot implicitly convert") and rewrites a returned case value into the
 generated helper, so `return new TenantNotFound(id);` becomes
-`return new TenantNotFound(id).AsFailure<Tenant>();` from the lightbulb.
+`return new TenantNotFound(id).AsFailure<Tenant>();` from the lightbulb, or `...AsFailure();` when the method
+returns a unit `Result<TenantError>`.
 
 A fix is only offered when the rewrite will bind:
 
 | Guard | Why |
 | --- | --- |
-| The converted type is `Purview.Results.Result<TValue, TError>` | Only results have generated helpers |
+| The converted type is `Purview.Results.Result<TValue, TError>` or the unit `Purview.Results.Result<TError>` | Only results have generated helpers; a value result gets `AsFailure<TValue>()` and a unit result the non-generic `AsFailure()` |
 | `TError` is a union **and** opted in with `[GenerateResult]` | The helper is only generated for opted-in unions |
-| The expression's type is one of `TError`'s case types | `AsFailure<TValue>()` exists once per case |
+| The expression's type is one of `TError`'s case types | The helper exists once per case |
 | The union is reachable by its simple name at the call site | The helper class is generated into the union's own namespace |
 
 The component is not packable on its own: it needs `Microsoft.CodeAnalysis.CSharp.Workspaces`, which only the
@@ -255,11 +258,12 @@ rewritten source to prove it compiles.
 ## Examples
 
 [`src/src/Examples.Basic`](https://github.com/purview-dev/results/tree/main/src/src/Examples.Basic)
-declares a `[GenerateResult]` union over the Tenant* domain the README uses and calls the helper this generator
+declares a `[GenerateResult]` union over the Tenant* domain the README uses and calls the helpers this generator
 emits for each of its cases:
 
 ```csharp
 Result<Tenant, TenantError> result = new TenantNotFound(tenantId).AsFailure<Tenant>();
+Result<TenantError> unitResult = new TenantNotFound(tenantId).AsFailure();
 ```
 
 The [repository README](https://github.com/purview-dev/results#examples) covers the ZodSharp, ASP.NET Core and

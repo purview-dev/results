@@ -41,4 +41,15 @@ sealed class InMemoryTenantStore
 
 		return Result<Tenant, TenantError>.Success(tenant);
 	}
+
+	/// <summary>
+	/// Deletes a tenant.
+	/// </summary>
+	/// <param name="tenantId">The identifier of the tenant to delete.</param>
+	/// <returns>
+	/// A unit <see cref="Result{TError}"/> that succeeds with no value, or a <see cref="TenantNotFound"/>
+	/// failure.
+	/// </returns>
+	public Result<TenantError> DeleteTenant(TenantId tenantId) =>
+		_tenants.Remove(tenantId) ? Result<TenantError>.Success() : new TenantNotFound(tenantId).AsFailure();
 }

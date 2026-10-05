@@ -1,6 +1,6 @@
 ---
 agent: ask
-description: "Migrate ad-hoc failure signalling (domain exceptions, bool/out pairs, error enums) in the selected files to a C# 15 union of case types with Purview.Results and generated AsFailure<TValue>() helpers."
+description: "Migrate ad-hoc failure signalling (domain exceptions, bool/out pairs, error enums) in the selected files to a C# 15 union of case types with Purview.Results and generated AsFailure<TValue>() and AsFailure() helpers."
 ---
 
 You are modernising error handling in this repository. Apply the `purview-results-union-errors` skill for union
@@ -29,8 +29,9 @@ case types and a `Result<TValue, TUnion>` return type built with the generated h
    public readonly union TenantError(TenantNotFound, TenantDisabled, TenantAlreadyExists);
    ```
 
-2. Change the affected signatures to `Result<TValue, TenantError>` and produce failures with
-   `new Case(...).AsFailure<TValue>()`.
+2. Change the affected signatures to `Result<TValue, TenantError>` — or the value-less `Result<TenantError>` when
+   the member has nothing to return on success — and produce failures with `new Case(...).AsFailure<TValue>()` or
+   `new Case(...).AsFailure()`.
 3. Leave genuinely exceptional exits throwing when `keepExceptions` is true — a lost connection or a violated
    invariant is not a domain outcome.
 4. Do **not** attempt implicit conversions from a case to a result, and do not add operators, extension

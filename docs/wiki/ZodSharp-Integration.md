@@ -48,6 +48,21 @@ if (!validated.IsSuccess)
 return await ReconcileCoreAsync(validated.Value, repositories, cancellationToken);
 ```
 
+## Validating without producing a value
+
+When the method reports only why an input was rejected, `ToUnitResult` discards the validated value and returns a
+unit `Result<TError>`. It still names the validated value type — a union case does not carry its union — but the
+success holds the `Success` marker rather than the value:
+
+```csharp
+Result<TenantError> Validate(TenantInput input) =>
+    TenantInputSchema
+        .Validate(input)
+        .ToUnitResult<TenantInput, TenantError>(errors => new TenantInputInvalid(input, errors));
+```
+
+Use `ToResult` when the success has to carry the validated value, and `ToUnitResult` when it does not.
+
 ## Carrying validation errors in the error value
 
 `IValidationErrorCarrier` is implemented by an error value that carries ZodSharp validation errors, so an HTTP
@@ -74,6 +89,7 @@ map every validation-carrying error individually.
 | Member | Purpose |
 | --- | --- |
 | `ValidationResult<TValue>.ToResult<TValue, TError>(Func<ImmutableArray<ValidationError>, TError> onFailure)` | Success carries the validated value; failure carries the created error. `onFailure` runs only when validation failed, so a successful validation allocates no error |
+| `ValidationResult<TValue>.ToUnitResult<TValue, TError>(Func<ImmutableArray<ValidationError>, TError> onFailure)` | The value-discarding counterpart: success is a unit `Result<TError>`, failure carries the created error |
 | `IValidationErrorCarrier` | Implemented by an error value that carries ZodSharp validation errors |
 
 A factory returning a **result** rather than an error is deliberately not offered: for a lambda returning

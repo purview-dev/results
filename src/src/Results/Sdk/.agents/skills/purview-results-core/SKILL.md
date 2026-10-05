@@ -1,11 +1,12 @@
 ---
 name: purview-results-core
-description: "Use when writing or reviewing code that returns Purview.Results Result<TValue, TError> values — choosing between exceptions and results, creating, reading, or transforming a result, and reasoning about the uninitialized default state."
+description: "Use when writing or reviewing code that returns Purview.Results Result<TValue, TError> or value-less Result<TError> values — choosing between exceptions and results, creating, reading, or transforming a result, and reasoning about the uninitialized default state."
 ---
 
 # Purview.Results core
 
-Use this skill whenever a method returns `Result<TValue, TError>` from the `Purview.Results` package.
+Use this skill whenever a method returns `Result<TValue, TError>` or the value-less `Result<TError>` from the
+`Purview.Results` package.
 
 ## The three states
 
@@ -49,6 +50,7 @@ convert to the result in one hop, which is why the source generator exists (see 
 | `Match(success, failure)` | Fold both states into one value |
 | `Map(map)` | Transform the successful value, preserving the error |
 | `Bind(bind)` | Chain an operation that can fail, preserving the error type |
+| `Bind(bind, mapError)` | Chain an operation that fails with a different error type, widening the existing error |
 | `MapError(map)` | Transform the error, preserving the value |
 | `TryGetValue(out value)` | Probe without throwing: `true` only for a success |
 | `TryGetError(out error)` | Probe without throwing: `true` only for a failure |
@@ -59,6 +61,8 @@ convert to the result in one hop, which is why the source generator exists (see 
 | `Tap(success)` / `TapError(failure)` | Side effects that return the result, so calls can be chained |
 | `Ensure(predicate, errorFactory)` | Turn a value that fails a predicate into a failure |
 | `MapAsync(map)` / `BindAsync(bind)` | Asynchronous `Map`/`Bind` |
+| `BindAsync(bind, mapError)` | Asynchronous widening `Bind` |
+| `Throw()` | Return the value, or throw `ResultException<TError>` carrying the error (escape hatch) |
 
 Prefer `Match`/`Map`/`Bind` over `if (result.IsSuccess)` when a value has to come out of the result: they keep
 the failure path explicit and cannot silently leak a `default`.
@@ -66,12 +70,43 @@ the failure path explicit and cannot silently leak a `default`.
 `TryGetValue`/`TryGetError` are the only members that never throw; the rest throw for `default` so a forgotten
 initialization surfaces immediately.
 
+## Value-less results
+
+When an operation has nothing to return on success — a command, a validation-only step — use `Result<TError>`
+instead of inventing a meaningless value (a `bool`, a `Unit`). It has the same three states and the same
+throw-on-misuse contract, but a success holds the `Success` marker and its success callbacks take no argument:
+
+```csharp
+Result<TenantError> DeleteTenant(TenantId tenantId) =>
+    _tenants.Remove(tenantId)
+        ? Result<TenantError>.Success()
+        : new TenantNotFound(tenantId).AsFailure();
+
+deleted.Match(() => "deleted", error => $"could not delete: {error}");
+deleted.Map(() => 1);                                  // attach a value: Result<int, TenantError>
+deleted.Bind(() => GetTenant(tenantId));               // continue with another operation
+deleted.Ensure(() => _tenants.Count > 0, () => new TenantError());
+```
+
+- `Result<TError>.Success()` / `.Failure(error)`, `Result.Success<TError>()` / `Result.Failure<TError>(error)`,
+  and the implicit conversions from `Success` and `TError` create a unit result.
+- `Match`, `Switch`, `Tap` and `Ensure` take a **no-argument** success delegate; `Map` produces a value from a
+  success that had none; `Bind` continues with either another unit operation or a value-producing one.
+- `Error` throws in the wrong state; `Throw()` returns the `Success` marker or throws `ResultException<TError>`;
+  `ToString()` is `Success` / `Failure(error)` / `Uninitialized`.
+- `Result<TValue, TError>.DiscardValue()` drops a value result's value and keeps the error, so a value result can
+  join a unit-result chain.
+
+Use `Result<TError>` when the failure is the only interesting outcome; use `Result<TValue, TError>` when the
+caller needs the produced value.
+
 ## Infrastructural view
 
 `IResultValue` is the non-generic, read-only view (`IsInitialized`, `IsSuccess`, `SuccessValue`, `ErrorValue`)
 for code that cannot be generic over the value and error types — an endpoint filter or a logging middleware, for
-example. Its accessors never throw: the one that does not describe the current state returns `null`. Use it in
-infrastructure, and the generic type in domain code.
+example. Its accessors never throw: the one that does not describe the current state returns `null`, and a
+successful unit `Result<TError>` reports the `Success` marker as its `SuccessValue`. Use it in infrastructure, and
+the generic type in domain code.
 
 ## When to use a result
 
@@ -86,8 +121,8 @@ Rules of thumb:
 
 1. If the caller is expected to *do* something different per outcome, the outcome is a result value.
 2. If the caller can only log and rethrow, it is an exception.
-3. Never use `Result<bool, TError>` where the failure is the only interesting outcome — the boolean usually
-   carries no information; model the outcomes as cases instead.
+3. Never use `Result<bool, TError>` where the failure is the only interesting outcome — use the value-less
+   `Result<TError>` instead, or model the outcomes as cases.
 4. Convert at the boundaries: a controller or endpoint handler turns the result into a response, an application
    service returns it, and repositories return it rather than throwing on "not found".
 

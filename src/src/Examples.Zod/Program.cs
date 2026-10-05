@@ -57,6 +57,15 @@ if (rejected.TryGetError(out var error))
 	}
 }
 
+Heading("7. A unit result validates an input without producing a value");
+
+// ToUnitResult drops the validated value: the method accepts an input and reports only why it was rejected.
+ShowUnit(
+	"Validate('acme-3', 'Acme Three')",
+	TenantRegistrationService.Validate(TenantInput.Create("acme-3", "Acme Three"))
+);
+ShowUnit("Validate('acme-3', null)", TenantRegistrationService.Validate(TenantInput.Create("acme-3", null)));
+
 static void Heading(string title)
 {
 	Console.WriteLine();
@@ -69,6 +78,14 @@ static void Show(string label, object? value) => Console.WriteLine($"  {label, -
 static void ShowResult<TValue>(string label, Result<TValue, TenantError> result)
 {
 	var text = result.Match(value => $"Success({value})", DescribeError);
+
+	Console.WriteLine($"  {label, -34} -> {text}");
+}
+
+static void ShowUnit(string label, Result<TenantError> result)
+{
+	// A unit result's success arm takes no value; only the failure arm receives the error.
+	var text = result.Match(() => "Success", DescribeError);
 
 	Console.WriteLine($"  {label, -34} -> {text}");
 }

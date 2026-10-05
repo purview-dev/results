@@ -1,6 +1,6 @@
 ---
 name: purview-results-zodsharp-validation
-description: "Use when ZodSharp validation has to feed Purview.Results — converting ValidationResult<T> with ToResult, carrying ValidationError values on a union case, implementing IValidationErrorCarrier, or deciding what a rejected input becomes in the result pipeline."
+description: "Use when ZodSharp validation has to feed Purview.Results — converting ValidationResult<T> with ToResult or the value-discarding ToUnitResult, carrying ValidationError values on a union case, implementing IValidationErrorCarrier, or deciding what a rejected input becomes in the result pipeline."
 ---
 
 # Folding ZodSharp validation into results
@@ -51,6 +51,22 @@ return await ReconcileCoreAsync(validated.Value, repositories, cancellationToken
 This keeps the failure case carrying the errors while the success type stays whatever the method actually
 produces.
 
+## When the method has no success value
+
+When the method reports only why an input was rejected, `ToUnitResult` discards the validated value and returns a
+value-less `Result<TError>`. It still names the validated value type, because a union case does not carry its
+union:
+
+```csharp
+Result<TenantError> Validate(TenantInput input) =>
+    TenantInputSchema
+        .Validate(input)
+        .ToUnitResult<TenantInput, TenantError>(errors => new TenantInputInvalid(input, errors));
+```
+
+Use `ToResult` when the success carries the validated value, `ToUnitResult` when it carries nothing, and the
+generated `AsFailure<TValue>()` when the success carries something else.
+
 ## Carrying the errors
 
 ```csharp
@@ -81,7 +97,8 @@ results. Naming the error type explicitly keeps the intent unambiguous.
 ## Checklist
 
 1. Validation outcomes are mapped, never thrown.
-2. The error type is named explicitly (`ToResult<TValue, TUnion>(…)`).
+2. The error type is named explicitly (`ToResult<TValue, TUnion>(…)` or `ToUnitResult<TValue, TUnion>(…)`).
 3. The case that carries the errors implements `IValidationErrorCarrier`.
-4. A method whose success type differs uses `AsFailure<TValue>()` with the validation errors.
+4. A method whose success type differs uses `AsFailure<TValue>()`, or `AsFailure()` for a unit result, with the
+   validation errors.
 5. The host maps the carrier to a validation problem once (see `purview-results-zodsharp-problems`).

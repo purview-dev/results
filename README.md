@@ -11,7 +11,7 @@ Exceptional circumstances still throw; expected outcomes are values.
 
 | Package | Purpose | Targets |
 | --- | --- | --- |
-| [`Purview.Results`](src/src/Results/Sdk/README.md) | `Result<TValue, TError>`, the `Result` factories, and the bundled source generator that emits `AsFailure<TValue>()` helpers for `[GenerateResult]` unions. No runtime dependencies. | `net11.0` |
+| [`Purview.Results`](src/src/Results/Sdk/README.md) | `Result<TValue, TError>` and its value-less counterpart `Result<TError>`, the `Result` factories, and the bundled source generator that emits `AsFailure<TValue>()` and `AsFailure()` helpers for `[GenerateResult]` unions. No runtime dependencies. | `net11.0` |
 | [`Purview.Results.ZodSharp`](src/src/ZodSharp/Sdk/README.md) | Bridges ZodSharp `ValidationResult<T>` values into results. | `net11.0` |
 | [`Purview.Results.AspNetCore`](src/src/AspNetCore/Sdk/README.md) | Maps results onto ASP.NET Core responses (`IResult`, `ProblemDetails`). | `net11.0` |
 | [`Purview.Results.ZodSharp.AspNetCore`](src/src/ZodSharp.AspNetCore/Sdk/README.md) | Maps result failures that carry validation errors onto `HttpValidationProblemDetails`. | `net11.0` |
@@ -67,13 +67,13 @@ app.MapGet("/tenants/{id:int}", (int id) => GetTenant(id)).WithResultsHttp();
 ## Examples
 
 Every example is a runnable, non-packable project under `src/src/Examples.*`, built on the same
-Tenancy domain the Quick start uses, so the one `TenantError` union drives every integration aspect.
+Tenancy domain the Quick start uses, so one error-union vocabulary drives every integration aspect.
 
 | Example | Packages | Demonstrates |
 | --- | --- | --- |
-| [`Examples.Basic`](src/src/Examples.Basic) | `Purview.Results` | States, `Match`/`Map`/`Bind`/`MapError`/`Ensure`, probing, the throw-on-misuse contract, and the generated `AsFailure<TValue>()` helper |
-| [`Examples.Zod`](src/src/Examples.Zod) | + `Purview.Results.ZodSharp` | A `[ZodSchema]` input validated into a result, where the rejection carries its `ValidationError`s |
-| [`Examples.AspNetCore`](src/src/Examples.AspNetCore) | + `Purview.Results.AspNetCore` | `AddResultsHttp`/`Map`/`WithResultsHttp`, including the mapping-gap and uninitialized-result paths |
+| [`Examples.Basic`](src/src/Examples.Basic) | `Purview.Results` | States, `Match`/`Map`/`Bind`/`MapError`/`Ensure`, probing, the throw-on-misuse contract, the generated `AsFailure<TValue>()` and `AsFailure()` helpers, cross-service error-union widening, value-less `Result<TError>` commands, and `Throw()` |
+| [`Examples.Zod`](src/src/Examples.Zod) | + `Purview.Results.ZodSharp` | A `[ZodSchema]` input validated into a result, where the rejection carries its `ValidationError`s, and a value-discarding `ToUnitResult` validation |
+| [`Examples.AspNetCore`](src/src/Examples.AspNetCore) | + `Purview.Results.AspNetCore` | `AddResultsHttp`/`Map`/`WithResultsHttp`, nested error-union leaf mapping, a successful unit result answering `204`, the mapping-gap and uninitialized-result paths |
 | [`Examples.AspNetCore.Zod`](src/src/Examples.AspNetCore.Zod) | + `Purview.Results.ZodSharp.AspNetCore` | A validation-carrying failure rendered as `HttpValidationProblemDetails`, with a case mapping winning over the fallback |
 | [`Examples.ValueObjects.Zod`](src/src/Examples.ValueObjects.Zod) | `Purview.Results.ZodSharp`, `Purview.ValueObjects` | A `[Scalar]` value object whose type-level `[ZodRule]` owns its code and origin, validated into a result failure the HTTP layer can answer by origin |
 
@@ -104,6 +104,39 @@ loaded.Bind(tenant => store.CreateTenant(new TenantId("newco"), tenant.Name));
 loaded.Ensure(tenant => tenant.Enabled, tenant => new TenantDisabled(tenant.Id));
 loaded.TryGetError(out var error);   // probing never throws, even for `default`
 loaded.Value;                        // throws InvalidOperationException unless the result is a success
+```
+
+When one service calls another, the caller's operation-family union includes the callee's error union as a case,
+and the widening `Bind` (or a `TryGetError` guard with the generated helper) lifts the callee's failure into it.
+`Throw()` is the escape hatch for a boundary that must throw:
+
+```csharp
+[GenerateResult]
+public readonly union RegisterTenantError(TenantError, BillingError);
+
+Result<Tenant, RegisterTenantError> Register(TenantId id, string name) =>
+    billing.ReserveQuota(id)                                  // Result<Quota, BillingError>
+        .Bind(quota => CreateTenant(quota, name), error => error);
+
+store.GetTenant(id).Throw();   // returns the value, or throws ResultException<TenantError>
+```
+
+When an operation has nothing to return on success, use the value-less `Result<TError>`. It carries the same
+three states and the same throw-on-misuse contract, but succeeds with the `Success` marker instead of a value,
+and the generator emits a non-generic `AsFailure()` for the same cases:
+
+```csharp
+Result<TenantError> DeleteTenant(TenantId tenantId) =>
+    _tenants.Remove(tenantId)
+        ? Result<TenantError>.Success()
+        : new TenantNotFound(tenantId).AsFailure();
+
+var deleted = DeleteTenant(tenantId);
+
+deleted.Match(() => "deleted", error => $"could not delete: {error}");   // the success arm takes no value
+deleted.Map(() => 1);                                                    // attach a value to a success
+Result<Tenant, TenantError> loaded = deleted.Bind(() => GetTenant(tenantId));
+loaded.DiscardValue();                                                   // and back to a unit result
 ```
 
 ### Zod
@@ -144,8 +177,9 @@ return RegisterValidated(validation.Value);
 
 ### ASP.NET Core
 
-The host decides what each error case looks like on the wire. A mapping registered for the **case** type wins;
-the mapping registered for the **error** type covers every case without one:
+The host decides what each error case looks like on the wire. A mapping registered for the most specific **case**
+type wins, then a mapping for an enclosing **union** type, then the mapping registered for the **error** type,
+which covers every case without one. A nested union resolves to its leaf:
 
 ```csharp
 builder.Services.AddResultsHttp(options => options
@@ -165,6 +199,11 @@ Running `Examples.AspNetCore` answers as follows:
 | `GET /tenants/initech` | `404 Not Found` — the mapping for the `TenantNotFound` case |
 | `GET /tenants/globex/usage` | `403 Forbidden` — the mapping for the `TenantDisabled` case |
 | `POST /tenants/acme` | `409 Conflict` — the mapping for the `TenantError` error type |
+| `DELETE /tenants/hooli` | `204 No Content` — a successful unit `Result<TenantError>` carries no payload |
+| `DELETE /tenants/initech` | `404 Not Found` — the unit result's `TenantNotFound` failure maps by case |
+| `GET /tenants/acme/billing` | `503 Service Unavailable` — the leaf of the nested `TenantOperationError` union |
+| `GET /tenants/hooli/billing` | `402 Payment Required` — another leaf of the nested union |
+| `GET /tenants/initech/billing` | `404 Not Found` — a nested tenant failure resolves to its leaf |
 | `GET /tenants/broken` | `500` with an `errorType` extension, because an endpoint returning `default` is a host bug |
 
 **Case** and **error** mappings are keyed by type. When the answer depends on the *value* a failure carries — a
@@ -232,7 +271,7 @@ The full documentation suite lives in [`docs/wiki`](docs/wiki/Getting-Started.md
 | Path | Purpose |
 | --- | --- |
 | `src/Results.slnx` | Canonical solution for restore, build, test and pack |
-| `src/src/Results` | `Result<TValue, TError>`, `Result` factories, `IResultValue` |
+| `src/src/Results` | `Result<TValue, TError>` and `Result<TError>`, `Success`, the `Result` factories, `IResultValue` |
 | `src/src/SourceGenerator` | Roslyn incremental generator + diagnostic analyzer for `[GenerateResult]` |
 | `src/src/AspNetCore` | Result-to-response mapping, endpoint filter and DI registration |
 | `src/src/ZodSharp` | ZodSharp `ValidationResult<T>` bridge |
