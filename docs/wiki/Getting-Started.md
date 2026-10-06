@@ -4,10 +4,19 @@ This guide installs the packages, models an error union, returns a result, and m
 
 ## Requirements
 
-- **.NET 11 SDK or later** — the runtime packages target `net11.0`; the source generator targets
-  `netstandard2.0` so any compiler host can load it.
-- **C# 15 preview** — union declarations are a preview language feature, so a project that declares one needs
-  `LangVersion=preview` (the repository sets it centrally).
+- **.NET 10 or .NET 11** — the runtime packages multi-target `net10.0` and `net11.0`; the source generator
+  targets `netstandard2.0` so any compiler host can load it. .NET 8 and 9 are not targeted.
+- **Unions require .NET 11**, because the compiler needs `System.Runtime.CompilerServices.IUnion` and
+  `UnionAttribute`. On `net10.0` the result types, combinators, ASP.NET Core mapping and ZodSharp bridge all
+  work; only the union declaration itself is unavailable, so map the error type directly instead of a case.
+- **C# 15 preview — only to *declare* a union.** Using the result types and combinators needs nothing
+  special: no `LangVersion`, no `EnablePreviewFeatures`. A project that declares its own
+  `[GenerateResult]` union needs `LangVersion=preview` in that project, because the union syntax is yours to
+  compile. Adoption is therefore incremental — you can take `Result<TValue, TError>` into an existing
+  solution first and introduce unions per project later.
+
+  These packages do not set `EnablePreviewFeatures`, so they do not force preview features on your
+  solution. See [Guarantees and Limitations](Guarantees-and-Limitations.md).
 
 ## 1. Reference the packages
 

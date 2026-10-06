@@ -1,4 +1,18 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
+	<!--
+		Trimming and Native AOT. Verified clean under both the trim and AOT analyzers: this package contains
+		no reflection, no dynamic codegen and no runtime type discovery. IsAotCompatible turns on IsTrimmable
+		plus both analyzers, so a regression becomes a build warning here rather than a runtime failure in a
+		consumer's published application.
+
+		Note the ASP.NET Core packages are NOT marked compatible: DefaultResultsHttpMapper serializes through
+		IResultValue.SuccessValue, which is typed `object?`, so TypedResults.Json binds Json<object?> and has
+		no resolvable JsonTypeInfo under AOT. That needs a generic entry point, not an annotation.
+	-->
+	<PropertyGroup Label="Trimming and Native AOT">
+		<IsAotCompatible>true</IsAotCompatible>
+	</PropertyGroup>
+
 	<PropertyGroup>
 		<IsPackable>true</IsPackable>
 		<Title>Purview Results</Title>

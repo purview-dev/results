@@ -73,7 +73,12 @@ public sealed class ResultsEndpointFilterTests
 
 		// Assert
 		await Assert.That(response.StatusCode).IsEqualTo(HttpStatusCode.InternalServerError);
-		await Assert.That(await response.Content.ReadAsStringAsync()).Contains(nameof(ItemRejected));
+		// The unmapped-failure response is identified by its title, not by the error's CLR type name:
+		// naming the type is opt-in because it discloses internal type names to the caller.
+		var body = await response.Content.ReadAsStringAsync();
+
+		await Assert.That(body).Contains("is not mapped to an HTTP response");
+		await Assert.That(body).DoesNotContain(nameof(ItemRejected));
 	}
 
 	[Test]

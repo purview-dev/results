@@ -444,7 +444,9 @@ public sealed class ZodResultsFailureMapperTests
 
 		// Assert
 		await Assert.That(statusCode).IsEqualTo(StatusCodes.Status500InternalServerError);
-		await Assert.That(body).Contains(nameof(ItemMissing));
+		// Identified by the unmapped title rather than the error's CLR type name, which is opt-in.
+		await Assert.That(body).Contains("is not mapped to an HTTP response");
+		await Assert.That(body).DoesNotContain(nameof(ItemMissing));
 	}
 
 	[Test]

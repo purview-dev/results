@@ -4,7 +4,14 @@
 	</PropertyGroup>
 	<!-- Version Definitions -->
 	<PropertyGroup Label=".NET Versions">
+		<!--
+			Tracks the target framework rather than being a single value: the packages multi-target net10.0
+			and net11.0, and an 11.x ASP.NET Core package does not resolve for net10.0 (NU1202). Keep the
+			default on the newest line so a new target framework fails loudly rather than silently resolving
+			something older.
+		-->
 		<DotNetRuntimeVersion>11.0.0-rc.1.26425.128</DotNetRuntimeVersion>
+		<DotNetRuntimeVersion Condition="'$(TargetFramework)' == 'net10.0'">10.0.12</DotNetRuntimeVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Purview Versions">
 		<PurviewZodSharpVersion>2.0.1-prerelease.1</PurviewZodSharpVersion>

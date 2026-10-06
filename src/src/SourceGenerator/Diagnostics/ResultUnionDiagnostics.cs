@@ -333,8 +333,25 @@ static class ResultUnionDiagnostics
 				continue;
 			}
 
+			// The accessibility and type-parameter checks above both accept an array type, so the case can
+			// reach here without being a named type. The generated helpers and the union-receiver factory
+			// are declared against a named type, so report and skip rather than casting — the cast threw
+			// InvalidCastException out of the generator, which discarded every other union's output too.
+			if (caseType is not INamedTypeSymbol namedCaseType)
+			{
+				diagnostics.Add(
+					ResultDiagnostic.Create(
+						DiagnosticLibrary.UnsupportedCaseType,
+						DiagnosticScope.Case,
+						caseLocation,
+						displayName
+					)
+				);
+				continue;
+			}
+
 			everyCaseIsPublic &= caseIsPublic;
-			caseTypes.Add((INamedTypeSymbol)caseType);
+			caseTypes.Add(namedCaseType);
 		}
 
 		return caseTypes.ToImmutable();
@@ -497,7 +514,13 @@ static class ResultUnionDiagnostics
 			if (!TryGetReferenceableAccessibility(caseType, out _))
 				continue;
 
-			caseTypes.Add((INamedTypeSymbol)caseType);
+			// An array type passes both checks above but is not a named type. This path walks included
+			// unions and reports nothing of its own, so the case is simply skipped; the declaring union's
+			// own analysis reports it as RSG1009.
+			if (caseType is not INamedTypeSymbol namedCaseType)
+				continue;
+
+			caseTypes.Add(namedCaseType);
 		}
 
 		return caseTypes.ToImmutable();

@@ -1,4 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<!--
+			net11.0 only: this project declares a union. Unions need the compiler's
+			System.Runtime.CompilerServices.IUnion and UnionAttribute, which do not exist before .NET 11, so
+			the declaration cannot compile for net10.0. The shipped packages multi-target both.
+		-->
+		<TargetFrameworks></TargetFrameworks>
+		<TargetFramework>net11.0</TargetFramework>
+	</PropertyGroup>
 	<ItemGroup>
 		<!--
 			The runtime Results library the generated AsFailure helpers target, the ZodSharp bridge under test, and

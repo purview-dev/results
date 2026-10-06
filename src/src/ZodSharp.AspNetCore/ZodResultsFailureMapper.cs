@@ -28,7 +28,7 @@ namespace Purview.Results.ZodSharp.AspNetCore;
 /// the status code, title, detail and <c>issues</c> extension.
 /// </para>
 /// </remarks>
-public sealed class ZodResultsFailureMapper(
+public sealed partial class ZodResultsFailureMapper(
 	IOptions<ZodProblemDetailsOptions> problemOptions,
 	IOptions<ZodResultsHttpOptions> rules,
 	IOptions<ResultsHttpOptions> results,
@@ -72,21 +72,36 @@ public sealed class ZodResultsFailureMapper(
 		ZodErrorRule? rule
 	)
 	{
-		if (rule is not null && errors.Length > 1 && logger.IsEnabled(LogLevel.Debug))
-		{
-			logger.LogDebug(
-				"The validation error rule for '{Rule}' answered a failure carrying {ErrorCount} validation errors with status {StatusCode}.",
-				rule.Value,
-				errors.Length,
-				statusCode
-			);
-		}
+		if (rule is not null && errors.Length > 1)
+			Log.RuleAnsweredMultipleErrors(logger, rule.Value, errors.Length, statusCode);
 
 		return ZodValidationProblems.ToProblem(
 			errors,
 			_problemOptions,
 			statusCode,
 			_results.IncludeTraceId ? context.HttpContext.TraceIdentifier : null
+		);
+	}
+
+	/// <summary>
+	/// The log messages this mapper emits, with stable <see cref="Microsoft.Extensions.Logging.EventId"/>s.
+	/// </summary>
+	/// <remarks>
+	/// Source-generated, so the identifier is fixed and the message allocates nothing when Debug is
+	/// disabled — which also removes the hand-written <c>IsEnabled</c> guard the call site used to need.
+	/// </remarks>
+	static partial class Log
+	{
+		[LoggerMessage(
+			EventId = 2000,
+			Level = LogLevel.Debug,
+			Message = "The validation error rule for '{Rule}' answered a failure carrying {ErrorCount} validation errors with status {StatusCode}."
+		)]
+		internal static partial void RuleAnsweredMultipleErrors(
+			ILogger logger,
+			string rule,
+			int errorCount,
+			int statusCode
 		);
 	}
 }

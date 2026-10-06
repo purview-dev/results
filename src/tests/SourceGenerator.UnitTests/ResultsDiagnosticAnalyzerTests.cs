@@ -34,6 +34,8 @@ public class ResultsDiagnosticAnalyzerTests
 				"RSG1006",
 				"RSG1007",
 				"RSG1008",
+				"RSG1009",
+				"RSG9000",
 			]);
 	}
 

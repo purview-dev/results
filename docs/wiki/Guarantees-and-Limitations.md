@@ -25,6 +25,67 @@ change must not break.
   `Result<TValue, TError>.Success`/`.Failure` and `Result<TError>.Success`/`.Failure` factories, are public
   contract.
 
+## Observability
+
+`Purview.Results.AspNetCore` emits metrics under the meter `Purview.Results.AspNetCore`
+(`ResultsHttpTelemetry.MeterName`):
+
+| Instrument | Meaning |
+| --- | --- |
+| `purview.results.failures.mapped` | failures a registered mapping or fallback answered |
+| `purview.results.failures.unmapped` | failures with no mapping, answered with the unmapped-failure response |
+| `purview.results.uninitialized` | endpoints that returned a `default` result, which is always a bug |
+
+Each measurement carries a `purview.results.error_type` tag with the error's type name, and the failure
+paths add the same tag to `Activity.Current` — enriching the request span ASP.NET Core already created
+rather than starting one. The type name is always present in telemetry, because metrics and traces stay
+inside your own infrastructure; disclosing it in the HTTP *response* is separately opt-in through
+[`IncludeErrorTypeInProblemDetails`](#http-mapping-philosophy).
+
+```csharp
+builder.Services.AddOpenTelemetry()
+    .WithMetrics(metrics => metrics.AddMeter(ResultsHttpTelemetry.MeterName));
+```
+
+Log messages carry stable event identifiers, so they can be filtered without matching message text:
+`1000` uninitialized result, `1001` unmapped failure, `2000` a ZodSharp rule answering a multi-error
+failure. No log statement records a validation payload or any user input.
+
+These use `Meter` and `Activity` from the base class library, available through the ASP.NET Core framework
+reference, so no telemetry package dependency is added.
+
+## Thread safety
+
+- **A result is safe to pass between threads by value.** It is a `readonly record struct` with no mutable
+  state, so copying it — returning it, passing it as an argument, awaiting a `Task<Result<…>>` — is safe.
+- **A result is _not_ safe to store in a shared mutable field and write concurrently.** A multi-field struct
+  is not written atomically: `Result<TValue, TError>` holds the value, the error and a state byte, so a
+  reader can observe a *torn* value where the state says `Success` while the value field is still the
+  previous one.
+
+  This is worse than it first looks, because of the nullability annotations. `IsSuccess` is annotated
+  `[MemberNotNullWhen(true, nameof(Value))]`, so the compiler has been told a success implies a non-null
+  `Value` — and will elide the null check at your call site. A torn read therefore surfaces as a
+  `NullReferenceException` in your code, with nothing pointing back here.
+
+  If you need to share a result through mutable state, synchronise it, or box it into a field of a reference
+  type and publish that reference (a reference assignment *is* atomic):
+
+  ```csharp
+  // Not safe: concurrent writers can tear the struct.
+  static Result<Tenant, TenantError> _cached;
+
+  // Safe: the reference is published atomically.
+  static Tuple<Result<Tenant, TenantError>>? _cached;
+  ```
+
+- `ResultsHttpOptions` is **startup configuration**. Its mapping dictionary and fallback list are frozen the
+  first time a request reads them, so a registration added after the first failure is handled is ignored
+  rather than corrupting a collection another thread is enumerating. Configure it in `AddResultsHttp` and do
+  not mutate it afterwards.
+- The generated helpers and factories are static and stateless, and `DefaultResultsHttpMapper` holds no
+  per-request state, so both are safe to use concurrently.
+
 ## Dependency guarantees
 
 - `Purview.Results` is dependency-free.
@@ -70,7 +131,15 @@ change must not break.
   result failure into an exception — is available explicitly through `Throw()`.
 - No runtime union inspection: matching an error case is ordinary C# pattern matching.
 - No replacement for `Result<TValue, TError>` or `Result<TError>`: the generator only adds call-site ergonomics.
-- No `Task`/`ValueTask`-specific async combinators beyond `MapAsync` and `BindAsync`.
+- No `Task`/`ValueTask`-specific async combinators beyond `MapAsync` and `BindAsync`. The async combinators take
+  `Task<T>` only, carry no `CancellationToken` overloads, and await with `ConfigureAwait(false)`.
+- **No serialization support.** A result is a control-flow type, not a DTO, so neither `Result<TValue, TError>`
+  nor `Result<TError>` ships a `JsonConverter` and neither is designed to round-trip. Reflection-based
+  `System.Text.Json` serialization **throws** `InvalidOperationException`, because it probes whichever of
+  `Value`/`Error` does not describe the current state and those accessors throw by contract. Serialize the
+  outcome you want instead: unwrap with `Match`, `TryGetValue`/`TryGetError`, or — over HTTP — let
+  [`Purview.Results.AspNetCore`](AspNetCore-Integration.md) map the result to a response. `IResultValue` is the
+  non-throwing view available to infrastructure that has to inspect a result generically.
 
 ## Related
 

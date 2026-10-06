@@ -35,4 +35,24 @@ public interface IResultValue
 	/// Gets the error, or <see langword="null"/> when the result is not a failure.
 	/// </summary>
 	object? ErrorValue { get; }
+
+	/// <summary>
+	/// Hands the successful value to <paramref name="visitor"/> with its static type intact.
+	/// </summary>
+	/// <typeparam name="TState">State passed through to the visitor.</typeparam>
+	/// <typeparam name="TReturn">What the visit produces.</typeparam>
+	/// <param name="visitor">The visitor to invoke.</param>
+	/// <param name="state">State to pass through, so the visitor need not capture.</param>
+	/// <returns>Whatever the visitor returns.</returns>
+	/// <remarks>
+	/// Use this instead of <see cref="SuccessValue"/> whenever the value's type matters — serialization is
+	/// the usual case. <see cref="SuccessValue"/> erases it to <see cref="object"/>, which under trimming or
+	/// Native AOT leaves a serializer with nothing to resolve. See <see cref="IResultValueVisitor{TState, TReturn}"/>.
+	/// <para>
+	/// Like the other members here this never throws: an uninitialized or failed result still visits, passing
+	/// the default value. Check <see cref="IsSuccess"/> first when that distinction matters.
+	/// </para>
+	/// </remarks>
+	/// <exception cref="ArgumentNullException"><paramref name="visitor"/> is null.</exception>
+	TReturn AcceptSuccess<TState, TReturn>(IResultValueVisitor<TState, TReturn> visitor, TState state);
 }

@@ -7,8 +7,8 @@ GitHub Actions workflows in `.github/workflows/`. Consuming repositories own con
 ## Versioning
 
 `package.json` is the authoritative release and package version; every package is versioned from it by
-`Purview.BuildSdk`. Never diverge a project's version by hand. The current line is `1.0.0-prerelease.1`; a
-prerelease uses a `MAJOR.MINOR.PATCH-prerelease.N` suffix.
+`Purview.BuildSdk`. Never diverge a project's version by hand. Read the current line from `package.json`
+(`just version`) rather than from this page; a prerelease uses a `MAJOR.MINOR.PATCH-prerelease.N` suffix.
 
 ## Workflows
 

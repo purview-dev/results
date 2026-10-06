@@ -59,6 +59,15 @@ public readonly record struct Result<TError> : IResultValue
 
 	object? IResultValue.ErrorValue => IsFailure ? Error : null;
 
+	// A unit result's "value" is the Success marker, so TValue binds to Success and a visitor can tell a
+	// payload-free success from one carrying a value by testing for that type.
+	TReturn IResultValue.AcceptSuccess<TState, TReturn>(IResultValueVisitor<TState, TReturn> visitor, TState state)
+	{
+		ArgumentNullException.ThrowIfNull(visitor);
+
+		return visitor.VisitSuccess(global::Purview.Results.Success.Instance, state);
+	}
+
 	/// <summary>
 	/// Gets the error.
 	/// </summary>
@@ -215,8 +224,16 @@ public readonly record struct Result<TError> : IResultValue
 
 	static InvalidOperationException CreateUninitializedException() => new("The result is uninitialized.");
 
+	/// <summary>
+	/// Implicitly converts the <see cref="Results.Success"/> marker into a successful unit result.
+	/// </summary>
+	/// <param name="_">The stateless success marker; its value is not read.</param>
 	public static implicit operator Result<TError>(Success _) => Success();
 
+	/// <summary>
+	/// Implicitly converts an error into a failed unit result.
+	/// </summary>
+	/// <param name="error">The error describing the failure.</param>
 	public static implicit operator Result<TError>(TError error) => Failure(error);
 
 	/// <summary>

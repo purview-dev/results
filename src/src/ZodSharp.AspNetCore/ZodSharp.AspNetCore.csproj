@@ -6,6 +6,13 @@
 		<PackageTags>results;result;aspnetcore;problemdetails;validation;zod;purview;</PackageTags>
 	</PropertyGroup>
 
+	<!--
+		Trimming and Native AOT. Verified clean under both analyzers. See AspNetCore.csproj.
+	-->
+	<PropertyGroup Label="Trimming and Native AOT">
+		<IsAotCompatible>true</IsAotCompatible>
+	</PropertyGroup>
+
 	<ItemGroup>
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
 	</ItemGroup>

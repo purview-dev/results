@@ -7,6 +7,15 @@
 	</PropertyGroup>
 
 	<!--
+		Trimming and Native AOT. Verified clean under both analyzers. The successful value reaches
+		TypedResults through IResultValue.AcceptSuccess, so it binds Ok<TValue> with the endpoint's real value
+		type rather than Ok<object> — which also restores the response type ASP.NET Core infers for OpenAPI.
+	-->
+	<PropertyGroup Label="Trimming and Native AOT">
+		<IsAotCompatible>true</IsAotCompatible>
+	</PropertyGroup>
+
+	<!--
 		This package deliberately knows nothing about ZodSharp: it maps results onto responses using the mappings a
 		host registers for its own error types. Consumers that want validation failures rendered as
 		HttpValidationProblemDetails also reference Purview.Results.ZodSharp.AspNetCore.

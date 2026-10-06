@@ -270,10 +270,25 @@ The full documentation suite lives in [`docs/wiki`](docs/wiki/Getting-Started.md
 
 ## Requirements
 
-- **.NET 11 SDK or later** — the runtime packages target `net11.0`; the source generator bundled in
-  `Purview.Results` targets `netstandard2.0` so any compiler host can load it.
-- **C# 15 preview** — union declarations are a preview language feature, so consuming projects need an SDK with
-  union support and `LangVersion=preview` (the repository sets both).
+- **.NET 10 or .NET 11** — the runtime packages multi-target `net10.0` and `net11.0`, so adopting them does
+  not force a runtime upgrade. The source generator bundled in `Purview.Results` targets `netstandard2.0`
+  so any compiler host can load it. .NET 8 and 9 are not targeted; both are close to end of support.
+- **Unions require .NET 11.** The compiler needs `System.Runtime.CompilerServices.IUnion` and
+  `UnionAttribute`, which do not exist earlier, so a `[GenerateResult]` union declaration cannot compile for
+  `net10.0`. Everything else works on both: the result types, the combinators, the ASP.NET Core mapping and
+  the ZodSharp bridge. On `net10.0` an error type is simply a plain type rather than a union, which the HTTP
+  mapper already handles — register a mapping for the error type itself.
+- **C# 15 preview — only to *declare* a union.** The requirement is per-project and scoped:
+  - Using `Result<TValue, TError>`, `Result<TError>` and the combinators needs **nothing special**. No
+    `LangVersion`, no `EnablePreviewFeatures`.
+  - Declaring your own `[GenerateResult]` union needs `LangVersion=preview` in **that** project, because the
+    union syntax is yours to compile.
+
+  These packages deliberately do **not** set `EnablePreviewFeatures`. Doing so emits
+  `[assembly: RequiresPreviewFeatures]`, which makes CA2252 (an error by default) fire on every member a
+  consumer touches — assembly-wide, so it applied even to the non-union result type and made partial adoption
+  impossible. Nothing here uses a runtime API annotated `[RequiresPreviewFeatures]`, so the attribute was
+  removed. If you see CA2252 from these packages, that is a bug — please report it.
 
 ## Repository layout
 

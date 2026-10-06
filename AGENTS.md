@@ -398,9 +398,8 @@ just scrub
 just build
 ```
 
-`pipeline-local-release` runs the shared pipeline with `Release:Mode=LocalNuGet`. It is present in this
-repository's `Justfile` but currently commented out; until it is re-enabled, run the same command directly
-(after `just ensure-pipeline-tool`):
+`pipeline-local-release` runs the shared pipeline with `Release:Mode=LocalNuGet`. It is a live recipe in this
+repository's `Justfile`; the equivalent direct invocation (after `just ensure-pipeline-tool`) is:
 
 ```text
 .tools/purview-build/purview-build --Release:Mode=LocalNuGet --PublishLocalNuGet:LocalFeedPath=p:/_sync-projects/.local-nuget/

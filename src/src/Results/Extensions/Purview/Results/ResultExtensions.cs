@@ -280,7 +280,7 @@ public static class ResultExtensions
 			RequireInitialized(result);
 
 			return result.IsSuccess
-				? Result<TResult, TError>.Success(await map(result.Value))
+				? Result<TResult, TError>.Success(await map(result.Value).ConfigureAwait(false))
 				: Result<TResult, TError>.Failure(result.Error);
 		}
 
@@ -581,7 +581,7 @@ public static class ResultExtensions
 			RequireInitialized(result);
 
 			return result.IsSuccess
-				? Result<TResult, TError>.Success(await map())
+				? Result<TResult, TError>.Success(await map().ConfigureAwait(false))
 				: Result<TResult, TError>.Failure(result.Error);
 		}
 

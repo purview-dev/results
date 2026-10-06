@@ -1,6 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<!--
+			net11.0 only: this project declares a union. Unions need the compiler's
+			System.Runtime.CompilerServices.IUnion and UnionAttribute, which do not exist before .NET 11, so
+			the declaration cannot compile for net10.0. The shipped packages multi-target both.
+		-->
+		<TargetFrameworks></TargetFrameworks>
+		<TargetFramework>net11.0</TargetFramework>
+	</PropertyGroup>
+	<PropertyGroup>
+		<!--
 			A runnable console example, so it is started with `dotnet run` rather than referenced. It stays
 			non-packable (the SDK default) because it is documentation, not a shipped package.
 		-->

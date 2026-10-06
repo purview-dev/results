@@ -346,8 +346,11 @@ public sealed class DefaultResultsHttpMapperTests
 	[Test]
 	public async Task Map_GivenUnmappedNestedUnionFailure_NamesTheLeafCase()
 	{
-		// Arrange
-		var mapper = ResultsHttpTestFactory.CreateMapper();
+		// Arrange — naming the error type in the response is opt-in, because it discloses internal
+		// namespace topology to the caller. Enabled here to assert the resolution picks the leaf case.
+		var mapper = ResultsHttpTestFactory.CreateMapper(static options =>
+			options.IncludeErrorTypeInProblemDetails = true
+		);
 		var context = ResultsHttpTestFactory.CreateContext();
 
 		// Act
@@ -359,6 +362,25 @@ public sealed class DefaultResultsHttpMapperTests
 		// Assert
 		await Assert.That(response.StatusCode).IsEqualTo(StatusCodes.Status500InternalServerError);
 		await Assert.That(response.Body).Contains(typeof(ItemBillingUnavailable).FullName!);
+	}
+
+	[Test]
+	public async Task Map_GivenUnmappedFailure_DoesNotNameTheErrorTypeByDefault()
+	{
+		// Arrange — the default must not leak the error's CLR type name to the caller.
+		var mapper = ResultsHttpTestFactory.CreateMapper();
+		var context = ResultsHttpTestFactory.CreateContext();
+
+		// Act
+		var response = await ResultsHttpTestFactory.ExecuteAsync(
+			mapper.Map(CreateNestedBillingFailure(), context),
+			context
+		);
+
+		// Assert
+		await Assert.That(response.StatusCode).IsEqualTo(StatusCodes.Status500InternalServerError);
+		await Assert.That(response.Body).DoesNotContain(typeof(ItemBillingUnavailable).FullName!);
+		await Assert.That(response.Body).DoesNotContain("errorType");
 	}
 
 	static Result<int, HttpTestOuterError> CreateNestedBillingFailure() =>
