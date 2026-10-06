@@ -8,11 +8,10 @@
 			the union work lands. Targeting both means adopting these packages does not force a runtime
 			upgrade. .NET 8 and 9 are deliberately not targeted — both are close to end of support.
 
-			The TargetFramework singular is cleared first because Purview.BuildSdk sets one by default; the
-			plural below has no effect while it is set.
+			That is exactly Purview.BuildSdk's 'Supported' set, so the list is selected rather than spelled
+			out here: a runtime lifecycle change becomes an SDK bump instead of an edit in this file.
 		-->
-		<TargetFramework></TargetFramework>
-		<TargetFrameworks>net10.0;net11.0</TargetFrameworks>
+		<PurviewTargetFrameworkSet>Supported</PurviewTargetFrameworkSet>
 		<LangVersion>preview</LangVersion>
 
 		<!--

@@ -73,7 +73,7 @@ public static class ResultsHttpTelemetry
 	/// </summary>
 	internal static void Record(Counter<long> counter, string? errorType)
 	{
-		var tag = new KeyValuePair<string, object?>(ErrorTypeTag, errorType ?? "unknown");
+		KeyValuePair<string, object?> tag = new(ErrorTypeTag, errorType ?? "unknown");
 
 		counter.Add(1, tag);
 

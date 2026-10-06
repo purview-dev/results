@@ -57,7 +57,7 @@ public readonly record struct Result<TValue, TError> : IResultValue
 	{
 		ArgumentNullException.ThrowIfNull(visitor);
 
-		return visitor.VisitSuccess(IsSuccess ? Value : default!, state);
+		return visitor.VisitSuccess(IsSuccess ? Value : default, state);
 	}
 
 	/// <summary>

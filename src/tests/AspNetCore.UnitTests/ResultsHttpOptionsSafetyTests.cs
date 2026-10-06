@@ -1,6 +1,3 @@
-using Microsoft.AspNetCore.Http;
-using Purview.Results.AspNetCore;
-
 namespace Purview.Results.AspNetCore;
 
 /// <summary>

@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using ZodSharp;
 using ZodSharp.AspNetCore;
 using ZodSharp.Core;
@@ -65,7 +66,11 @@ public static class ZodValidationProblems
 			+ "is the same type ASP.NET Core's own validation-problem results write, so a trimmed or AOT host "
 			+ "already roots it. TypedResults.Json carries the requirement unconditionally regardless of T."
 	)]
-	static IResult WriteProblem(HttpValidationProblemDetails problem, int defaultStatusCode)
+	// The concrete return type avoids boxing the result into IResult at every call site.
+	static JsonHttpResult<HttpValidationProblemDetails> WriteProblem(
+		HttpValidationProblemDetails problem,
+		int defaultStatusCode
+	)
 	{
 		// Written as JSON rather than through TypedResults.Problem because that serializes the declared
 		// ProblemDetails shape and would drop the validation `errors` member this type carries.

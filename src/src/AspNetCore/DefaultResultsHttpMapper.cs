@@ -1,10 +1,14 @@
 using System.Diagnostics.CodeAnalysis;
-using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+#if NET11_0_OR_GREATER
+// Only the union-unwrapping path, which is compiled for net11.0 only, needs this.
+using System.Runtime.CompilerServices;
+#endif
+
 
 namespace Purview.Results.AspNetCore;
 
@@ -96,7 +100,9 @@ public sealed partial class DefaultResultsHttpMapper(
 				+ "AOT host resolves it through its own JsonSerializerContext. Only a non-200 SuccessStatusCode "
 				+ "reaches here; the default path uses TypedResults.Ok, which carries no such requirement."
 		)]
-		static IResult Json<TValue>(TValue value, int statusCode) => TypedResults.Json(value, statusCode: statusCode);
+		// The concrete return type avoids boxing the result into IResult at every call site.
+		static JsonHttpResult<TValue> Json<TValue>(TValue value, int statusCode) =>
+			TypedResults.Json(value, statusCode: statusCode);
 	}
 
 	IResult Failure(IResultValue result, HttpContext context)

@@ -16,7 +16,7 @@ public class AcceptSuccessTests
 	{
 		// Arrange
 		IResultValue result = Result.Success<int, string>(42);
-		var visitor = new RecordingVisitor();
+		RecordingVisitor visitor = new();
 
 		// Act
 		var visitedType = result.AcceptSuccess(visitor, 0);
@@ -31,7 +31,7 @@ public class AcceptSuccessTests
 	{
 		// Arrange — a reference type must not widen to object either.
 		IResultValue result = Result.Success<string, int>("acme");
-		var visitor = new RecordingVisitor();
+		RecordingVisitor visitor = new();
 
 		// Act
 		var visitedType = result.AcceptSuccess(visitor, 0);
@@ -47,7 +47,7 @@ public class AcceptSuccessTests
 		// Arrange — the unit result's value is the marker, which is how infrastructure tells a payload-free
 		// success from one carrying a value.
 		IResultValue result = Result.Success<string>();
-		var visitor = new RecordingVisitor();
+		RecordingVisitor visitor = new();
 
 		// Act
 		var visitedType = result.AcceptSuccess(visitor, 0);
@@ -61,7 +61,7 @@ public class AcceptSuccessTests
 	{
 		// Arrange
 		IResultValue result = Result.Success<int, string>(7);
-		var visitor = new RecordingVisitor();
+		RecordingVisitor visitor = new();
 
 		// Act
 		_ = result.AcceptSuccess(visitor, 99);
@@ -86,7 +86,7 @@ public class AcceptSuccessTests
 		// Arrange — like every other IResultValue member this must never throw, so infrastructure can call it
 		// before branching on IsSuccess.
 		IResultValue result = Result.Failure<int, string>("nope");
-		var visitor = new RecordingVisitor();
+		RecordingVisitor visitor = new();
 
 		// Act
 		var visitedType = result.AcceptSuccess(visitor, 0);
