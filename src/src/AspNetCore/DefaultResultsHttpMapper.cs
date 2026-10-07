@@ -9,7 +9,6 @@ using Microsoft.Extensions.Options;
 using System.Runtime.CompilerServices;
 #endif
 
-
 namespace Purview.Results.AspNetCore;
 
 /// <summary>
