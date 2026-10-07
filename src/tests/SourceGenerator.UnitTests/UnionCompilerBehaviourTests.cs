@@ -1,5 +1,4 @@
 using Microsoft.CodeAnalysis;
-using Purview.Results.SourceGeneration;
 
 // The language's union support is a preview feature of C# 15; ITypeSymbol.IsUnion is marked
 // [Experimental] until the feature ships, and these tests deliberately exercise it.
@@ -319,6 +318,37 @@ public class UnionCompilerBehaviourTests
 		// point of this experiment (it records that a generic case type is the only way to declare the
 		// conversion, which is why the generated helper exists).
 		await Assert.That(result).IsNotNull();
+	}
+
+	[Test]
+	public async Task Union_GivenNestedUnionConstruction_Compiles(CancellationToken cancellationToken)
+	{
+		// The union-inclusion factory constructs a nested union value with the union's own public case
+		// constructor: `new Outer(new Inner(leaf))`. This proves that shape compiles, which is what the
+		// generated inclusion factory relies on.
+		const string source = """
+			namespace Test
+			{
+				public readonly record struct NotFound(int Id);
+
+				public readonly union InnerError(NotFound);
+
+				public readonly union OuterError(InnerError);
+			}
+			""";
+		const string usage = """
+			namespace Test
+			{
+				public static class Usage
+				{
+					public static OuterError Create(NotFound error) => new OuterError(new InnerError(error));
+				}
+			}
+			""";
+
+		var result = await GenerateAsync([source, usage], cancellationToken);
+
+		result.AssertNoCompilationErrors();
 	}
 
 	[Test]

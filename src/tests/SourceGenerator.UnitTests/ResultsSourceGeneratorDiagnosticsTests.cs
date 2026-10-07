@@ -1,5 +1,4 @@
-using Purview.Results.SourceGeneration;
-using Purview.Results.SourceGeneration.Analyzers;
+using Purview.Results.SourceGenerator.Analyzers;
 
 namespace Purview.Results.SourceGenerator;
 
@@ -198,6 +197,13 @@ public class ResultsSourceGeneratorDiagnosticsTests
 		await Assert.That(auditSource).Contains("this global::Test.NotFound error");
 		await Assert.That(tenantSource).Contains("this global::Test.Disabled error");
 		await Assert.That(tenantSource).DoesNotContain("this global::Test.NotFound error");
+
+		// The shared case's per-case AsFailure helper is generated once, but each union still owns its
+		// union-receiver factory, which is the shared-case safe form.
+		await Assert.That(auditSource).Contains("> Failure(");
+		await Assert.That(auditSource).Contains("global::Test.NotFound error");
+		await Assert.That(tenantSource).Contains("> Failure(");
+		await Assert.That(tenantSource).Contains("global::Test.NotFound error");
 	}
 
 	[Test]

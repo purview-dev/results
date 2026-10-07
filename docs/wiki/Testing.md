@@ -23,7 +23,7 @@ category, which is what the filter matches. Use `--treenode-filter` for filterin
 
 | Project | Covers |
 | --- | --- |
-| `src/tests/Results.UnitTests` | `Result<TValue, TError>` states, the throw-on-misuse contract, and the extension operations (`ResultsTests`, `ResultExtensionsTests`) |
+| `src/tests/Results.UnitTests` | `Result<TValue, TError>` and `Result<TError>` states, the throw-on-misuse contract, and the extension operations (`ResultsTests`, `ResultTErrorTests`, `ResultExtensionsTests`) |
 | `src/tests/SourceGenerator.UnitTests` | Generation, diagnostics, incremental caching, the compiler experiments, the code fix, and the suppressor |
 | `src/tests/AspNetCore.UnitTests` | `DefaultResultsHttpMapper`, the endpoint filter, failure mappers and unmapped-failure behaviour |
 | `src/tests/ZodSharp.UnitTests` | `ToResult` and the validation-result integration |

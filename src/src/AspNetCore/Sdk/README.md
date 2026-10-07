@@ -4,8 +4,8 @@
 [![Release](https://github.com/purview-dev/results/actions/workflows/release.yml/badge.svg)](https://github.com/purview-dev/results/actions/workflows/release.yml)
 
 Maps [`Purview.Results`](https://www.nuget.org/packages/Purview.Results) values onto ASP.NET Core responses, so
-an endpoint can return `Result<TValue, TError>` and let the host decide what each error case looks like on the
-wire.
+an endpoint can return `Result<TValue, TError>` or a value-less `Result<TError>` and let the host decide what
+each error case looks like on the wire.
 
 ## Installation
 
@@ -40,18 +40,22 @@ uninitialized-result paths work without further host setup.
 ## How a result becomes a response
 
 **Success** — the value is serialized with `SuccessStatusCode` (`200 OK` by default). A result whose successful
-value is itself an `IResult` is passed through untouched, and `SuccessMapper` overrides both when set.
+value is itself an `IResult` is passed through untouched, and `SuccessMapper` overrides both when set. A
+successful unit `Result<TError>` carries no payload, so it answers `204 No Content` unless `SuccessMapper` is
+set.
 
-**Failure** — the error is resolved to its *case* value (the active case of a union error, or the error itself
-for a non-union error), then mapped in this order:
+**Failure** — the error is resolved to its *case* value (the innermost active case of a union error, so a nested
+union resolves to its leaf; or the error itself for a non-union error), then mapped in this order:
 
-1. a mapping registered for the case type — `Map<TenantNotFound>(...)`
-2. a mapping registered for the error type — `Map<TenantError>(...)`, which handles every case without its own
+1. a mapping registered for the most specific case type — `Map<TenantNotFound>(...)`
+2. a mapping registered for each enclosing union type, from the inside out — `Map<BillingError>(...)` handles a
+   whole nested union when its leaf has no mapping of its own
+3. a mapping registered for the error type — `Map<TenantError>(...)`, which handles every case without its own
    mapping
-3. the fallback stage, in registration order: the `AddFallback(...)` delegates and the
+4. the fallback stage, in registration order: the `AddFallback(...)` delegates and the
    `AddFailureMapper<TMapper>()` mappers share one list, and whatever is registered first is consulted first; a
-   fallback or mapper returns `null` to defer to the next entry
-4. a `ProblemDetails` response using `UnmappedStatusCode` (`500`), `UnmappedTitle`, and an `errorType`
+   fallback or mapper receives the leaf case and returns `null` to defer to the next entry
+5. a `ProblemDetails` response using `UnmappedStatusCode` (`500`), `UnmappedTitle`, and an `errorType`
    extension naming the unmapped case — or an `InvalidOperationException` when `ThrowOnUnmappedFailure` is set
 
 An **uninitialized** result (`default`) is logged and answered with the unmapped-failure response, because an
@@ -126,13 +130,16 @@ the defaults entirely. A host that replaces it also bypasses `ResultsHttpOptions
 
 ## Examples
 
-[`src/examples/Examples.AspNetCore`](https://github.com/purview-dev/results/tree/main/src/examples/Examples.AspNetCore)
+[`src/src/Examples.AspNetCore`](https://github.com/purview-dev/results/tree/main/src/src/Examples.AspNetCore)
 is a runnable minimal-API example that maps the `TenantNotFound` case to `404`, the `TenantDisabled` case to
-`403` and the `TenantError` error type to `409`, and shows the response an endpoint that returns `default`
-receives.
+`403` and the `TenantError` error type to `409`. Its billing endpoint returns a union that nests `TenantError`
+and `BillingError`, so it also shows a nested union resolving to its leaf (the billing cases map to `503` and
+`402`) while the `TenantError` mapping still covers a nested tenant failure. Its `DELETE` endpoint returns a
+unit `Result<TenantError>`, so a success answers `204` while a missing tenant still maps to `404`. It shows the
+response an endpoint that returns `default` receives too.
 
 ```bash
-dotnet run --project src/examples/Examples.AspNetCore --urls http://localhost:5215
+dotnet run --project src/src/Examples.AspNetCore --urls http://localhost:5215
 ```
 
 The [repository README](https://github.com/purview-dev/results#examples) lists the Basic, ZodSharp and

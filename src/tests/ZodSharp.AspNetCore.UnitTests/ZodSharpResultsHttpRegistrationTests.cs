@@ -19,15 +19,15 @@ public sealed class ZodSharpResultsHttpRegistrationTests
 		var context = CreateContext(services);
 
 		// Act
-		var (StatusCode, Body) = await ExecuteAsync(
+		var (statusCode, body) = await ExecuteAsync(
 			mapper.Map(new InputRejected(7, CreateErrors()).AsFailure<int>(), context),
 			context
 		);
 
 		// Assert
-		await Assert.That(StatusCode).IsEqualTo(StatusCodes.Status400BadRequest);
-		await Assert.That(Body).Contains(InvalidNameCode);
-		await Assert.That(Body).Contains(context.TraceIdentifier);
+		await Assert.That(statusCode).IsEqualTo(StatusCodes.Status400BadRequest);
+		await Assert.That(body).Contains(InvalidNameCode);
+		await Assert.That(body).Contains(context.TraceIdentifier);
 	}
 
 	[Test]
@@ -39,11 +39,13 @@ public sealed class ZodSharpResultsHttpRegistrationTests
 		var context = CreateContext(services);
 
 		// Act
-		var (StatusCode, Body) = await ExecuteAsync(mapper.Map(new ItemMissing(7).AsFailure<int>(), context), context);
+		var (statusCode, body) = await ExecuteAsync(mapper.Map(new ItemMissing(7).AsFailure<int>(), context), context);
 
 		// Assert
-		await Assert.That(StatusCode).IsEqualTo(StatusCodes.Status500InternalServerError);
-		await Assert.That(Body).Contains(nameof(ItemMissing));
+		await Assert.That(statusCode).IsEqualTo(StatusCodes.Status500InternalServerError);
+		// Identified by the unmapped title rather than the error's CLR type name, which is opt-in.
+		await Assert.That(body).Contains("is not mapped to an HTTP response");
+		await Assert.That(body).DoesNotContain(nameof(ItemMissing));
 	}
 
 	[Test]
@@ -59,14 +61,14 @@ public sealed class ZodSharpResultsHttpRegistrationTests
 		var context = CreateContext(services);
 
 		// Act
-		var (StatusCode, Body) = await ExecuteAsync(
+		var (statusCode, body) = await ExecuteAsync(
 			mapper.Map(new InputRejected(7, CreateErrors()).AsFailure<int>(), context),
 			context
 		);
 
 		// Assert
-		await Assert.That(StatusCode).IsEqualTo(StatusCodes.Status409Conflict);
-		await Assert.That(Body).Contains("rejected 7");
+		await Assert.That(statusCode).IsEqualTo(StatusCodes.Status409Conflict);
+		await Assert.That(body).Contains("rejected 7");
 	}
 
 	[Test]
@@ -78,14 +80,14 @@ public sealed class ZodSharpResultsHttpRegistrationTests
 		var context = CreateContext(services);
 
 		// Act
-		var (StatusCode, Body) = await ExecuteAsync(
+		var (statusCode, body) = await ExecuteAsync(
 			mapper.Map(new AggregateRejected("operation", CreateErrors()).AsFailure<int>(), context),
 			context
 		);
 
 		// Assert
-		await Assert.That(StatusCode).IsEqualTo(StatusCodes.Status400BadRequest);
-		await Assert.That(Body).Contains(InvalidNameCode);
+		await Assert.That(statusCode).IsEqualTo(StatusCodes.Status400BadRequest);
+		await Assert.That(body).Contains(InvalidNameCode);
 	}
 
 	static ServiceProvider CreateServices(Action<ResultsHttpOptions>? configure = null)

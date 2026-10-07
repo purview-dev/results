@@ -21,33 +21,40 @@ builder.Services.AddResultsZodSharpHttp();      // the bridge: validation-carryi
 - Because it is a failure mapper, **a mapping the host registered for a specific error case always wins**, a
   mapping registered for the error type wins too, and a host failure mapper registered *before*
   `AddResultsZodSharpHttp` wins as well. That is the escape hatch: when a case deserves its own response, register
-  it — and when a validation **code** deserves one, use the rules below.
+  it — and when a validation **code**, **category** or **origin** deserves one, use the rules below.
 - Pair it with `AddZodSharpProblemDetails()` so a thrown `ZodException` and a result-carried rejection are
   rendered by the same mapper and therefore produce identical responses.
 
-## Rules per validation error code and category
+## Rules per validation error code, category and origin
 
-Pass a callback to answer particular codes or categories with a response of their own:
+Pass a callback to answer particular codes, categories or origins with a response of their own:
 
 ```csharp
 builder.Services.AddResultsZodSharpHttp(options => options
     .MapCode("tenant_not_found", StatusCodes.Status404NotFound)                 // validation problem, 404 default
     .MapCode("tenant_id_matches_name", (errors, context) => TypedResults.Conflict())
     .MapCategory("invalid_value", StatusCodes.Status422UnprocessableEntity)
+    .MapOrigin("value_object", StatusCodes.Status422UnprocessableEntity)        // every type-level rule failure
 );
 ```
+
+The three axes are the identity a `ValidationError` carries: **code** (the specific rule), **category** (a broad
+grouping many codes share) and **origin** (the structured origin a rule owns — `"value_object"` for a type-level
+rule, `"array"` for a collection rule). Reach for `MapOrigin` when the answer is keyed by the *kind* of rule
+rather than one code.
 
 Matching and precedence:
 
 1. every matching **code** rule in registration order,
 2. then every matching **category** rule in registration order,
-3. then the default validation problem — so rules only ever narrow what the host already gets.
+3. then every matching **origin** rule in registration order,
+4. then the default validation problem — so rules only ever narrow what the host already gets.
 
-- A rule matches when **any** of the failure's errors carries its code/category, so a registered rule is always
-  reachable; a factory that wants stricter semantics returns `null` to decline and matching continues.
+- A rule matches when **any** of the failure's errors carries its code/category/origin, so a registered rule is
+  always reachable; a factory that wants stricter semantics returns `null` to decline and matching continues.
 - A factory receives the failure's **whole error set**, so a rule never hides the other problems the caller has
   to fix; the `int statusCode` overloads still render every error.
-- A code or category registered twice with different behaviour throws at configuration time.
+- A code, category or origin registered twice with different behaviour throws at configuration time.
 
 ## Rendering by hand
 

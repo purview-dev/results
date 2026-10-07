@@ -9,17 +9,17 @@ using ZodSharp.Core;
 namespace Purview.Results.ZodSharp.AspNetCore;
 
 /// <summary>
-/// Renders a result failure that carries ZodSharp validation errors, honouring the code and category rules
-/// registered on <see cref="ZodResultsHttpOptions"/>.
+/// Renders a result failure that carries ZodSharp validation errors, honouring the code, category and origin
+/// rules registered on <see cref="ZodResultsHttpOptions"/>.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The failure's errors are matched against the registered rules — codes first, then categories, each in
-/// registration order — and the first rule that answers wins. A rule with a status code renders the standard
-/// validation problem with that default status; a rule with a factory renders whatever the factory returns, and a
-/// factory returning <see langword="null"/> declines the failure so matching continues. When no rule answers, the
-/// failure is rendered as the standard validation problem, so registering rules only ever narrows what a host
-/// already gets.
+/// The failure's errors are matched against the registered rules — codes first, then categories, then origins,
+/// each in registration order — and the first rule that answers wins. A rule with a status code renders the
+/// standard validation problem with that default status; a rule with a factory renders whatever the factory
+/// returns, and a factory returning <see langword="null"/> declines the failure so matching continues. When no
+/// rule answers, the failure is rendered as the standard validation problem, so registering rules only ever
+/// narrows what a host already gets.
 /// </para>
 /// <para>
 /// A failure that does not carry validation errors is declined (<see langword="null"/>), so other mappers and
@@ -28,7 +28,7 @@ namespace Purview.Results.ZodSharp.AspNetCore;
 /// the status code, title, detail and <c>issues</c> extension.
 /// </para>
 /// </remarks>
-public sealed class ZodResultsFailureMapper(
+public sealed partial class ZodResultsFailureMapper(
 	IOptions<ZodProblemDetailsOptions> problemOptions,
 	IOptions<ZodResultsHttpOptions> rules,
 	IOptions<ResultsHttpOptions> results,
@@ -72,21 +72,36 @@ public sealed class ZodResultsFailureMapper(
 		ZodErrorRule? rule
 	)
 	{
-		if (rule is not null && errors.Length > 1 && logger.IsEnabled(LogLevel.Debug))
-		{
-			logger.LogDebug(
-				"The validation error rule for '{Rule}' answered a failure carrying {ErrorCount} validation errors with status {StatusCode}.",
-				rule.Value,
-				errors.Length,
-				statusCode
-			);
-		}
+		if (rule is not null && errors.Length > 1)
+			Log.RuleAnsweredMultipleErrors(logger, rule.Value, errors.Length, statusCode);
 
 		return ZodValidationProblems.ToProblem(
 			errors,
 			_problemOptions,
 			statusCode,
 			_results.IncludeTraceId ? context.HttpContext.TraceIdentifier : null
+		);
+	}
+
+	/// <summary>
+	/// The log messages this mapper emits, with stable <see cref="Microsoft.Extensions.Logging.EventId"/>s.
+	/// </summary>
+	/// <remarks>
+	/// Source-generated, so the identifier is fixed and the message allocates nothing when Debug is
+	/// disabled — which also removes the hand-written <c>IsEnabled</c> guard the call site used to need.
+	/// </remarks>
+	static partial class Log
+	{
+		[LoggerMessage(
+			EventId = 2000,
+			Level = LogLevel.Debug,
+			Message = "The validation error rule for '{Rule}' answered a failure carrying {ErrorCount} validation errors with status {StatusCode}."
+		)]
+		internal static partial void RuleAnsweredMultipleErrors(
+			ILogger logger,
+			string rule,
+			int errorCount,
+			int statusCode
 		);
 	}
 }

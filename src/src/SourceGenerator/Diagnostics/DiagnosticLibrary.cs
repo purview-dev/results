@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 
-namespace Purview.Results.SourceGeneration.Diagnostics;
+namespace Purview.Results.SourceGenerator.Diagnostics;
 
 /// <summary>
 /// Identifies which host owns a rule and how it affects generation.
@@ -129,11 +129,11 @@ static class DiagnosticLibrary
 	public static readonly DiagnosticDescriptor SharedCaseType = new(
 		id: "RSG1006",
 		title: "Union case type is shared with another union",
-		messageFormat: "The case type '{0}' is also a case of '{1}', so its result helper is generated for '{1}' only to keep the call site unambiguous",
+		messageFormat: "The case type '{0}' is also a case of '{1}', so its AsFailure helper is generated for '{1}' only; use the union-receiver factory '{2}.Failure(...)' to convert the case for this union without ambiguity",
 		category: Category,
 		defaultSeverity: DiagnosticSeverity.Warning,
 		isEnabledByDefault: true,
-		description: "A case type may belong to more than one union. Generating the same helper for both would make extension method resolution ambiguous, so the helper is generated once."
+		description: "A case type may belong to more than one union. Generating the same per-case AsFailure helper for both would make extension method resolution ambiguous, so the helper is generated once. The union-receiver Failure(...) factory is generated for every union, including the shared case, and is the shared-case safe form."
 	);
 
 	/// <summary>
@@ -150,6 +150,59 @@ static class DiagnosticLibrary
 	);
 
 	/// <summary>
+	/// A case is reachable through more than one of a union's included unions, so no inclusion factory can
+	/// be generated for it unambiguously.
+	/// </summary>
+	public static readonly DiagnosticDescriptor AmbiguousIncludedCase = new(
+		id: "RSG1008",
+		title: "Union inclusion case is ambiguous",
+		messageFormat: "The case type '{0}' is reachable through more than one included union of '{1}', so no inclusion factory is generated for it; convert it through the union that directly declares it instead",
+		category: Category,
+		defaultSeverity: DiagnosticSeverity.Warning,
+		isEnabledByDefault: true,
+		description: "A union may include another union as a case, which exposes the included union's cases through the union-receiver factory. When the same case type is reachable through two included unions, no single factory can name the construction path, so the case is skipped and reported. Only that case's inclusion factory is skipped; the union is still generated."
+	);
+
+	/// <summary>
+	/// A case type the generated helpers cannot be written against, such as an array type.
+	/// </summary>
+	/// <remarks>
+	/// Accessibility and type-parameter checking both accept an array type — an array of a referenceable
+	/// element type is itself referenceable — but the emitted helpers and the union-receiver factory are
+	/// declared on a <em>named</em> type. Before this rule existed the generator cast the case to
+	/// <c>INamedTypeSymbol</c> regardless and threw <see cref="InvalidCastException"/>, which took the whole
+	/// compilation's generated output with it.
+	/// </remarks>
+	public static readonly DiagnosticDescriptor UnsupportedCaseType = new(
+		id: "RSG1009",
+		title: "Unsupported union case type",
+		messageFormat: "The case type '{0}' is not a named type, so no failure helper or factory can be generated for it; wrap it in a record or struct case instead",
+		category: Category,
+		defaultSeverity: DiagnosticSeverity.Warning,
+		isEnabledByDefault: true,
+		description: "A union case must be a named type for the generated helpers to be declared against it. An array type, for example, is skipped and reported; the union's other cases are still generated."
+	);
+
+	/// <summary>
+	/// The generator failed unexpectedly while processing a union.
+	/// </summary>
+	/// <remarks>
+	/// Reported instead of letting an exception escape the generator. An escaping exception surfaces as
+	/// <c>CS8785</c> and discards <em>all</em> generated output for the compilation — so one malformed union
+	/// removes every other union's helpers and produces a cascade of unrelated errors — and raises
+	/// <c>AD0001</c> in the IDE, where analysis then stops.
+	/// </remarks>
+	public static readonly DiagnosticDescriptor UnhandledException = new(
+		id: "RSG9000",
+		title: "Unhandled exception in the results source generator",
+		messageFormat: "The results source generator failed while processing '{0}': {1}",
+		category: Category,
+		defaultSeverity: DiagnosticSeverity.Error,
+		isEnabledByDefault: true,
+		description: "An unexpected failure is reported against the union being processed rather than allowed to escape, so the rest of the compilation's generated output survives and the cause is identifiable. Please report it."
+	);
+
+	/// <summary>
 	/// Gets every rule in the catalogue, which is exactly the analyzer's supported diagnostics.
 	/// </summary>
 	public static readonly ImmutableArray<DiagnosticDescriptor> AllDescriptors =
@@ -162,6 +215,9 @@ static class DiagnosticLibrary
 		GeneratedClassNameCollision,
 		SharedCaseType,
 		UnsupportedMemberProvider,
+		AmbiguousIncludedCase,
+		UnsupportedCaseType,
+		UnhandledException,
 	];
 
 	/// <summary>
@@ -188,6 +244,7 @@ static class DiagnosticLibrary
 	/// <item><description><c>RSG1005</c> (generated class-name collision): blocking for the colliding union, which is skipped.</description></item>
 	/// <item><description><c>RSG1006</c> (shared case type): non-blocking; only the shared case's helper is skipped.</description></item>
 	/// <item><description><c>RSG1007</c> (member provider): nothing can be generated.</description></item>
+	/// <item><description><c>RSG1008</c> (ambiguous included case): non-blocking; only the ambiguous case's inclusion factory is skipped.</description></item>
 	/// </list>
 	/// </para>
 	/// </remarks>
@@ -207,6 +264,7 @@ static class DiagnosticLibrary
 			"RSG1005" => true,
 			"RSG1006" => false,
 			"RSG1007" => true,
+			"RSG1008" => false,
 			_ => descriptor.DefaultSeverity == DiagnosticSeverity.Error,
 		};
 }

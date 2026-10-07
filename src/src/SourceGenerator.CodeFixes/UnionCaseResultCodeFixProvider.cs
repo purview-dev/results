@@ -12,11 +12,12 @@ using Microsoft.CodeAnalysis.Text;
 // ITypeSymbol.IsUnion is [Experimental] until C# 15 union support ships, and this provider targets it.
 #pragma warning disable RSEXPERIMENTAL006
 
-namespace Purview.Results.SourceGeneration.CodeFixes;
+namespace Purview.Results.SourceGenerator.CodeFixes;
 
 /// <summary>
-/// Offers the generated <c>AsFailure&lt;TValue&gt;()</c> helper when a union case value is returned where a
-/// <c>Result&lt;TValue, TError&gt;</c> is expected (<c>CS0029</c>).
+/// Offers the generated union-receiver factories <c>Union.Failure&lt;TValue&gt;(case)</c> and
+/// <c>Union.Failure(case)</c> when a union case value is returned where a
+/// <c>Result&lt;TValue, TError&gt;</c> or a unit <c>Result&lt;TError&gt;</c> is expected (<c>CS0029</c>).
 /// </summary>
 /// <remarks>
 /// <para>
@@ -27,22 +28,30 @@ namespace Purview.Results.SourceGeneration.CodeFixes;
 /// recorded in <c>UnionCompilerBehaviourTests</c> in this repository.
 /// </para>
 /// <para>
+/// The fix names the union by its receiver (<c>Union.Failure(case)</c>) rather than the case, because the
+/// union-receiver factory is generated for every case of every union. The per-case <c>AsFailure</c> helpers
+/// are generated once when a case type is shared with another union, so a case-receiver rewrite could bind to
+/// the wrong union; the factory cannot.
+/// </para>
+/// <para>
 /// A fix is only offered when the rewritten call will actually bind: the converted type must be
-/// <c>Purview.Results.Result&lt;TValue, TError&gt;</c>, <c>TError</c> must be a union opted in with
-/// <c>[GenerateResult]</c> (so the helper exists), the expression must be one of that union's case values, and
-/// the union must be reachable by its simple name at the call site (the helper is generated into the union's
-/// own namespace).
+/// <c>Purview.Results.Result&lt;TValue, TError&gt;</c> or <c>Purview.Results.Result&lt;TError&gt;</c>,
+/// <c>TError</c> must be a union opted in with <c>[GenerateResult]</c> (so the factory exists), the expression
+/// must be one of that union's case values — including a case reached through an included union, because the
+/// factory covers those too — and the union must be reachable by its simple name at the call site (the factory
+/// is generated into the union's own namespace). A value result gets
+/// <c>Union.Failure&lt;TValue&gt;(case)</c>; a unit result gets <c>Union.Failure(case)</c>.
 /// </para>
 /// </remarks>
 [ExportCodeFixProvider(LanguageNames.CSharp, Name = nameof(UnionCaseResultCodeFixProvider)), Shared]
 public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 {
-	const string EquivalenceKey = "PurviewResultsUseAsFailure";
+	const string EquivalenceKey = "PurviewResultsUseUnionFailureFactory";
 	const string ResultNamespace = "Purview.Results";
 	const string ResultMetadataName = "Result`2";
-	const string SourceGenerationNamespace = "Purview.Results.SourceGeneration";
+	const string ResultUnitMetadataName = "Result`1";
 	const string GenerateResultAttributeMetadataName = "GenerateResultAttribute";
-	const string FailureHelperName = "AsFailure";
+	const string FailureFactoryName = "Failure";
 
 	/// <inheritdoc />
 	public override ImmutableArray<string> FixableDiagnosticIds => ["CS0029"];
@@ -66,8 +75,8 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 			if (expression is null)
 				continue;
 
-			var (valueType, unionType) = ResolveResultTarget(model, expression, cancellationToken);
-			if (valueType is null || unionType is null)
+			var (valueType, unionType, isUnit) = ResolveResultTarget(model, expression, cancellationToken);
+			if (unionType is null || (!isUnit && valueType is null))
 				continue;
 
 			// The expression must be a case of the union, otherwise AsFailure<TValue>() would not exist for
@@ -80,10 +89,15 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 			if (!IsUnionVisibleBySimpleName(model, unionType, expression.SpanStart))
 				continue;
 
+			var title = isUnit
+				? $"Convert the union case to a failed unit result with {unionType.Name}.{FailureFactoryName}()"
+				: $"Convert the union case to a failed result with {unionType.Name}.{FailureFactoryName}<{valueType!.Name}>()";
+
 			context.RegisterCodeFix(
 				CodeAction.Create(
-					title: $"Convert the union case to a failed result with {FailureHelperName}<{valueType.Name}>()",
-					createChangedDocument: token => UseAsFailureAsync(context.Document, expression, valueType, token),
+					title: title,
+					createChangedDocument: token =>
+						UseUnionFactoryAsync(context.Document, expression, unionType, isUnit ? null : valueType, token),
 					equivalenceKey: EquivalenceKey
 				),
 				diagnostic
@@ -98,26 +112,30 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 		return node as ExpressionSyntax ?? node.FirstAncestorOrSelf<ExpressionSyntax>();
 	}
 
-	static (ITypeSymbol? ValueType, INamedTypeSymbol? UnionType) ResolveResultTarget(
+	static (ITypeSymbol? ValueType, INamedTypeSymbol? UnionType, bool IsUnit) ResolveResultTarget(
 		SemanticModel model,
 		ExpressionSyntax expression,
 		CancellationToken cancellationToken
 	)
 	{
 		if (model.GetTypeInfo(expression, cancellationToken).ConvertedType is not INamedTypeSymbol converted)
-			return (null, null);
+			return (null, null, false);
 
-		if (converted.Arity != 2 || !HasMetadataName(converted, ResultNamespace, ResultMetadataName))
-			return (null, null);
+		var isValueResult = converted.Arity == 2 && HasMetadataName(converted, ResultNamespace, ResultMetadataName);
+		var isUnitResult = converted.Arity == 1 && HasMetadataName(converted, ResultNamespace, ResultUnitMetadataName);
 
+		if (!isValueResult && !isUnitResult)
+			return (null, null, false);
+
+		// The union is the last type argument in both shapes: Result<TValue, TUnion> and Result<TUnion>.
 		if (
-			converted.TypeArguments[1] is not INamedTypeSymbol union
+			converted.TypeArguments[converted.Arity - 1] is not INamedTypeSymbol union
 			|| !union.IsUnion
 			|| !HasGenerateResultAttribute(union)
 		)
-			return (null, null);
+			return (null, null, false);
 
-		return (converted.TypeArguments[0], union);
+		return isUnitResult ? (null, union, true) : (converted.TypeArguments[0], union, false);
 	}
 
 	static bool HasGenerateResultAttribute(INamedTypeSymbol union)
@@ -126,7 +144,7 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 		{
 			if (
 				attribute.AttributeClass is { } attributeClass
-				&& HasMetadataName(attributeClass, SourceGenerationNamespace, GenerateResultAttributeMetadataName)
+				&& HasMetadataName(attributeClass, ResultNamespace, GenerateResultAttributeMetadataName)
 			)
 			{
 				return true;
@@ -141,17 +159,35 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 		if (caseType is null)
 			return false;
 
+		HashSet<INamedTypeSymbol> visited = [with(SymbolEqualityComparer.Default)];
+
+		return IsCaseOf(union, caseType, visited);
+	}
+
+	static bool IsCaseOf(INamedTypeSymbol union, ITypeSymbol caseType, HashSet<INamedTypeSymbol> visited)
+	{
+		// A case type that is itself a union is an included union: its own cases are reachable through the
+		// union-receiver factory of the outer union too, so the rewrite binds for them as well. The visited
+		// set keeps a recursive union graph from looping.
+		if (!visited.Add(union))
+			return false;
+
 		foreach (var constructor in union.InstanceConstructors)
 		{
 			if (
-				constructor.DeclaredAccessibility == Accessibility.Public
-				&& constructor.Parameters.Length == 1
-				&& constructor.Parameters[0].RefKind is RefKind.None or RefKind.In
-				&& SymbolEqualityComparer.Default.Equals(constructor.Parameters[0].Type, caseType)
+				constructor.DeclaredAccessibility != Accessibility.Public
+				|| constructor.Parameters.Length != 1
+				|| constructor.Parameters[0].RefKind is not (RefKind.None or RefKind.In)
 			)
-			{
+				continue;
+
+			var parameterType = constructor.Parameters[0].Type;
+
+			if (SymbolEqualityComparer.Default.Equals(parameterType, caseType))
 				return true;
-			}
+
+			if (parameterType is INamedTypeSymbol { IsUnion: true } included && IsCaseOf(included, caseType, visited))
+				return true;
 		}
 
 		return false;
@@ -174,10 +210,11 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 	static bool HasMetadataName(INamedTypeSymbol type, string @namespace, string metadataName) =>
 		type.MetadataName == metadataName && type.ContainingNamespace.ToDisplayString() == @namespace;
 
-	static async Task<Document> UseAsFailureAsync(
+	static async Task<Document> UseUnionFactoryAsync(
 		Document document,
 		ExpressionSyntax expression,
-		ITypeSymbol valueType,
+		INamedTypeSymbol unionType,
+		ITypeSymbol? valueType,
 		CancellationToken cancellationToken
 	)
 	{
@@ -185,19 +222,34 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 		if (root is null)
 			return document;
 
-		var typeArgument = SyntaxFactory
-			.ParseTypeName(valueType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat))
+		// The union-receiver factory is named on the union type: Union.Failure(case) for a unit result and
+		// Union.Failure<TValue>(case) for a value result.
+		var unionName = SyntaxFactory
+			.ParseTypeName(unionType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat))
 			.WithAdditionalAnnotations(Simplifier.Annotation);
+
+		SimpleNameSyntax factoryName;
+		if (valueType is null)
+		{
+			factoryName = SyntaxFactory.IdentifierName(FailureFactoryName);
+		}
+		else
+		{
+			var typeArgument = SyntaxFactory
+				.ParseTypeName(valueType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat))
+				.WithAdditionalAnnotations(Simplifier.Annotation);
+
+			factoryName = SyntaxFactory.GenericName(
+				SyntaxFactory.Identifier(FailureFactoryName),
+				SyntaxFactory.TypeArgumentList(SyntaxFactory.SingletonSeparatedList(typeArgument))
+			);
+		}
 
 		var invocation = SyntaxFactory
 			.InvocationExpression(
-				SyntaxFactory.MemberAccessExpression(
-					SyntaxKind.SimpleMemberAccessExpression,
-					expression.WithoutTrivia(),
-					SyntaxFactory.GenericName(
-						SyntaxFactory.Identifier(FailureHelperName),
-						SyntaxFactory.TypeArgumentList(SyntaxFactory.SingletonSeparatedList(typeArgument))
-					)
+				SyntaxFactory.MemberAccessExpression(SyntaxKind.SimpleMemberAccessExpression, unionName, factoryName),
+				SyntaxFactory.ArgumentList(
+					SyntaxFactory.SingletonSeparatedList(SyntaxFactory.Argument(expression.WithoutTrivia()))
 				)
 			)
 			.WithTriviaFrom(expression)

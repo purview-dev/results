@@ -23,7 +23,7 @@ sealed class InMemoryTenantStore
 	public Result<Tenant, TenantError> GetTenant(TenantId tenantId) =>
 		_tenants.TryGetValue(tenantId, out var tenant)
 			? Result<Tenant, TenantError>.Success(tenant)
-			: new TenantNotFound(tenantId).AsFailure<Tenant>();
+			: TenantError.Failure<Tenant>(new TenantNotFound(tenantId));
 
 	/// <summary>
 	/// Creates a tenant.
@@ -34,11 +34,22 @@ sealed class InMemoryTenantStore
 	public Result<Tenant, TenantError> CreateTenant(TenantId tenantId, string name)
 	{
 		if (_tenants.ContainsKey(tenantId))
-			return new TenantAlreadyExists(tenantId).AsFailure<Tenant>();
+			return TenantError.Failure<Tenant>(new TenantAlreadyExists(tenantId));
 
 		Tenant tenant = new(tenantId, name, Enabled: true);
 		_tenants[tenantId] = tenant;
 
 		return Result<Tenant, TenantError>.Success(tenant);
 	}
+
+	/// <summary>
+	/// Deletes a tenant.
+	/// </summary>
+	/// <param name="tenantId">The identifier of the tenant to delete.</param>
+	/// <returns>
+	/// A unit <see cref="Result{TError}"/> that succeeds with no value, or a <see cref="TenantNotFound"/>
+	/// failure.
+	/// </returns>
+	public Result<TenantError> DeleteTenant(TenantId tenantId) =>
+		_tenants.Remove(tenantId) ? Result<TenantError>.Success() : TenantError.Failure(new TenantNotFound(tenantId));
 }

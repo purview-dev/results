@@ -1,5 +1,3 @@
-using Purview.Results.SourceGeneration;
-
 namespace Purview.Results.Examples.AspNetCore;
 
 /// <summary>

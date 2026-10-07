@@ -1,6 +1,6 @@
 using System.Globalization;
 using Microsoft.CodeAnalysis;
-using Purview.Results.SourceGeneration.Analyzers;
+using Purview.Results.SourceGenerator.Analyzers;
 
 namespace Purview.Results.SourceGenerator;
 
@@ -24,7 +24,19 @@ public class ResultsDiagnosticAnalyzerTests
 			.That(
 				analyzer.SupportedDiagnostics.Select(static descriptor => descriptor.Id).Order(StringComparer.Ordinal)
 			)
-			.IsEquivalentTo(["RSG1000", "RSG1001", "RSG1002", "RSG1003", "RSG1004", "RSG1005", "RSG1006", "RSG1007"]);
+			.IsEquivalentTo([
+				"RSG1000",
+				"RSG1001",
+				"RSG1002",
+				"RSG1003",
+				"RSG1004",
+				"RSG1005",
+				"RSG1006",
+				"RSG1007",
+				"RSG1008",
+				"RSG1009",
+				"RSG9000",
+			]);
 	}
 
 	[Test]
@@ -194,6 +206,40 @@ public class ResultsDiagnosticAnalyzerTests
 
 		// Assert
 		await Assert.That(result).HasDiagnostic("RSG1007");
+	}
+
+	[Test]
+	public async Task AnalyzeAsync_GivenAmbiguousIncludedCase_ReportsAmbiguousIncludedCase(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		// Both LeftError and RightError include NotFound, so OuterError cannot name a single construction
+		// path for it.
+		const string source = """
+			namespace Test
+			{
+				public readonly record struct NotFound(int Id);
+
+				[GenerateResult]
+				public readonly union LeftError(NotFound);
+
+				[GenerateResult]
+				public readonly union RightError(NotFound);
+
+				[GenerateResult]
+				public readonly union OuterError(LeftError, RightError);
+			}
+			""";
+
+		// Act
+		var result = await AnalyzeAsync([TestSources.GenerateResultAttributeDeclaration, source], cancellationToken);
+
+		// Assert
+		await Assert.That(result).HasDiagnostic("RSG1008");
+
+		var diagnostic = result.Diagnostics.Single(static candidate => candidate.Id == "RSG1008");
+		await Assert.That(diagnostic.Severity).IsEqualTo(DiagnosticSeverity.Warning);
 	}
 
 	[Test]

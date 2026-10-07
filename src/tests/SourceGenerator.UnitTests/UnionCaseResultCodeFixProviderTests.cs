@@ -4,7 +4,6 @@ public sealed class UnionCaseResultCodeFixProviderTests
 {
 	const string UnionSource = """
 		using Purview.Results;
-		using Purview.Results.SourceGeneration;
 
 		namespace Test
 		{
@@ -45,7 +44,36 @@ public sealed class UnionCaseResultCodeFixProviderTests
 		var result = await UnionCodeFixTestHarness.ApplyAsync(source, cancellationToken);
 
 		await Assert.That(result.FixOffered).IsTrue();
-		await Assert.That(result.FixedCode).Contains(".AsFailure<Tenant>()");
+		await Assert.That(result.FixedCode).Contains("TenantError.Failure<Tenant>(");
+		await Assert.That(result.RewriteCompiles).IsTrue();
+	}
+
+	[Test]
+	public async Task UnionCaseResultCodeFixProvider_GivenUnionCaseReturnedFromUnitResultMethod_ShouldOfferTheUnitFix(
+		CancellationToken cancellationToken
+	)
+	{
+		var source =
+			UnionSource
+			+ """
+
+				namespace Test
+				{
+					public static class Usage
+					{
+						public static Result<TenantError> DeleteTenant(TenantId tenantId)
+						{
+							return new TenantNotFound(tenantId);
+						}
+					}
+				}
+				""";
+
+		var result = await UnionCodeFixTestHarness.ApplyAsync(source, cancellationToken);
+
+		await Assert.That(result.FixOffered).IsTrue();
+		await Assert.That(result.FixedCode).Contains("TenantError.Failure(");
+		await Assert.That(result.FixedCode).DoesNotContain("Failure<");
 		await Assert.That(result.RewriteCompiles).IsTrue();
 	}
 
@@ -71,7 +99,7 @@ public sealed class UnionCaseResultCodeFixProviderTests
 		var result = await UnionCodeFixTestHarness.ApplyAsync(source, cancellationToken);
 
 		await Assert.That(result.FixOffered).IsTrue();
-		await Assert.That(result.FixedCode).Contains(".AsFailure<Tenant>()");
+		await Assert.That(result.FixedCode).Contains("TenantError.Failure<Tenant>(");
 		await Assert.That(result.RewriteCompiles).IsTrue();
 	}
 
@@ -172,8 +200,6 @@ public sealed class UnionCaseResultCodeFixProviderTests
 
 			namespace Domain
 			{
-				using Purview.Results.SourceGeneration;
-
 				public readonly record struct TenantId(string Value);
 
 				public readonly record struct Tenant(Domain.TenantId TenantId);
@@ -199,5 +225,87 @@ public sealed class UnionCaseResultCodeFixProviderTests
 		var result = await UnionCodeFixTestHarness.ApplyAsync(source, cancellationToken);
 
 		await Assert.That(result.FixOffered).IsFalse();
+	}
+
+	[Test]
+	public async Task UnionCaseResultCodeFixProvider_GivenCaseSharedWithAnotherUnion_ShouldRewriteToTheNamedUnionFactory(
+		CancellationToken cancellationToken
+	)
+	{
+		// NotFound is shared with GetError, so the per-case AsFailure helper is generated for GetError (the
+		// ordinal winner). A case-receiver rewrite would bind to the wrong union; naming SetError cannot.
+		const string source = """
+			using Purview.Results;
+
+			namespace Test
+			{
+				public readonly record struct NotFound(int Id);
+
+				public readonly record struct Rejected(string Reason);
+
+				[GenerateResult]
+				public readonly union GetError(NotFound);
+
+				[GenerateResult]
+				public readonly union SetError(NotFound, Rejected);
+
+				public static class Usage
+				{
+					public static Result<SetError> Set(NotFound error)
+					{
+						return error;
+					}
+				}
+			}
+			""";
+
+		var result = await UnionCodeFixTestHarness.ApplyAsync(source, cancellationToken);
+
+		await Assert.That(result.FixOffered).IsTrue();
+		await Assert.That(result.FixedCode).Contains("SetError.Failure(error)");
+		await Assert.That(result.RewriteCompiles).IsTrue();
+	}
+
+	[Test]
+	public async Task UnionCaseResultCodeFixProvider_GivenCaseReachedThroughAnIncludedUnion_ShouldOfferTheFix(
+		CancellationToken cancellationToken
+	)
+	{
+		// BillingAccountMissing is not a direct case of RegisterTenantError: it is reachable through the
+		// included BillingError union, whose cases the outer factory also covers.
+		const string source = """
+			using Purview.Results;
+
+			namespace Test
+			{
+				public readonly record struct AccountId(string Value);
+
+				public readonly record struct TenantId(string Value);
+
+				public readonly record struct Tenant(TenantId TenantId);
+
+				public readonly record struct BillingAccountMissing(AccountId AccountId);
+
+				[GenerateResult]
+				public readonly union BillingError(BillingAccountMissing);
+
+				[GenerateResult]
+				public readonly union RegisterTenantError(BillingError);
+
+				public static class Usage
+				{
+					public static Result<Tenant, RegisterTenantError> Register(AccountId accountId)
+					{
+						return new BillingAccountMissing(accountId);
+					}
+				}
+			}
+			""";
+
+		var result = await UnionCodeFixTestHarness.ApplyAsync(source, cancellationToken);
+
+		await Assert.That(result.FixOffered).IsTrue();
+		await Assert.That(result.FixedCode).Contains("RegisterTenantError.Failure<Tenant>(");
+		await Assert.That(result.RewriteCompiles).IsTrue();
 	}
 }

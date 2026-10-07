@@ -9,7 +9,7 @@ namespace Purview.Results.ZodSharp;
 /// <remarks>
 /// A union case that carries the errors of a rejected input implements this interface, so an HTTP layer can turn
 /// it into a validation problem without knowing the error type. The errors preserve each
-/// <see cref="ValidationError"/>'s code, category, path and parameters.
+/// <see cref="ValidationError"/>'s code, origin, category, path and parameters.
 /// </remarks>
 public interface IValidationErrorCarrier
 {

@@ -1,3 +1,5 @@
+using System.Collections.Frozen;
+using System.Collections.Immutable;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -7,10 +9,12 @@ namespace Purview.Results.AspNetCore;
 /// Configures how <see cref="IResultValue"/> values are mapped onto ASP.NET Core responses.
 /// </summary>
 /// <remarks>
-/// Mappings are keyed by the runtime type of the error value: for a union error the declared case type is used,
-/// so <c>Map&lt;TenantNotFound&gt;(...)</c> handles that case, while <c>Map&lt;TenantError&gt;(...)</c> handles every
-/// case that has no mapping of its own. A non-union error type is keyed by the error type itself. Registering the
-/// same type twice replaces the earlier mapping.
+/// Mappings are keyed by the runtime type of the error value: for a union error the most specific case wins, so
+/// <c>Map&lt;TenantNotFound&gt;(...)</c> handles that case, while <c>Map&lt;TenantError&gt;(...)</c> handles every
+/// case that has no mapping of its own. A nested union resolves to its innermost case, and each enclosing union
+/// type is tried in turn, so <c>Map&lt;BillingError&gt;(...)</c> can handle a whole nested union while
+/// <c>Map&lt;BillingUnavailable&gt;(...)</c> handles one of its leaves. A non-union error type is keyed by the error
+/// type itself. Registering the same type twice replaces the earlier mapping.
 /// <para>
 /// A failure that no mapping handled reaches the fallback stage, which is the single ordered list
 /// <see cref="AddFallback"/> and <see cref="AddFailureMapper{TMapper}"/> append to: the order they are called in
@@ -22,9 +26,28 @@ public sealed class ResultsHttpOptions
 	readonly Dictionary<Type, Func<object, HttpContext, IResult>> _mappers = [];
 	readonly List<Func<ResultsFailureContext, IResult?>> _fallbacks = [];
 
+	// Frozen snapshots taken the first time a request reads the options.
+	//
+	// These collections are configured at startup but stay publicly writable for the process lifetime, and
+	// the mapper that reads them is a singleton. Without a snapshot, a host that calls Map<T>() after
+	// startup mutates a non-concurrent Dictionary while request threads enumerate it — torn reads, or
+	// "Collection was modified" from the fallback loop. Taking an immutable copy on first use makes the
+	// read path safe without changing the configuration API, and makes the startup-only contract explicit:
+	// a mutation after the first request is ignored rather than corrupting anything.
+	// Held as the interface, not as ImmutableArray: the property returns IReadOnlyList, and an
+	// ImmutableArray is a struct, so storing it as one would box on every access — once per failure, on
+	// the request path.
+	FrozenDictionary<Type, Func<object, HttpContext, IResult>>? _frozenMappers;
+	IReadOnlyList<Func<ResultsFailureContext, IResult?>>? _frozenFallbacks;
+
 	/// <summary>
 	/// Gets or sets the status code used when a result succeeded. Defaults to <c>200 OK</c>.
 	/// </summary>
+	/// <remarks>
+	/// This applies to a successful value result. A successful unit <see cref="Result{TError}"/> carries no
+	/// payload, so it answers <c>204 No Content</c> regardless of this value; set <see cref="SuccessMapper"/> to
+	/// override that.
+	/// </remarks>
 	public int SuccessStatusCode { get; set; } = StatusCodes.Status200OK;
 
 	/// <summary>
@@ -54,7 +77,32 @@ public sealed class ResultsHttpOptions
 	/// Gets or sets a value indicating whether an unmapped failure throws instead of producing a problem response.
 	/// Defaults to <see langword="false"/>; set it during development to surface mapping gaps early.
 	/// </summary>
+	/// <remarks>
+	/// Gate this on the environment rather than setting it unconditionally, for example
+	/// <c>options.ThrowOnUnmappedFailure = builder.Environment.IsDevelopment();</c>.
+	/// </remarks>
 	public bool ThrowOnUnmappedFailure { get; set; }
+
+	/// <summary>
+	/// Gets or sets a value indicating whether the unmapped-failure response names the error type in its
+	/// <c>errorType</c> extension. Defaults to <see langword="false"/>.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// The value is the error's <see cref="Type.FullName"/> — for example
+	/// <c>Contoso.Billing.Internal.Domain.Errors.SubscriptionLedgerCorrupted</c>. That is internal namespace
+	/// topology and domain vocabulary, returned to whoever made the request, on the exact path that fires
+	/// when something unexpected happened. On an internet-facing API that is information disclosure, so it
+	/// is off by default and the response carries only the status and title.
+	/// </para>
+	/// <para>
+	/// It is genuinely useful while finding mapping gaps, so enable it per environment —
+	/// <c>options.IncludeErrorTypeInProblemDetails = builder.Environment.IsDevelopment();</c>. The type name
+	/// is logged either way, so you can diagnose a gap in production from your own logs without putting it
+	/// in the response.
+	/// </para>
+	/// </remarks>
+	public bool IncludeErrorTypeInProblemDetails { get; set; }
 
 	/// <summary>
 	/// Gets or sets a mapper that overrides how a successful value becomes a response. When set, it replaces the
@@ -65,7 +113,13 @@ public sealed class ResultsHttpOptions
 	/// <summary>
 	/// Gets the fallbacks consulted, in order, when a failure has no mapping.
 	/// </summary>
-	public IReadOnlyList<Func<ResultsFailureContext, IResult?>> Fallbacks => _fallbacks;
+	/// <remarks>
+	/// Reading this freezes the fallback list: these options are startup configuration, and the mapper that
+	/// consults them is a singleton shared by every request. A fallback added after the first failure is
+	/// handled is therefore ignored rather than mutating a list another thread is enumerating.
+	/// </remarks>
+	public IReadOnlyList<Func<ResultsFailureContext, IResult?>> Fallbacks =>
+		_frozenFallbacks ??= ImmutableArray.CreateRange(_fallbacks);
 
 	/// <summary>
 	/// Maps a case (or the error itself, for a non-union error type) onto a response.
@@ -138,7 +192,7 @@ public sealed class ResultsHttpOptions
 	}
 
 	internal bool TryGetMapper(Type caseType, out Func<object, HttpContext, IResult> mapper) =>
-		_mappers.TryGetValue(caseType, out mapper!);
+		(_frozenMappers ??= _mappers.ToFrozenDictionary()).TryGetValue(caseType, out mapper!);
 
 	/// <summary>
 	/// Resolves a declared failure mapper, reporting the registration the host is missing rather than the

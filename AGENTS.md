@@ -2,8 +2,8 @@
 
 ## Purpose and authority
 
-This repository contains the Purview result types for .NET: `Purview.Results`, a Roslyn source generator that
-makes C# 15 union error cases ergonomic, and the ZodSharp and ASP.NET Core integrations.
+This repository contains the Purview result types for .NET: `Purview.Results` (which bundles the Roslyn source
+generator that makes C# 15 union error cases ergonomic), and the ZodSharp and ASP.NET Core integrations.
 
 - This file is the repository-wide source of truth for AI agents. A more-specific `AGENTS.md` in a subtree, if
   one is ever added, takes precedence for that subtree.
@@ -19,15 +19,15 @@ makes C# 15 union error cases ergonomic, and the ZodSharp and ASP.NET Core integ
 | Path | Purpose |
 | --- | --- |
 | `src/Results.slnx` | Canonical solution for restore, build, test and pack |
-| `src/src/Results` | `Result<TValue, TError>`, the `Result` factories, `IResultValue` |
-| `src/src/SourceGenerator` | Roslyn incremental generator, diagnostic analyzer, `[GenerateResult]` attribute |
-| `src/src/SourceGenerator.CodeFixes` | IDE code fix for `CS0029`: rewrites a returned union case into the generated `AsFailure<TValue>()` |
+| `src/src/Results` | `Result<TValue, TError>`, the value-less `Result<TError>`, the `Success` marker, the `Result` factories, `IResultValue` |
+| `src/src/SourceGenerator` | Roslyn incremental generator, diagnostic analyzer and `[GenerateResult]` attribute; not a package of its own, packed into `Purview.Results` |
+| `src/src/SourceGenerator.CodeFixes` | IDE code fix for `CS0029`: rewrites a returned union case into the generated union-receiver factory `Union.Failure<TValue>(case)` (value result) or `Union.Failure(case)` (unit result) |
 | `src/src/AspNetCore` | Result-to-response mapping, endpoint filter, DI registration |
 | `src/src/ZodSharp` | ZodSharp `ValidationResult<T>` bridge |
 | `src/src/ZodSharp.AspNetCore` | Validation-problem mapping for validation-carrying failures |
 | `src/src/<Project>/Sdk` | Package-only assets. `Sdk/README.md` is packed as the package README; `Sdk/.agents/**` would ship agent skills with the package |
 | `src/tests` | TUnit unit tests, including source-generation and incremental-cache tests |
-| `src/examples` | Runnable, non-packable examples: one project per integration aspect on a shared Tenant* domain |
+| `src/src/Examples.*` | Runnable, non-packable examples: one project per integration aspect on a shared Tenant* domain |
 | `docs/wiki` | User-facing documentation suite, aggregated by the purview-dev website |
 | `Directory.Packages.props` | Centrally managed NuGet versions |
 | `src/Directory.Build.props` / `src/Directory.Build.targets` | Solution-wide SDK, package and build behaviour |
@@ -53,14 +53,32 @@ makes C# 15 union error cases ergonomic, and the ZodSharp and ASP.NET Core integ
 - `Result<TValue, TError>` is a `readonly record struct` with three states: `Uninitialized` (the `default`
   value), `Success` and `Failure`. Keep all three observable through `IsInitialized`, `IsSuccess` and
   `IsFailure`.
+- `Result<TError>` is the value-less counterpart: the same `readonly record struct` state machine, the same
+  throw-on-misuse contract and the same three states, but a success holds the `Success` marker (a stateless
+  `readonly record struct` in `Purview.Results`) instead of a value. Its success callbacks take no argument
+  (`Match`, `Switch`, `Tap`, `Ensure`), `Error` throws in the wrong state, `ToString()` is `Success` /
+  `Failure(error)` / `Uninitialized`, and `IResultValue.SuccessValue` is the marker. Do not merge the two types or
+  let one silently convert into the other.
 - Keep the throw-on-misuse contract: `Value` and `Error` throw `InvalidOperationException` with the existing
   messages in the wrong state, and `Match`, `Map`, `Bind` and `MapError` throw `"The result is uninitialized."`
   for `default`. Never silently coerce an uninitialized result into a success or a failure.
-- `ToString()` stays `Success(value)` / `Failure(error)` / `Uninitialized`.
+- `ToString()` stays `Success(value)` / `Failure(error)` / `Uninitialized`; for `Result<TError>` a success is
+  `Success` with no value.
 - `IResultValue` is the non-generic view used by infrastructure. Its accessors must never throw; the accessor
   that does not describe the current state returns `null`.
-- Implicit conversions from `TValue` and `TError`, and the `Result.Success`/`Result.Failure` and
-  `Result<TValue, TError>.Success`/`.Failure` factories, are public contract.
+- Implicit conversions from `TValue`, `TError` and `Success`, and the `Result.Success`/`Result.Failure`,
+  `Result<TValue, TError>.Success`/`.Failure` and `Result<TError>.Success`/`.Failure` factories, are public
+  contract. `Result<TValue, TError>.DiscardValue()` (value result → unit result) is the value-style bridge between
+  the two shapes.
+- `Bind` preserves `TError`. Chaining a step that fails with a different error is the widening
+  `Bind(bind, mapError)` / `BindAsync(bind, mapError)` overload (equivalent to `MapError(mapError).Bind(bind)`), or
+  a `TryGetError` guard with the generated `AsFailure<TValue>()`. A caller union that includes the upstream error
+  union as a case keeps the lift to a single union conversion.
+- `Throw()` returns the successful value — or, for `Result<TError>`, the `Success` marker — throws
+  `ResultException<TError>` (with the error on `Error`, and a non-generic `ResultException` base carrying it as
+  `object?` for a catch-all) on failure, and throws `InvalidOperationException`
+  (`"The result is uninitialized."`) for `default`. It is the only deliberate result-to-exception escape hatch and
+  must never coerce `default`.
 - `Purview.Results` stays dependency-free. The ZodSharp and ASP.NET Core packages depend on it, never the
   reverse, and `Purview.Results.AspNetCore` deliberately knows nothing about ZodSharp.
 - Keep runtime packages free of reflection, `dynamic` and runtime type discovery. Union structure is inspected
@@ -70,14 +88,14 @@ makes C# 15 union error cases ergonomic, and the ZodSharp and ASP.NET Core integ
 
 ## Source generator rules
 
-`src/src/SourceGenerator/Sdk/README.md` is the authoritative design document — keep it in sync with behaviour,
+`src/src/SourceGenerator/README.md` is the authoritative design document — keep it in sync with behaviour,
 including the diagnostics table, build properties and activation rules.
 
 - **One analyzer, one generator, one diagnostics library.** `Diagnostics/DiagnosticLibrary.cs`,
   `Diagnostics/ResultDiagnostic.cs` and `Diagnostics/ResultUnionDiagnostics.cs` hold the single implementation
-  of the union rules. The analyzer reports the per-target rules (`RSG1000`–`RSG1004`, `RSG1007`); the generator
-  reports the compilation-wide rules (`RSG1005`, `RSG1006`). Never report the same rule from both hosts, and
-  keep `DiagnosticLibrary.IsBlocking` as the single blocking policy.
+  of the union rules. The analyzer reports the per-target rules (`RSG1000`–`RSG1004`, `RSG1007`, `RSG1008`); the
+  generator reports the compilation-wide rules (`RSG1005`, `RSG1006`). Never report the same rule from both
+  hosts, and keep `DiagnosticLibrary.IsBlocking` as the single blocking policy.
 - New or changed rules require an `AnalyzerReleases.Unshipped.md` entry (the compiler's RS2008 rule catalogue).
 - **One suppressor.** `Suppressors/UnionEqualityDiagnosticSuppressor.cs` is the only programmatic suppression in
   this repository: it suppresses `CA1815` and only `CA1815`, and only on a declaration that is both a union
@@ -98,11 +116,12 @@ including the diagnostics table, build properties and activation rules.
   have.
 - Create the `CodeWriter` inside the `RegisterSourceOutput` callback; never store it in incremental pipeline
   state or a custom context.
-- `ResultsSourceGenerator_Disable` must stay declared as both a `PurviewGeneratorVisibleProperty` and a
+- `DisableResultsSourceGenerator` must stay declared as both a `PurviewGeneratorVisibleProperty` and a
   `CompilerVisibleProperty`, and shipped to consumers by
-  `src/src/SourceGenerator/Sdk/buildTransitive/Purview.Results.SourceGenerator.props`. The framework's PSGF0003
-  validation fails the build when a declared generator-read property is neither compiler-visible nor declared by
-  the package's own `Sdk/build*` assets, which is what keeps the packaged switch honest.
+  `src/src/Results/Sdk/buildTransitive/Purview.Results.props` (the package that carries the generator). The
+  framework's PSGF0003 validation fails the build when a declared generator-read property is neither
+  compiler-visible nor declared by a package's own `Sdk/build*` assets, which is what keeps the packaged switch
+  honest.
 - `[GenerateResult]` is supported on union declarations only. Generic unions and `IUnionMembers` member
   providers are deliberately unsupported and reported as `RSG1002`/`RSG1007`.
 - **Do not attempt to generate implicit conversions.** C# blocks every route: an operator is illegal in a static
@@ -111,6 +130,27 @@ including the diagnostics table, build properties and activation rules.
   is unavailable for a non-generic case type (`CS0246`), and only one user-defined conversion may participate in
   a sequence (`CS0029`). All five are recorded in `UnionCompilerBehaviourTests.cs`. Improve call-site
   ergonomics through the code fix in `src/src/SourceGenerator.CodeFixes` instead.
+- Emit **two per-case helpers**: the value-producing `AsFailure<TValue>()` (`Result<TValue, TUnion>`) and the
+  non-generic `AsFailure()` (`Result<TUnion>` unit result). Keep them overloads of the same name in the one
+  generated extension class, keep the bodies pure `Result<...>.Failure(error)` calls, and keep case ordering
+  deterministic.
+- Also emit the **union-receiver factory** as a C# 14 extension block on the union type
+  (`extension(TUnion) { public static ... }`): `Failure(case)`/`Failure<TValue>(case)` and `Success()`/
+  `Success<TValue>(value)`. The factory names the union by its receiver, so it is the shared-case safe form: a
+  leaf case type shared with another union (`RSG1006`) has its per-case `AsFailure` helper generated once, but
+  every union's factory covers all of its own cases. `ResultUnionModel.Cases` is the union's full case set (used
+  by the factory) and `ResultUnionModel.HelperCases` is the deduplicated subset (used by `AsFailure`); never
+  conflate the two. The code fix rewrites `CS0029` to the factory, not to `AsFailure`, so it cannot bind to the
+  wrong union.
+- **Union inclusion.** A case type that is itself a union is an *included union*: the including union's factory
+  also covers every case reachable through it, constructing the nested value (`new Outer(new Inner(leaf))`).
+  `ResultUnionModel.IncludedCases` carries that expansion (the case plus its innermost-first construction path)
+  and the emitter writes one factory pair per included case. Inclusion is automatic for every union-typed case and
+  is the supported way to avoid `RSG1006`. A union-typed case shared by two unions is composition, not a shared
+  leaf: it is **not** reported as `RSG1006` and its per-case `AsFailure` helper is not generated for any owner. A
+  case reachable through two different included unions is reported as `RSG1008` and its inclusion factory is
+  skipped, because no single construction path can be named. Expansion walks the union's own case symbols during
+  `ResultUnionDiagnostics.Analyze`, so it needs no opted-in included union and no symbol in cached state.
 - Adding a code fix means adding it to `src/src/SourceGenerator.CodeFixes`, not to the generator project: the
   code fix needs `Microsoft.CodeAnalysis.*.Workspaces`, which must not enter the generator's analyzer closure.
   The two projects stay independent (no project reference, no `InternalsVisibleTo`) so no reference cycle can
@@ -120,9 +160,15 @@ including the diagnostics table, build properties and activation rules.
 
 ## ASP.NET Core integration invariants
 
-- Keep the failure resolution order in `DefaultResultsHttpMapper`: the mapping for the error **case** type,
-  then the mapping for the **error** type (which covers every case without its own mapping), then the
-  registered fallbacks in order, then the unmapped-failure response.
+- A successful value result is serialized with `SuccessStatusCode`; a successful unit `Result<TError>` carries no
+  payload and answers `204 No Content`. `SuccessMapper` overrides both, and a successful value that is itself an
+  `IResult` still passes through untouched.
+- Keep the failure resolution order in `DefaultResultsHttpMapper`: the mapping for the most specific **case** type,
+  then the mapping for each enclosing **union** type from the inside out, then the mapping for the **error** type
+  (which covers every case without its own mapping), then the registered fallbacks in order, then the
+  unmapped-failure response. A union error resolves to its innermost active case, so a nested union resolves to its
+  leaf while a mapping for an enclosing union still applies when the leaf has none; the fallback stage receives that
+  leaf case.
 - **One fallback stage, one ordered list.** `ResultsHttpOptions.AddFallback(...)` delegates and
   `AddFailureMapper<TMapper>()` failure mappers append to the *same* list, in the order they are called, and an
   entry defers by returning `null`. `IResultsFailureMapper` (with `ResultsFailureContext`, which carries the case,
@@ -145,11 +191,12 @@ including the diagnostics table, build properties and activation rules.
   wins, and so does a host failure mapper registered before `AddResultsZodSharpHttp`. It must reuse the ZodSharp
   problem mapper (`ZodValidationProblems.ToProblem`) rather than reimplementing error-to-problem mapping, so a
   result-carried validation failure and a thrown `ZodException` produce identical responses.
-- Keep the ZodSharp code/category rules' precedence structural: **code** rules are consulted before **category**
-  rules (each in registration order), then the default validation problem, so a rule can only narrow what the host
-  already gets. A rule matches when *any* of the failure's errors carries its code or category — a rule a schema
-  can silently never reach is exactly the kind of gap this repository surfaces rather than hides — and a factory
-  returns `null` to decline, with matching continuing. Factories see the failure's whole error set.
+- Keep the ZodSharp code/category/origin rules' precedence structural: **code** rules are consulted before
+  **category** rules, which are consulted before **origin** rules (each in registration order), then the default
+  validation problem, so a rule can only narrow what the host already gets. A rule matches when *any* of the
+  failure's errors carries its code, category or origin — a rule a schema can silently never reach is exactly the
+  kind of gap this repository surfaces rather than hides — and a factory returns `null` to decline, with matching
+  continuing. Factories see the failure's whole error set.
 
 ## Packaging rules
 
@@ -165,22 +212,28 @@ including the diagnostics table, build properties and activation rules.
   into the package root, so `Sdk/README.md` becomes the `.nupkg` README and takes precedence over the
   repository-root `README.md`. Update it for any user-visible change, and keep the repository-root `README.md`
   consistent with it.
-- The packed shapes that must not regress: the Roslyn component ships its analyzer assembly under
-  `analyzers/dotnet/cs/` with no `lib/` folder and **no PDB** (`PurviewPackAnalyzerPdb=false`), and the library
-  packages ship `lib/<tfm>/<assembly>.dll` plus the XML documentation file and a symbol package.
-- The component opts out of the analyzer PDB because the packaged analyzer is the framework's merged (ILRepack)
+- The packed shapes that must not regress: `Purview.Results` ships the merged Roslyn component and its code fix
+  under `analyzers/dotnet/cs/` with no `lib/` folder and **no PDB**, and every library package ships
+  `lib/<tfm>/<assembly>.dll` plus the XML documentation file and a symbol package.
+- The generator ships **no analyzer PDB** because the packaged analyzer is the framework's merged (ILRepack)
   assembly: the merge tool's rewritten PDB carries no Roslyn compiler-flags record, and the pipeline's pack
   validation asserts `optimization=release` for every assembly that ships a PDB, with no way to scope that check
-  to one package. Telemetry and the other component packages opt out the same way. Revisit if the framework's
-  merge tool starts preserving the compiler-flags record.
+  to one package. `Purview.Results` packs only the merged assembly (through the framework's
+  `GetPurviewMergedAnalyzerFile` target) and the code fix, so no analyzer PDB is contributed. Telemetry and the
+  other component packages opt out the same way. Revisit if the framework's merge tool starts preserving the
+  compiler-flags record.
 - `purview-build.json`'s `PackValidation.RequiredContent` is the exhaustive declaration of what each package
   ships (`RequireExplicitContent` defaults to `true`, so an undeclared entry fails too). Update it whenever
   package content changes — a new asset, a removed PDB, a renamed analyzer — and verify with
   `just pipeline-pack-validate`, which runs restore, build, lint, tests, pack and the validation.
-- `Purview.Results.SourceGenerator` therefore carries **two** analyzer assemblies in `analyzers/dotnet/cs/`:
-  the merged generator and `Purview.Results.SourceGenerator.CodeFixes.dll`. The code fix is packed by the SDK's
-  `PackProjectReferencedSourceGenerators` from the analyzer project reference in `SourceGenerator.csproj`, and it
-  is never IL-merged into the generator. Verify both are present whenever analyzers or packaging change.
+- `Purview.Results` therefore carries **two** analyzer assemblies in `analyzers/dotnet/cs/`: the merged
+  generator and `Purview.Results.SourceGenerator.CodeFixes.dll`. The code fix is packed by the
+  `PackResultsSourceGenerator` target in `Results.csproj`, which also calls the framework's
+  `GetPurviewMergedAnalyzerFile` for the generator, and it is never IL-merged into the generator. The generator
+  is deliberately **not** referenced as an analyzer by `Purview.Results`: it emits its opt-in attribute into
+  every compilation it runs on, so running it on the library would bake a conflicting
+  `Purview.Results.GenerateResultAttribute` into the package and raise `CS0436` in every consumer. Verify both
+  assemblies are present whenever analyzers or packaging change.
 - Verify packaging by packing and inspecting the output, for example
   `dotnet pack src/Results.slnx -o <folder>` followed by opening the `.nupkg`. The PR and release pipelines run
   the same check through `Purview.Build`'s pack validation.
@@ -218,10 +271,14 @@ including the diagnostics table, build properties and activation rules.
 
 ## Examples
 
-`src/examples` holds one runnable example per integration aspect, all on the Tenant* domain the READMEs
-document: `Examples.Basic` (the result type and the generated helpers), `Examples.Zod`
-(`Purview.Results.ZodSharp`), `Examples.AspNetCore` (`Purview.Results.AspNetCore`) and `Examples.AspNetCore.Zod`
-(`Purview.Results.ZodSharp.AspNetCore`).
+`src/src/Examples.*` holds one runnable example per integration aspect, all on the Tenant* domain the READMEs
+document: `Examples.Basic` (the result type, the value-less `Result<TError>`, the generated `AsFailure<TValue>()`
+and `AsFailure()` helpers, and the union-receiver `Union.Failure(...)`/`Union.Success(...)` factories),
+`Examples.Zod` (`Purview.Results.ZodSharp`, including `ToUnitResult`),
+`Examples.AspNetCore` (`Purview.Results.AspNetCore`, including a unit result answering `204`),
+`Examples.AspNetCore.Zod` (`Purview.Results.ZodSharp.AspNetCore`) and `Examples.ValueObjects.Zod`
+(`Purview.Results.ZodSharp` + `Purview.ValueObjects`, a type-level `[ZodRule]` whose code and origin flow into the
+result and the HTTP mapping).
 
 - Examples are **documentation that compiles**: keep them non-packable (never declare
   `<IsPackable>true</IsPackable>`), keep them out of test discovery (no `*Tests` suffix, and they are not under
@@ -264,8 +321,7 @@ maintained here.
 
 | Content | Package | Path |
 | --- | --- | --- |
-| `skills/purview-results-core` | `Purview.Results` | `src/src/Results/Sdk/.agents` |
-| `skills/purview-results-union-errors`, `agents/purview-results-union-author.agent.md`, `prompts/migrate-error-returns-to-result-unions.prompt.md` | `Purview.Results.SourceGenerator` | `src/src/SourceGenerator/Sdk/.agents` |
+| `skills/purview-results-core`, `skills/purview-results-union-errors`, `agents/purview-results-union-author.agent.md`, `prompts/migrate-error-returns-to-result-unions.prompt.md` | `Purview.Results` | `src/src/Results/Sdk/.agents` |
 | `skills/purview-results-http-mapping` | `Purview.Results.AspNetCore` | `src/src/AspNetCore/Sdk/.agents` |
 | `skills/purview-results-zodsharp-validation` | `Purview.Results.ZodSharp` | `src/src/ZodSharp/Sdk/.agents` |
 | `skills/purview-results-zodsharp-problems` | `Purview.Results.ZodSharp.AspNetCore` | `src/src/ZodSharp.AspNetCore/Sdk/.agents` |
@@ -342,9 +398,8 @@ just scrub
 just build
 ```
 
-`pipeline-local-release` runs the shared pipeline with `Release:Mode=LocalNuGet`. It is present in this
-repository's `Justfile` but currently commented out; until it is re-enabled, run the same command directly
-(after `just ensure-pipeline-tool`):
+`pipeline-local-release` runs the shared pipeline with `Release:Mode=LocalNuGet`. It is a live recipe in this
+repository's `Justfile`; the equivalent direct invocation (after `just ensure-pipeline-tool`) is:
 
 ```text
 .tools/purview-build/purview-build --Release:Mode=LocalNuGet --PublishLocalNuGet:LocalFeedPath=p:/_sync-projects/.local-nuget/

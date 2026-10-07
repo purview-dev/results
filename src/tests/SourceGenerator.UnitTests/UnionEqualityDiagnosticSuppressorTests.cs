@@ -2,8 +2,7 @@ using System.Collections.Immutable;
 using System.Globalization;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Diagnostics;
-using Purview.Results.SourceGeneration;
-using Purview.Results.SourceGeneration.Suppressors;
+using Purview.Results.SourceGenerator.Suppressors;
 
 namespace Purview.Results.SourceGenerator;
 

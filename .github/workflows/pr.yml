@@ -24,7 +24,7 @@ jobs:
       # Mirrors Build:TestFilter in purview-build.json: every test project is a *.UnitTests project
       # whose tests the SDK categorises as Unit.
       test-filter: "/*/*/*/*[Category=Unit]"
-      # All five library projects are packable, so pack and validate the produced packages.
+      # All four library projects are packable, so pack and validate the produced packages.
       run-pack: true
       validate-pack: true
     secrets: inherit

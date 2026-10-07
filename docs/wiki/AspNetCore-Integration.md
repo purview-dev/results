@@ -1,7 +1,7 @@
 # ASP.NET Core Integration
 
-`Purview.Results.AspNetCore` maps a `Result<TValue, TError>` onto an ASP.NET Core response, so an endpoint can
-return a result and let the host decide what each error case looks like on the wire.
+`Purview.Results.AspNetCore` maps a `Result<TValue, TError>` or a value-less `Result<TError>` onto an ASP.NET Core
+response, so an endpoint can return a result and let the host decide what each error case looks like on the wire.
 
 ## Installation
 
@@ -39,17 +39,21 @@ non-invasive: a handler that returns something other than an `IResultValue` is l
 ## How a result becomes a response
 
 **Success** — the value is serialized with `SuccessStatusCode` (`200 OK` by default). A result whose successful
-value is itself an `IResult` is passed through untouched, and `SuccessMapper` overrides both when set.
+value is itself an `IResult` is passed through untouched, and `SuccessMapper` overrides both when set. A
+successful unit `Result<TError>` carries no payload, so it answers `204 No Content` unless `SuccessMapper` is set.
 
-**Failure** — the error is resolved to its *case* value (the active case of a union error, or the error itself for
-a non-union error), then mapped in this order:
+**Failure** — the error is resolved to its *case* value (the innermost active case of a union error, so a nested
+union resolves to its leaf; or the error itself for a non-union error), then mapped in this order:
 
-1. a mapping registered for the **case** type — `Map<TenantNotFound>(...)`
-2. a mapping registered for the **error** type — `Map<TenantError>(...)`, which handles every case without its own
+1. a mapping registered for the most specific **case** type — `Map<TenantNotFound>(...)`
+2. a mapping registered for each enclosing **union** type, from the inside out — `Map<BillingError>(...)` handles a
+   whole nested union when its leaf has no mapping of its own
+3. a mapping registered for the **error** type — `Map<TenantError>(...)`, which handles every case without its own
    mapping
-3. the **fallback stage**, in registration order: `AddFallback(...)` delegates and `AddFailureMapper<TMapper>()`
-   mappers share one ordered list; a fallback or mapper returns `null` to defer to the next entry
-4. a `ProblemDetails` response using `UnmappedStatusCode` (`500`), `UnmappedTitle`, and an `errorType` extension
+4. the **fallback stage**, in registration order: `AddFallback(...)` delegates and `AddFailureMapper<TMapper>()`
+   mappers share one ordered list; a fallback or mapper receives the leaf case and returns `null` to defer to the
+   next entry
+5. a `ProblemDetails` response using `UnmappedStatusCode` (`500`), `UnmappedTitle`, and an `errorType` extension
    naming the unmapped case — or an `InvalidOperationException` when `ThrowOnUnmappedFailure` is set
 
 An **uninitialized** result (`default`) takes the same path and is logged, because an endpoint returning `default`
@@ -98,11 +102,11 @@ builder.Services.AddResultsHttp(options => options
     .AddFailureMapper<BlankIdentifierMapper>());
 ```
 
-`ResultsFailureContext` carries the failure's **case** (the active case of a union error, or the error itself),
-the **error** the result carries, and the request. A mapper is resolved from the failing request's services the
-first time it is needed, so it may take its own dependencies in its constructor; register it before the first
-request. A failure that reaches an unregistered mapper throws an `InvalidOperationException` naming the
-registration that is missing.
+`ResultsFailureContext` carries the failure's **case** (the innermost active case of a union error, so a nested
+union resolves to its leaf; or the error itself), the **error** the result carries, and the request. A mapper is
+resolved from the failing request's services the first time it is needed, so it may take its own dependencies in its
+constructor; register it before the first request. A failure that reaches an unregistered mapper throws an
+`InvalidOperationException` naming the registration that is missing.
 
 Answering every failure in a mapper — with a generic problem or a `202`, for example — turns a mapping gap in the
 host into a plausible-looking response, which is exactly what the unmapped-failure path exists to expose. Map the
@@ -135,10 +139,16 @@ Running `Examples.AspNetCore`:
 | `GET /tenants/initech` | `404 Not Found` — the mapping for the `TenantNotFound` case |
 | `GET /tenants/globex/usage` | `403 Forbidden` — the mapping for the `TenantDisabled` case |
 | `POST /tenants/acme` | `409 Conflict` — the mapping for the `TenantError` error type |
+| `DELETE /tenants/hooli` | `204 No Content` — a successful unit `Result<TenantError>` carries no payload |
+| `DELETE /tenants/initech` | `404 Not Found` — the unit result's `TenantNotFound` failure maps by case |
+| `GET /tenants/acme/billing` | `503 Service Unavailable` — the leaf `BillingServiceUnavailable` case of the nested `TenantOperationError` union |
+| `GET /tenants/hooli/billing` | `402 Payment Required` — the leaf `BillingAccountMissing` case |
+| `GET /tenants/initech/billing` | `404 Not Found` — a nested tenant failure resolves to the `TenantNotFound` leaf |
+| `GET /tenants/globex/billing` | `403 Forbidden` — a nested tenant failure resolves to the `TenantDisabled` leaf |
 | `GET /tenants/broken` | `500` with an `errorType` extension, because an endpoint returning `default` is a host bug |
 
 ```bash
-dotnet run --project src/examples/Examples.AspNetCore --urls http://localhost:5215
+dotnet run --project src/src/Examples.AspNetCore --urls http://localhost:5215
 ```
 
 ## Related

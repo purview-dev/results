@@ -7,32 +7,43 @@ namespace Purview.Results.ZodSharp.AspNetCore;
 
 /// <summary>
 /// Configures how a result failure that carries ZodSharp validation errors is rendered, by validation error
-/// <em>code</em> and by <em>category</em>.
+/// <em>code</em>, by <em>category</em> and by <em>origin</em>.
 /// </summary>
 /// <remarks>
 /// <para>
 /// Without a rule, a failure that carries validation errors is rendered as one <c>HttpValidationProblemDetails</c>,
 /// produced by the same mapping a thrown <c>ZodException</c> uses. A rule answers a failure whose errors include
-/// its code (or category) with a response of its own, which is what lets one error code be a plain <c>404</c>
-/// while the rest stay validation problems.
+/// its code (or category, or origin) with a response of its own, which is what lets one error code be a plain
+/// <c>404</c> while the rest stay validation problems.
+/// </para>
+/// <para>
+/// The three axes are the identity a <see cref="ValidationError"/> carries: <see cref="ValidationError.Code"/> is
+/// the specific rule that failed, <see cref="ValidationError.Category"/> is a broad grouping many codes share, and
+/// <see cref="ValidationError.Origin"/> is the structured origin a rule owns (<c>"value_object"</c> for a
+/// type-level rule, <c>"array"</c> for a collection rule, and so on). A code, a category and an origin can each
+/// answer one failure, so a rule that must key off something other than a code — a whole family of rules sharing
+/// an origin — is expressible here.
 /// </para>
 /// <para>
 /// Rules are matched against the failure's whole error set, in this order: every <b>code</b> rule in registration
-/// order, then every <b>category</b> rule in registration order, then the default validation problem. A rule
-/// therefore applies when <em>any</em> of the failure's errors carries its code or category, so registering a code
-/// rule guarantees it is reachable whatever else the schema reported. A factory that wants stricter semantics
-/// returns <see langword="null"/> to decline the failure, and matching continues.
+/// order, then every <b>category</b> rule in registration order, then every <b>origin</b> rule in registration
+/// order, then the default validation problem. A rule therefore applies when <em>any</em> of the failure's errors
+/// carries its code, category or origin, so registering a code rule guarantees it is reachable whatever else the
+/// schema reported. A factory that wants stricter semantics returns <see langword="null"/> to decline the failure,
+/// and matching continues. The order is fixed rather than registration-ordered across axes, because a code is
+/// narrower than a category, which is narrower than an origin: a rule can only narrow what the host already gets.
 /// </para>
 /// <para>
 /// A factory is handed the failure's full error set, so a rule never hides the other problems the caller has to
-/// fix. Register one rule per code or category; registering the same value twice with different behaviour is
-/// rejected at configuration time.
+/// fix. Register one rule per code, category or origin; registering the same value twice with different behaviour
+/// is rejected at configuration time.
 /// </para>
 /// </remarks>
 public sealed class ZodResultsHttpOptions
 {
 	readonly List<ZodErrorRule> _codeRules = [];
 	readonly List<ZodErrorRule> _categoryRules = [];
+	readonly List<ZodErrorRule> _originRules = [];
 
 	/// <summary>
 	/// Renders a validation failure whose errors include <paramref name="code"/> as the standard validation
@@ -110,16 +121,66 @@ public sealed class ZodResultsHttpOptions
 	}
 
 	/// <summary>
+	/// Renders a validation failure whose errors include the <paramref name="origin"/> as the standard validation
+	/// problem with a different default status code.
+	/// </summary>
+	/// <param name="origin">
+	/// The <see cref="ValidationError.Origin"/> the rule applies to — the origin a rule owns, such as
+	/// <c>"value_object"</c> for a type-level rule or <c>"array"</c> for a collection rule.
+	/// </param>
+	/// <param name="statusCode">
+	/// The status code used when <see cref="ZodProblemDetailsOptions.StatusCodeSelector"/> and the resolved error
+	/// type do not define one.
+	/// </param>
+	/// <returns>The options instance for chaining.</returns>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="origin"/> is empty, or already has a rule with different behaviour.
+	/// </exception>
+	public ZodResultsHttpOptions MapOrigin(string origin, int statusCode) => AddOrigin(origin, new(statusCode, null));
+
+	/// <summary>
+	/// Renders a validation failure whose errors include the <paramref name="origin"/> with a response of your own.
+	/// </summary>
+	/// <param name="origin">
+	/// The <see cref="ValidationError.Origin"/> the rule applies to — the origin a rule owns, such as
+	/// <c>"value_object"</c> for a type-level rule or <c>"array"</c> for a collection rule.
+	/// </param>
+	/// <param name="map">
+	/// Creates the response from the failure's validation errors, or returns <see langword="null"/> to decline the
+	/// failure and let matching continue.
+	/// </param>
+	/// <returns>The options instance for chaining.</returns>
+	/// <exception cref="ArgumentException">
+	/// Thrown when <paramref name="origin"/> is empty, or already has a rule with different behaviour.
+	/// </exception>
+	/// <exception cref="ArgumentNullException">Thrown when <paramref name="map"/> is null.</exception>
+	public ZodResultsHttpOptions MapOrigin(
+		string origin,
+		Func<ImmutableArray<ValidationError>, HttpContext, IResult?> map
+	)
+	{
+		ArgumentNullException.ThrowIfNull(map);
+
+		return AddOrigin(origin, new(null, map));
+	}
+
+	/// <summary>
 	/// Finds the rules that could answer a failure, in the order they are consulted.
 	/// </summary>
 	/// <param name="errors">The validation errors the failure carries.</param>
-	/// <returns>Every matching code rule in registration order, then every matching category rule.</returns>
+	/// <returns>
+	/// Every matching code rule in registration order, then every matching category rule, then every matching
+	/// origin rule.
+	/// </returns>
 	internal IEnumerable<ZodErrorRule> Candidates(ImmutableArray<ValidationError> errors)
 	{
 		foreach (var rule in Matches(_codeRules, errors, static error => error.Code))
 			yield return rule;
 
 		foreach (var rule in Matches(_categoryRules, errors, static error => error.Category))
+			yield return rule;
+
+		foreach (var rule in Matches(_originRules, errors, static error => error.Origin))
 			yield return rule;
 	}
 
@@ -128,6 +189,9 @@ public sealed class ZodResultsHttpOptions
 
 	ZodResultsHttpOptions AddCategory(string category, ZodErrorRuleBehaviour behaviour) =>
 		Add(_categoryRules, category, "category", behaviour);
+
+	ZodResultsHttpOptions AddOrigin(string origin, ZodErrorRuleBehaviour behaviour) =>
+		Add(_originRules, origin, "origin", behaviour);
 
 	ZodResultsHttpOptions Add(List<ZodErrorRule> rules, string value, string kind, ZodErrorRuleBehaviour behaviour)
 	{
@@ -177,7 +241,7 @@ public sealed class ZodResultsHttpOptions
 	}
 }
 
-/// <summary>How a code or category rule answers the failures that mention it.</summary>
+/// <summary>How a code, category or origin rule answers the failures that mention it.</summary>
 /// <param name="StatusCode">
 /// The default status code of the validation problem, or <see langword="null"/> when the rule supplies a factory.
 /// </param>
@@ -189,7 +253,7 @@ readonly record struct ZodErrorRuleBehaviour(
 	Func<ImmutableArray<ValidationError>, HttpContext, IResult?>? Map
 );
 
-/// <summary>One registered code or category rule.</summary>
-/// <param name="Value">The error code or category the rule applies to.</param>
+/// <summary>One registered code, category or origin rule.</summary>
+/// <param name="Value">The error code, category or origin the rule applies to.</param>
 /// <param name="Behaviour">How the rule answers a failure that mentions the value.</param>
 sealed record ZodErrorRule(string Value, ZodErrorRuleBehaviour Behaviour);

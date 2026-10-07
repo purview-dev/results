@@ -17,7 +17,7 @@ public record ResultsSourceGeneratorTestOptions : AnalyzerTestOptions
 	/// <summary>
 	/// The MSBuild/analyzer-config property that disables the generator.
 	/// </summary>
-	public const string DisableGeneratorProperty = "ResultsSourceGenerator_Disable";
+	public const string DisableGeneratorProperty = "DisableResultsSourceGenerator";
 
 	/// <summary>
 	/// The hint names of the sources emitted during post-initialization, which are excluded from the
@@ -38,7 +38,7 @@ public record ResultsSourceGeneratorTestOptions : AnalyzerTestOptions
 		LanguageVersion = Microsoft.CodeAnalysis.CSharp.LanguageVersion.Preview;
 
 		AdditionalAssemblyTypes = AdditionalAssemblyTypes.AddRange(typeof(Result<,>));
-		AdditionalNamespaces = AdditionalNamespaces.Add("Purview.Results").Add("Purview.Results.SourceGeneration");
+		AdditionalNamespaces = AdditionalNamespaces.Add("Purview.Results");
 
 		DisableSourceGeneratorPropertyName = DisableGeneratorProperty;
 		ExcludeGeneratedSourceHintNames = [.. PostInitializationHintNames];

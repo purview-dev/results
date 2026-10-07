@@ -48,6 +48,21 @@ if (!validated.IsSuccess)
 return await ReconcileCoreAsync(validated.Value, repositories, cancellationToken);
 ```
 
+## Validating without producing a value
+
+When the method reports only why an input was rejected, `ToUnitResult` discards the validated value and returns a
+unit `Result<TError>`. It still names the validated value type — a union case does not carry its union — but the
+success holds the `Success` marker rather than the value:
+
+```csharp
+Result<TenantError> Validate(TenantInput input) =>
+    TenantInputSchema
+        .Validate(input)
+        .ToUnitResult<TenantInput, TenantError>(errors => new TenantInputInvalid(input, errors));
+```
+
+Use `ToResult` when the success has to carry the validated value, and `ToUnitResult` when it does not.
+
 ## Carrying validation errors in the error value
 
 `IValidationErrorCarrier` is implemented by an error value that carries ZodSharp validation errors, so an HTTP
@@ -62,7 +77,9 @@ public readonly record struct TenantInputInvalid(TenantInput Input, ImmutableArr
 ```
 
 `IValidationErrorCarrier` exposes a single `ValidationErrors` member, preserving each `ValidationError`'s code,
-category, path and parameters.
+origin, category, path and parameters. The **origin** is the structured origin a rule owns (`"value_object"` for a
+type-level rule, `"array"` for a collection rule), which is how an HTTP layer can answer a whole family of rules
+without naming each code.
 
 [ZodSharp Problem Details](ZodSharp-ProblemDetails.md) consumes the interface; without it, a host would have to
 map every validation-carrying error individually.
@@ -72,6 +89,7 @@ map every validation-carrying error individually.
 | Member | Purpose |
 | --- | --- |
 | `ValidationResult<TValue>.ToResult<TValue, TError>(Func<ImmutableArray<ValidationError>, TError> onFailure)` | Success carries the validated value; failure carries the created error. `onFailure` runs only when validation failed, so a successful validation allocates no error |
+| `ValidationResult<TValue>.ToUnitResult<TValue, TError>(Func<ImmutableArray<ValidationError>, TError> onFailure)` | The value-discarding counterpart: success is a unit `Result<TError>`, failure carries the created error |
 | `IValidationErrorCarrier` | Implemented by an error value that carries ZodSharp validation errors |
 
 A factory returning a **result** rather than an error is deliberately not offered: for a lambda returning
@@ -81,7 +99,7 @@ Naming the error type explicitly keeps the intent unambiguous.
 ## Example
 
 ```bash
-dotnet run --project src/examples/Examples.Zod
+dotnet run --project src/src/Examples.Zod
 ```
 
 `Examples.Zod` validates a `[ZodSchema] TenantInput` and turns the outcome into a `Result<Tenant, TenantError>`,

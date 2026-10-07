@@ -3,11 +3,45 @@
 		<NamespacePrefix>Purview.Results</NamespacePrefix>
 		<RepositoryUrl>https://github.com/purview-dev/results</RepositoryUrl>
 
-		<!-- .NET 11 + Preview stuff! -->
-		<TargetFramework>net11.0</TargetFramework>
+		<!--
+			.NET 10 and .NET 11. Consumers choose: .NET 10 is the current long-term line, .NET 11 is where
+			the union work lands. Targeting both means adopting these packages does not force a runtime
+			upgrade. .NET 8 and 9 are deliberately not targeted — both are close to end of support.
+
+			That is exactly Purview.BuildSdk's 'Supported' set, so the list is selected rather than spelled
+			out here: a runtime lifecycle change becomes an SDK bump instead of an edit in this file.
+		-->
+		<PurviewTargetFrameworkSet>Supported</PurviewTargetFrameworkSet>
 		<LangVersion>preview</LangVersion>
-		<EnablePreviewFeatures>true</EnablePreviewFeatures>
-		<Features>$(Features);runtime-async=on</Features>
+
+		<!--
+			Runtime async is a .NET 11 experiment, so it is scoped to that target framework. On net10.0 it
+			lowers await to System.Runtime.CompilerServices.AsyncHelpers, which is evaluation-only and fails
+			the build with SYSLIB5007 — the API is explicitly subject to change or removal. The compiled
+			async behaviour differs between the two targets as a result, which is the point: a net10.0
+			consumer gets the stable lowering.
+		-->
+		<Features Condition="'$(TargetFramework)' == 'net11.0'">$(Features);runtime-async=on</Features>
+
+		<!--
+			EnablePreviewFeatures is deliberately NOT set.
+
+			Setting it emits [assembly: RequiresPreviewFeatures] into every shipped assembly, which makes
+			CA2252 (error severity by default) fire on every member a consumer touches. That is
+			assembly-wide, so it applied even to Result<TValue, TError>, which uses no union feature — a
+			consuming application could not adopt the result type at all without turning preview features
+			on solution-wide. Partial adoption was impossible.
+
+			It is also unnecessary: union declarations are a *language* feature and need only
+			LangVersion=preview. Every project here, including the union-declaring examples and tests,
+			compiles without EnablePreviewFeatures. It gates runtime APIs annotated
+			[RequiresPreviewFeatures], and nothing in this repository uses one.
+
+			A consumer that declares its own [GenerateResult] union still needs LangVersion=preview in
+			its own project, because the union syntax is theirs to compile. A consumer that only uses the
+			result types needs nothing special. Do not reintroduce this property without re-reading
+			docs/wiki/Getting-Started.md, which documents that distinction.
+		-->
 
 		<!--
 			These packages are deliberately dependency-light: no telemetry generator, no Microsoft.Extensions
@@ -15,10 +49,15 @@
 			are excluded repo-wide.
 		-->
 		<ExcludePurviewTelemetry>true</ExcludePurviewTelemetry>
-		<ExcludeMSTelemetryExtension>true</ExcludeMSTelemetryExtension>
 	</PropertyGroup>
 
 	<Import Sdk="Purview.BuildSdk" Project="Sdk.props" />
+
+	<ItemGroup>
+		<NamespaceRemoveSuffix Remove="SourceGenerator" />
+		<NamespaceRemoveSuffix Remove="CodeFixes" />
+		<NamespaceRemoveSuffix Remove="Analyzers" />
+	</ItemGroup>
 
 	<!--
 		Package metadata lives after the SDK import so it can use SDK-provided values such as

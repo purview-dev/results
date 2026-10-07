@@ -7,8 +7,8 @@ GitHub Actions workflows in `.github/workflows/`. Consuming repositories own con
 ## Versioning
 
 `package.json` is the authoritative release and package version; every package is versioned from it by
-`Purview.BuildSdk`. Never diverge a project's version by hand. The current line is `1.0.0-prerelease.1`; a
-prerelease uses a `MAJOR.MINOR.PATCH-prerelease.N` suffix.
+`Purview.BuildSdk`. Never diverge a project's version by hand. Read the current line from `package.json`
+(`just version`) rather than from this page; a prerelease uses a `MAJOR.MINOR.PATCH-prerelease.N` suffix.
 
 ## Workflows
 
@@ -43,10 +43,11 @@ removed PDB, a renamed analyzer.
 
 ## Packed shapes that must not regress
 
-- `Purview.Results.SourceGenerator` ships its merged analyzer under `analyzers/dotnet/cs/` with **no `lib/`
-  folder** and **no PDB** (`PurviewPackAnalyzerPdb=false`), because the packaged analyzer is the framework's
-  ILRepack-merged assembly whose rewritten PDB carries no Roslyn compiler-flags record. The `CS0029` code fix
-  ships beside it as `Purview.Results.SourceGenerator.CodeFixes.dll` and is never IL-merged into the generator.
+- `Purview.Results` ships the merged source generator under `analyzers/dotnet/cs/` with **no `lib/` folder**
+  and **no PDB**, because the packaged analyzer is the framework's ILRepack-merged assembly whose rewritten PDB
+  carries no Roslyn compiler-flags record. The `CS0029` code fix ships beside it as
+  `Purview.Results.SourceGenerator.CodeFixes.dll` and is never IL-merged into the generator. The generator is
+  not published as a separate package.
 - The library packages ship `lib/<tfm>/<assembly>.dll` plus the XML documentation file, and a symbol package.
 - Every package ships its `README.md`, its `.agents/**` content and `purview-logo-light.png`.
 
@@ -55,8 +56,8 @@ The framework assembly must never appear loose beside the merged analyzer — `F
 
 ## Analyzer release tracking
 
-`Purview.Results.SourceGenerator` ships public diagnostics (`RSG1000`–`RSG1007`), so it maintains the Roslyn
-release-tracking files. New or changed rules go in
+The generator bundled in `Purview.Results` ships public diagnostics (`RSG1000`–`RSG1008`), so it maintains the
+Roslyn release-tracking files. New or changed rules go in
 `src/src/SourceGenerator/AnalyzerReleases.Unshipped.md`, which the compiler's RS2008 catalogue validates during
 the build. `RSG2000` is a *suppression* id, not a reported rule, so it must not appear there.
 

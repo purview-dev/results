@@ -5,8 +5,8 @@ description: "Use when an ASP.NET Core endpoint returns Purview.Results values �
 
 # Mapping results onto ASP.NET Core responses
 
-Use this skill when a minimal-API endpoint, or any handler, returns `Result<TValue, TError>` and the host has to
-decide what each error case looks like on the wire.
+Use this skill when a minimal-API endpoint, or any handler, returns `Result<TValue, TError>` or the value-less
+`Result<TError>` and the host has to decide what each error case looks like on the wire.
 
 ## Registration
 
@@ -38,22 +38,25 @@ app.MapGet("/tenants/{id:int}", (int id) => GetTenant(id)).WithResultsHttp();
 
 1. `SuccessMapper` when set — it replaces the default entirely.
 2. A successful value that is itself an `IResult` is passed through untouched.
-3. Otherwise the value is serialized: `200 OK` for the default status code, `TypedResults.Json(value,
+3. A successful unit `Result<TError>` carries no payload, so it answers `204 No Content`.
+4. Otherwise the value is serialized: `200 OK` for the default status code, `TypedResults.Json(value,
    statusCode: …)` when `SuccessStatusCode` was changed.
 
-**Failure** — the error is resolved to its *case* value (the active union case, or the error itself when it is
-not a union), then:
+**Failure** — the error is resolved to its *case* value (the innermost active union case, so a nested union
+resolves to its leaf; or the error itself when it is not a union), then:
 
-1. the mapping registered for the **case** type — `Map<TenantNotFound>(…)`;
-2. the mapping registered for the **error** type — `Map<TenantError>(…)`, which covers every case without its
+1. the mapping registered for the most specific **case** type — `Map<TenantNotFound>(…)`;
+2. the mapping registered for each enclosing **union** type, from the inside out — `Map<BillingError>(…)` handles
+   a whole nested union when its leaf has no mapping;
+3. the mapping registered for the **error** type — `Map<TenantError>(…)`, which covers every case without its
    own mapping;
-3. the **fallback stage**, in registration order — `AddFallback(...)` delegates and
+4. the **fallback stage**, in registration order — `AddFallback(...)` delegates and
    `AddFailureMapper<TMapper>()` mappers share this one list, so whichever was registered first is consulted
    first; returning `null` defers to the next entry;
-4. the **unmapped-failure** response.
+5. the **unmapped-failure** response.
 
-Registering the same type twice replaces the earlier mapping. Fallbacks receive the *case* value, so a fallback
-never has to unwrap the union itself.
+Registering the same type twice replaces the earlier mapping. Fallbacks receive the *leaf* case value, so a
+fallback never has to unwrap the union itself.
 
 ## Shape-based rules
 
@@ -73,8 +76,8 @@ builder.Services.AddSingleton<BlankIdentifierMapper>();
 builder.Services.AddResultsHttp(options => options.AddFailureMapper<BlankIdentifierMapper>());
 ```
 
-- `ResultsFailureContext` carries `Case` (the active case, or the error itself for a non-union error), `Error`
-  (the union or error value as a whole) and `HttpContext`.
+- `ResultsFailureContext` carries `Case` (the innermost active case, so a nested union resolves to its leaf; or
+  the error itself for a non-union error), `Error` (the union or error value as a whole) and `HttpContext`.
 - The mapper is resolved from the request's services, so it may take dependencies in its constructor; register
   it before the first request or the failure throws an `InvalidOperationException` naming what is missing.
 - A mapper shares the fallback list with `AddFallback`, so **registering it earlier makes it win** — that is how

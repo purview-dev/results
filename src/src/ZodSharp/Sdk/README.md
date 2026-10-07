@@ -46,11 +46,13 @@ return await ReconcileCoreAsync(validated.Value, repositories, cancellationToken
 | Member | Purpose |
 | --- | --- |
 | `ValidationResult<TValue>.ToResult<TValue, TError>(Func<ImmutableArray<ValidationError>, TError> onFailure)` | Success carries the validated value; failure carries the created error. `onFailure` runs only when validation failed, so a successful validation allocates no error |
+| `ValidationResult<TValue>.ToUnitResult<TValue, TError>(Func<ImmutableArray<ValidationError>, TError> onFailure)` | The value-discarding counterpart: success is a unit `Result<TError>` and failure carries the created error. Use it when the method reports only why the input was rejected |
 | `IValidationErrorCarrier` | Implemented by an error value that carries ZodSharp validation errors, so an HTTP layer can turn it into a validation problem without knowing the error type |
 
 The error type must be named explicitly when it is a union, as in
 `ToResult<RepositoryReconciliationResult, ReconciliationError>(...)`, because a union case does not carry the
-union type that contains it.
+union type that contains it. `ToUnitResult` still names the validated value type for the same reason, even though
+it discards it.
 
 A factory returning a result rather than an error is deliberately **not** offered: for a lambda returning
 `Result<TValue, TError>` the compiler prefers a `Func<..., TError>` parameter and would silently nest the
@@ -58,16 +60,16 @@ results. Naming the error type explicitly keeps the intent unambiguous.
 
 ## Examples
 
-[`src/examples/Examples.Zod`](https://github.com/purview-dev/results/tree/main/src/examples/Examples.Zod) is a
+[`src/src/Examples.Zod`](https://github.com/purview-dev/results/tree/main/src/src/Examples.Zod) is a
 runnable console example that validates a `[ZodSchema] TenantInput` and turns the outcome into a
 `Result<Tenant, TenantError>`, with the rejection carrying its reported `ValidationError`s.
 
 ```bash
-dotnet run --project src/examples/Examples.Zod
+dotnet run --project src/src/Examples.Zod
 ```
 
-The [repository README](https://github.com/purview-dev/results#examples) lists the Basic, ASP.NET Core and
-ASP.NET Core + Zod examples too.
+The [repository README](https://github.com/purview-dev/results#examples) lists the Basic, ASP.NET Core,
+ASP.NET Core + Zod and value-objects composition examples too.
 
 ## Related packages
 

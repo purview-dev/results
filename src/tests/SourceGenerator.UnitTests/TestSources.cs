@@ -10,7 +10,7 @@ static class TestSources
 	/// running the generator (which is what emits the attribute in a real compilation).
 	/// </summary>
 	public const string GenerateResultAttributeDeclaration = """
-		namespace Purview.Results.SourceGeneration
+		namespace Purview.Results
 		{
 			[System.AttributeUsage(
 				System.AttributeTargets.Class

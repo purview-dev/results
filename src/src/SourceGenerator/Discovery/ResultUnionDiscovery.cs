@@ -1,11 +1,15 @@
 using System.Collections.Immutable;
 using System.Text;
 using Microsoft.CodeAnalysis;
-using Purview.Results.SourceGeneration.Diagnostics;
-using Purview.Results.SourceGeneration.Helpers;
-using Purview.Results.SourceGeneration.Models;
+using Purview.Results.SourceGenerator.Diagnostics;
+using Purview.Results.SourceGenerator.Helpers;
+using Purview.Results.SourceGenerator.Models;
 
-namespace Purview.Results.SourceGeneration.Discovery;
+// The language's union support is a preview feature of C# 15; ITypeSymbol.IsUnion is marked
+// [Experimental] until the feature ships, and this discovery deliberately targets it.
+#pragma warning disable RSEXPERIMENTAL006
+
+namespace Purview.Results.SourceGenerator.Discovery;
 
 /// <summary>
 /// Converts an opted-in attribute target into the immutable <see cref="ResultUnionModel"/> the pipeline
@@ -51,6 +55,8 @@ static class ResultUnionDiscovery
 			: union.ContainingNamespace.ToDisplayString();
 
 		var extensionClassName = CreateExtensionClassName(union);
+		var cases = CreateCaseModels(analysis.CaseTypes);
+		var includedCases = CreateIncludedCaseModels(analysis.IncludedCases);
 
 		return GeneratorResult<ResultUnionModel>.Create(
 			new ResultUnionModel(
@@ -66,7 +72,9 @@ static class ResultUnionDiscovery
 					? extensionClassName + ".g.cs"
 					: namespaceName + "." + extensionClassName + ".g.cs",
 				Location: ToSourceLocation(union),
-				Cases: CreateCaseModels(analysis.CaseTypes)
+				Cases: cases,
+				HelperCases: cases,
+				IncludedCases: includedCases
 			),
 			diagnostics
 		);
@@ -93,7 +101,33 @@ static class ResultUnionDiscovery
 			cases.Add(
 				new ResultUnionCaseModel(
 					TypeReference.Create(caseType),
-					caseType.ToDisplayString(ResultUnionDiagnostics.DisplayFormat)
+					caseType.ToDisplayString(ResultUnionDiagnostics.DisplayFormat),
+					caseType.IsUnion
+				)
+			);
+		}
+
+		return cases
+			.ToImmutable()
+			.Sort(static (left, right) => string.CompareOrdinal(left.FullyQualifiedName, right.FullyQualifiedName));
+	}
+
+	static EquatableArray<IncludedUnionCaseModel> CreateIncludedCaseModels(
+		ImmutableArray<ResultUnionIncludedCase> includedCases
+	)
+	{
+		if (includedCases.IsDefaultOrEmpty)
+			return EquatableArray<IncludedUnionCaseModel>.Empty;
+
+		var cases = ImmutableArray.CreateBuilder<IncludedUnionCaseModel>(includedCases.Length);
+
+		foreach (var includedCase in includedCases)
+		{
+			cases.Add(
+				new IncludedUnionCaseModel(
+					TypeReference.Create(includedCase.CaseType),
+					includedCase.CaseType.ToDisplayString(ResultUnionDiagnostics.DisplayFormat),
+					includedCase.UnionPath.Select(static unionType => new TypeIdentity(unionType)).ToImmutableArray()
 				)
 			);
 		}

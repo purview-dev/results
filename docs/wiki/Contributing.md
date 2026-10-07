@@ -9,7 +9,7 @@ Contributions are welcome. Open an issue or a pull request against
 src/
   Results.slnx              Canonical solution for restore, build, test and pack
   src/
-    Results/                Result<TValue, TError>, Result factories, IResultValue
+    Results/                Result<TValue, TError>, Result<TError>, Result factories, IResultValue
     SourceGenerator/         Roslyn incremental generator + analyzer + [GenerateResult]
     SourceGenerator.CodeFixes/  CS0029 code fix for returning a bare union case
     AspNetCore/             Result-to-response mapping, endpoint filter, DI registration

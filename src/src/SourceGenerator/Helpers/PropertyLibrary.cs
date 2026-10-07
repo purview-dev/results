@@ -1,4 +1,4 @@
-namespace Purview.Results.SourceGeneration.Helpers;
+namespace Purview.Results.SourceGenerator.Helpers;
 
 /// <summary>
 /// Contains the names, hint names and build properties used by the results source generator.
@@ -12,12 +12,6 @@ static class PropertyLibrary
 	public const string ResultsNamespace = "Purview.Results";
 
 	/// <summary>
-	/// The namespace of the <c>GenerateResultAttribute</c> opt-in attribute generated into consuming
-	/// assemblies.
-	/// </summary>
-	public const string SourceGenerationNamespace = "Purview.Results.SourceGeneration";
-
-	/// <summary>
 	/// The metadata name of the generated opt-in attribute.
 	/// </summary>
 	public const string GenerateResultAttributeName = "GenerateResultAttribute";
@@ -25,7 +19,7 @@ static class PropertyLibrary
 	/// <summary>
 	/// The MSBuild property that disables the generator when set to <see langword="true"/>.
 	/// </summary>
-	public const string DisableGenerator = "ResultsSourceGenerator_Disable";
+	public const string DisableGenerator = "DisableResultsSourceGenerator";
 
 	/// <summary>
 	/// The hint name of the generated opt-in attribute source.
@@ -43,6 +37,18 @@ static class PropertyLibrary
 	public const string FailureHelperName = "AsFailure";
 
 	/// <summary>
+	/// The name of the generated union-receiver failure factory method, declared as a static extension
+	/// member on the union type so the union is named by the receiver.
+	/// </summary>
+	public const string FailureFactoryName = "Failure";
+
+	/// <summary>
+	/// The name of the generated union-receiver success factory method, declared as a static extension
+	/// member on the union type so the union is named by the receiver.
+	/// </summary>
+	public const string SuccessFactoryName = "Success";
+
+	/// <summary>
 	/// The name of the generic value type parameter used by the generated helpers.
 	/// </summary>
 	public const string ValueTypeParameterName = "TValue";
@@ -53,9 +59,21 @@ static class PropertyLibrary
 	public const string ErrorParameterName = "error";
 
 	/// <summary>
+	/// The name of the value parameter used by the generated success factory.
+	/// </summary>
+	public const string ValueParameterName = "value";
+
+	/// <summary>
 	/// The fully-qualified name of the runtime <c>Result&lt;TValue, TError&gt;</c> type, used when the
 	/// generated source is described in XML documentation. The value is raw, so callers escape it with
 	/// <see cref="DocText.Escape"/> before it is written into documentation text.
 	/// </summary>
 	public const string ResultTypeName = ResultsNamespace + ".Result<TValue, TError>";
+
+	/// <summary>
+	/// The fully-qualified name of the runtime <c>Result&lt;TError&gt;</c> unit result type, used when the
+	/// generated source is described in XML documentation. The value is raw, so callers escape it with
+	/// <see cref="DocText.Escape"/> before it is written into documentation text.
+	/// </summary>
+	public const string ResultUnitTypeName = ResultsNamespace + ".Result<TError>";
 }

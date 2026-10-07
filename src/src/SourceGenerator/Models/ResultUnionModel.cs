@@ -1,7 +1,7 @@
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
 
-namespace Purview.Results.SourceGeneration.Models;
+namespace Purview.Results.SourceGenerator.Models;
 
 /// <summary>
 /// A cache-safe description of a source location: the originating file path plus spans.
@@ -48,12 +48,41 @@ readonly record struct ResultSourceLocation(string FilePath, TextSpan TextSpan, 
 /// <param name="FullyQualifiedName">
 /// The fully-qualified display name of the case type, used for diagnostics and deterministic ordering.
 /// </param>
-readonly record struct ResultUnionCaseModel(TypeReference CaseType, string FullyQualifiedName)
+/// <param name="IsUnionCase">
+/// Whether the case type is itself a union. A union-typed case is an <em>included</em> union: its own
+/// cases are reachable through it, and sharing it across unions is the intended composition pattern.
+/// </param>
+readonly record struct ResultUnionCaseModel(TypeReference CaseType, string FullyQualifiedName, bool IsUnionCase)
 {
 	/// <summary>
 	/// Gets an empty case model.
 	/// </summary>
 	public static readonly ResultUnionCaseModel Empty;
+}
+
+/// <summary>
+/// Describes one case that a union exposes through an included union rather than declaring directly.
+/// </summary>
+/// <param name="CaseType">
+/// The reference to the transitively reachable case type.
+/// </param>
+/// <param name="FullyQualifiedName">
+/// The fully-qualified display name of the case type, used for deterministic ordering.
+/// </param>
+/// <param name="UnionPath">
+/// The chain of unions that must be constructed to reach the case, innermost first. The generated
+/// factory wraps the case in each union in order and finally in the declaring union.
+/// </param>
+readonly record struct IncludedUnionCaseModel(
+	TypeReference CaseType,
+	string FullyQualifiedName,
+	EquatableArray<TypeIdentity> UnionPath
+)
+{
+	/// <summary>
+	/// Gets an empty included case model.
+	/// </summary>
+	public static readonly IncludedUnionCaseModel Empty;
 }
 
 /// <summary>
@@ -72,7 +101,21 @@ readonly record struct ResultUnionCaseModel(TypeReference CaseType, string Fully
 /// <param name="HintName">The deterministic hint name of the generated source file.</param>
 /// <param name="Location">The declaration location of the union.</param>
 /// <param name="Cases">
-/// The union's case types in deterministic (ordinal, fully-qualified name) order.
+/// The union's full set of case types in deterministic (ordinal, fully-qualified name) order. The
+/// union-receiver factory is generated for every one of these, including a case type shared with another
+/// union.
+/// </param>
+/// <param name="HelperCases">
+/// The subset of <paramref name="Cases"/> whose per-case <c>AsFailure</c> helpers are generated for this
+/// union. A leaf case type shared with another union is owned by the union that sorts first, so it is
+/// absent here for the others; a union-typed case shared with another union is absent for every union,
+/// because its per-case helper would be ambiguous and the union-receiver factory is the safe form. The
+/// union-receiver factory still covers every case through <paramref name="Cases"/>.
+/// </param>
+/// <param name="IncludedCases">
+/// The case types reachable through the union's included (union-typed) cases, in deterministic order. The
+/// union-receiver factory is generated for each of these as well, so a case of an included union can be
+/// converted by naming this union.
 /// </param>
 readonly record struct ResultUnionModel(
 	string Namespace,
@@ -83,7 +126,9 @@ readonly record struct ResultUnionModel(
 	string ExtensionClassName,
 	string HintName,
 	ResultSourceLocation Location,
-	EquatableArray<ResultUnionCaseModel> Cases
+	EquatableArray<ResultUnionCaseModel> Cases,
+	EquatableArray<ResultUnionCaseModel> HelperCases,
+	EquatableArray<IncludedUnionCaseModel> IncludedCases
 )
 {
 	/// <summary>

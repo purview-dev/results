@@ -1,12 +1,24 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
-using Purview.Results.SourceGeneration.Helpers;
+using Purview.Results.SourceGenerator.Helpers;
 
 // The language's union support is a preview feature of C# 15; ITypeSymbol.IsUnion is marked
 // [Experimental] until the feature ships, and this analysis deliberately targets it.
 #pragma warning disable RSEXPERIMENTAL006
 
-namespace Purview.Results.SourceGeneration.Diagnostics;
+namespace Purview.Results.SourceGenerator.Diagnostics;
+
+/// <summary>
+/// Describes one case a union exposes through an included (union-typed) case rather than declaring it
+/// directly, together with the chain of unions that must be constructed to reach it.
+/// </summary>
+/// <param name="CaseType">The transitively reachable case type.</param>
+/// <param name="UnionPath">
+/// The chain of unions that must be constructed to reach the case, innermost first. The declaring union is
+/// not part of the path; the generated factory wraps the case in each path union and finally in the
+/// declaring union.
+/// </param>
+readonly record struct ResultUnionIncludedCase(INamedTypeSymbol CaseType, ImmutableArray<INamedTypeSymbol> UnionPath);
 
 /// <summary>
 /// The outcome of analyzing one opted-in target, shared by the analyzer (which reports
@@ -19,6 +31,9 @@ namespace Purview.Results.SourceGeneration.Diagnostics;
 /// <param name="UnionIsPublic">Whether the union is public.</param>
 /// <param name="EveryCaseIsPublic">Whether every usable case type is public.</param>
 /// <param name="CaseTypes">The usable case types, in constructor order.</param>
+/// <param name="IncludedCases">
+/// The case types reachable through the union's included (union-typed) cases, in discovery order.
+/// </param>
 /// <param name="Diagnostics">Every finding, in discovery order.</param>
 readonly record struct ResultUnionTargetAnalysis(
 	bool HasGenerateResultAttribute,
@@ -27,6 +42,7 @@ readonly record struct ResultUnionTargetAnalysis(
 	bool UnionIsPublic,
 	bool EveryCaseIsPublic,
 	ImmutableArray<INamedTypeSymbol> CaseTypes,
+	ImmutableArray<ResultUnionIncludedCase> IncludedCases,
 	ImmutableArray<ResultDiagnostic> Diagnostics
 )
 {
@@ -134,6 +150,7 @@ static class ResultUnionDiagnostics
 				UnionIsPublic: false,
 				EveryCaseIsPublic: false,
 				CaseTypes: [],
+				IncludedCases: [],
 				Diagnostics: []
 			);
 		}
@@ -151,6 +168,7 @@ static class ResultUnionDiagnostics
 				UnionIsPublic: false,
 				EveryCaseIsPublic: false,
 				CaseTypes: [],
+				IncludedCases: [],
 				Diagnostics:
 				[
 					ResultDiagnostic.Create(
@@ -223,12 +241,21 @@ static class ResultUnionDiagnostics
 				UnionIsPublic: unionIsPublic,
 				EveryCaseIsPublic: false,
 				CaseTypes: [],
+				IncludedCases: [],
 				Diagnostics: diagnostics.ToImmutable()
 			);
 		}
 
 		var everyCaseIsPublic = true;
 		var caseTypes = AnalyzeCases(symbol, diagnostics, ref everyCaseIsPublic, cancellationToken);
+		var includedCases = AnalyzeIncludedCases(
+			symbol,
+			caseTypes,
+			attributeLocation,
+			diagnostics,
+			ref everyCaseIsPublic,
+			cancellationToken
+		);
 
 		if (caseTypes.Length == 0)
 		{
@@ -249,6 +276,7 @@ static class ResultUnionDiagnostics
 			UnionIsPublic: unionIsPublic,
 			EveryCaseIsPublic: everyCaseIsPublic,
 			CaseTypes: caseTypes,
+			IncludedCases: includedCases,
 			Diagnostics: diagnostics.ToImmutable()
 		);
 	}
@@ -305,11 +333,211 @@ static class ResultUnionDiagnostics
 				continue;
 			}
 
+			// The accessibility and type-parameter checks above both accept an array type, so the case can
+			// reach here without being a named type. The generated helpers and the union-receiver factory
+			// are declared against a named type, so report and skip rather than casting — the cast threw
+			// InvalidCastException out of the generator, which discarded every other union's output too.
+			if (caseType is not INamedTypeSymbol namedCaseType)
+			{
+				diagnostics.Add(
+					ResultDiagnostic.Create(
+						DiagnosticLibrary.UnsupportedCaseType,
+						DiagnosticScope.Case,
+						caseLocation,
+						displayName
+					)
+				);
+				continue;
+			}
+
 			everyCaseIsPublic &= caseIsPublic;
-			caseTypes.Add((INamedTypeSymbol)caseType);
+			caseTypes.Add(namedCaseType);
 		}
 
 		return caseTypes.ToImmutable();
+	}
+
+	/// <summary>
+	/// Expands the union's included (union-typed) cases transitively, so the union-receiver factory can
+	/// convert a case of an included union by naming this union.
+	/// </summary>
+	/// <remarks>
+	/// <para>
+	/// A union-typed case is an <em>inclusion</em>: the value is wrapped in the included union, so the
+	/// runtime value is nested (<c>Outer(Inner(leaf))</c>). The recorded path is that nesting, innermost
+	/// first, and the generated factory wraps the case in each union in order.
+	/// </para>
+	/// <para>
+	/// A case reachable through two different included unions cannot be constructed unambiguously; it is
+	/// reported as <c>RSG1008</c> and its inclusion factory is skipped. A case whose construction path
+	/// passes through an ambiguous union is skipped for the same reason.
+	/// </para>
+	/// </remarks>
+	static ImmutableArray<ResultUnionIncludedCase> AnalyzeIncludedCases(
+		INamedTypeSymbol union,
+		ImmutableArray<INamedTypeSymbol> caseTypes,
+		Location reportLocation,
+		ImmutableArray<ResultDiagnostic>.Builder diagnostics,
+		ref bool everyCaseIsPublic,
+		CancellationToken cancellationToken
+	)
+	{
+		HashSet<INamedTypeSymbol> directCases = new(SymbolEqualityComparer.Default);
+		foreach (var caseType in caseTypes)
+			directCases.Add(caseType);
+
+		Dictionary<INamedTypeSymbol, ImmutableArray<INamedTypeSymbol>> paths = new(SymbolEqualityComparer.Default);
+		HashSet<INamedTypeSymbol> ambiguous = [with(SymbolEqualityComparer.Default)];
+		HashSet<INamedTypeSymbol> stack = [with(SymbolEqualityComparer.Default)];
+
+		foreach (var caseType in caseTypes)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+
+			if (caseType.IsUnion)
+				Walk(caseType, []);
+		}
+
+		if (paths.Count == 0)
+			return [];
+
+		var results = ImmutableArray.CreateBuilder<ResultUnionIncludedCase>(paths.Count);
+
+		foreach (
+			var pair in paths.OrderBy(static pair => pair.Key.ToDisplayString(DisplayFormat), StringComparer.Ordinal)
+		)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+
+			var caseType = pair.Key;
+			var path = pair.Value;
+
+			// A case is ambiguous when it is reachable through two included unions, or when any union in its
+			// construction path is itself ambiguous: the second path would construct a different value.
+			if (ambiguous.Contains(caseType) || path.Any(ambiguous.Contains))
+				continue;
+
+			// Every type the generated factory references must be referenceable from generated code; a
+			// non-public one narrows the generated class rather than dropping the case.
+			var referenceable = TryGetReferenceableAccessibility(caseType, out var caseIsPublic);
+			foreach (var pathUnion in path)
+			{
+				if (!TryGetReferenceableAccessibility(pathUnion, out var pathIsPublic))
+				{
+					referenceable = false;
+					break;
+				}
+
+				caseIsPublic &= pathIsPublic;
+			}
+
+			if (!referenceable)
+				continue;
+
+			everyCaseIsPublic &= caseIsPublic;
+			results.Add(new ResultUnionIncludedCase(caseType, path));
+		}
+
+		foreach (var caseType in ambiguous)
+		{
+			diagnostics.Add(
+				ResultDiagnostic.Create(
+					DiagnosticLibrary.AmbiguousIncludedCase,
+					DiagnosticScope.Union,
+					reportLocation,
+					caseType.ToDisplayString(DisplayFormat),
+					union.ToDisplayString(DisplayFormat)
+				)
+			);
+		}
+
+		return results.ToImmutable();
+
+		void Walk(INamedTypeSymbol currentUnion, ImmutableArray<INamedTypeSymbol> parentPath)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+
+			// The declaring union is never its own inclusion, and a union already on the current path is a
+			// cycle: neither can be constructed.
+			if (SymbolEqualityComparer.Default.Equals(currentUnion, union))
+				return;
+
+			if (!stack.Add(currentUnion))
+				return;
+
+			foreach (var caseType in GetUsableCaseTypes(currentUnion))
+			{
+				if (
+					SymbolEqualityComparer.Default.Equals(caseType, union)
+					|| directCases.Contains(caseType)
+					|| stack.Contains(caseType)
+				)
+					continue;
+
+				var path = ImmutableArray.Create(currentUnion).AddRange(parentPath);
+
+				if (paths.TryGetValue(caseType, out var existing))
+				{
+					if (!PathsEqual(existing, path))
+						ambiguous.Add(caseType);
+
+					continue;
+				}
+
+				paths.Add(caseType, path);
+
+				if (caseType.IsUnion)
+					Walk(caseType, path);
+			}
+
+			stack.Remove(currentUnion);
+		}
+	}
+
+	/// <summary>
+	/// Resolves an included union's usable case types without reporting findings, which are reported when
+	/// that union is itself analyzed as an opted-in target.
+	/// </summary>
+	static ImmutableArray<INamedTypeSymbol> GetUsableCaseTypes(INamedTypeSymbol union)
+	{
+		var caseTypes = ImmutableArray.CreateBuilder<INamedTypeSymbol>();
+
+		foreach (var constructor in union.InstanceConstructors)
+		{
+			if (!IsCaseConstructor(constructor))
+				continue;
+
+			var caseType = constructor.Parameters[0].Type;
+			if (ContainsTypeParameters(caseType))
+				continue;
+
+			if (!TryGetReferenceableAccessibility(caseType, out _))
+				continue;
+
+			// An array type passes both checks above but is not a named type. This path walks included
+			// unions and reports nothing of its own, so the case is simply skipped; the declaring union's
+			// own analysis reports it as RSG1009.
+			if (caseType is not INamedTypeSymbol namedCaseType)
+				continue;
+
+			caseTypes.Add(namedCaseType);
+		}
+
+		return caseTypes.ToImmutable();
+	}
+
+	static bool PathsEqual(ImmutableArray<INamedTypeSymbol> left, ImmutableArray<INamedTypeSymbol> right)
+	{
+		if (left.Length != right.Length)
+			return false;
+
+		for (var index = 0; index < left.Length; index++)
+		{
+			if (!SymbolEqualityComparer.Default.Equals(left[index], right[index]))
+				return false;
+		}
+
+		return true;
 	}
 
 	/// <summary>

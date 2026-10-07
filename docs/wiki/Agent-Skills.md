@@ -10,12 +10,12 @@ automatically. The content is authored in this repository under `src/src/<Projec
 | Content | Package | Covers |
 | --- | --- | --- |
 | `skills/purview-results-core` | `Purview.Results` | The result type, its three states, combinators and the throw-on-misuse contract |
-| `skills/purview-results-union-errors` | `Purview.Results.SourceGenerator` | Union modelling, the generated helpers, the diagnostics table, and the language rules that make the helper necessary |
+| `skills/purview-results-union-errors` | `Purview.Results` | Union modelling, the generated helpers, the diagnostics table, and the language rules that make the helper necessary |
 | `skills/purview-results-http-mapping` | `Purview.Results.AspNetCore` | Result-to-HTTP mapping, the failure resolution order, and unmapped-failure `500`s |
 | `skills/purview-results-zodsharp-validation` | `Purview.Results.ZodSharp` | ZodSharp validation flowing through results |
 | `skills/purview-results-zodsharp-problems` | `Purview.Results.ZodSharp.AspNetCore` | Rendering validation-carrying failures as ProblemDetails |
 
-The generator package also ships the `purview-results-union-author` agent and the
+The `Purview.Results` package also ships the `purview-results-union-author` agent and the
 `migrate-error-returns-to-result-unions` prompt.
 
 ## When to load which skill

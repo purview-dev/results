@@ -1,5 +1,7 @@
 using System.Collections.Immutable;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.HttpResults;
 using ZodSharp;
 using ZodSharp.AspNetCore;
 using ZodSharp.Core;
@@ -47,6 +49,31 @@ public static class ZodValidationProblems
 		if (!string.IsNullOrEmpty(traceId))
 			problem.Extensions["traceId"] = traceId;
 
+		return WriteProblem(problem, defaultStatusCode);
+	}
+
+	[UnconditionalSuppressMessage(
+		"Trimming",
+		"IL2026:RequiresUnreferencedCode",
+		Justification = "The serialized type is the concrete HttpValidationProblemDetails, not object, and it "
+			+ "is the same type ASP.NET Core's own validation-problem results write, so a trimmed or AOT host "
+			+ "already roots it. TypedResults.Json carries the requirement unconditionally regardless of T."
+	)]
+	[UnconditionalSuppressMessage(
+		"AOT",
+		"IL3050:RequiresDynamicCode",
+		Justification = "The serialized type is the concrete HttpValidationProblemDetails, not object, and it "
+			+ "is the same type ASP.NET Core's own validation-problem results write, so a trimmed or AOT host "
+			+ "already roots it. TypedResults.Json carries the requirement unconditionally regardless of T."
+	)]
+	// The concrete return type avoids boxing the result into IResult at every call site.
+	static JsonHttpResult<HttpValidationProblemDetails> WriteProblem(
+		HttpValidationProblemDetails problem,
+		int defaultStatusCode
+	)
+	{
+		// Written as JSON rather than through TypedResults.Problem because that serializes the declared
+		// ProblemDetails shape and would drop the validation `errors` member this type carries.
 		return TypedResults.Json(
 			problem,
 			contentType: "application/problem+json",

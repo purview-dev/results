@@ -4,6 +4,14 @@
 		It stays a leaf library: Results never depends on ZodSharp, and consumers opt in by referencing
 		this package.
 	-->
+	<!--
+		Trimming and Native AOT. Verified clean under both the trim and AOT analyzers. See Results.csproj for
+		why the ASP.NET Core packages are not marked compatible.
+	-->
+	<PropertyGroup Label="Trimming and Native AOT">
+		<IsAotCompatible>true</IsAotCompatible>
+	</PropertyGroup>
+
 	<PropertyGroup>
 		<IsPackable>true</IsPackable>
 		<Title>Purview Results ZodSharp</Title>

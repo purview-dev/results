@@ -5,16 +5,17 @@ namespace Purview.Results.SourceGenerator;
 /// consumers.
 /// </summary>
 /// <remarks>
+/// The generator ships inside the <c>Purview.Results</c> package, so its build switches are reachable only
+/// when that package ships a <c>buildTransitive/*.props</c> asset declaring a <c>CompilerVisibleProperty</c>.
 /// A property declared only inside this repository never reaches a consumer's compiler, so the documented
-/// <c>ResultsSourceGenerator_Disable</c> switch silently does nothing unless the package ships it as a
-/// <c>buildTransitive/*.props</c> asset declaring a <c>CompilerVisibleProperty</c>. These tests fail if that
-/// asset is deleted, renamed, or drifts away from the property the project declares.
+/// <c>DisableResultsSourceGenerator</c> switch silently does nothing without that asset. These tests fail if
+/// the asset is deleted, renamed, or drifts away from the property the project declares.
 /// </remarks>
 public sealed class SourceGeneratorPackageAssetsTests
 {
-	const string DisablePropertyName = "ResultsSourceGenerator_Disable";
-	const string PackagedPropsPath =
-		"src/src/SourceGenerator/Sdk/buildTransitive/Purview.Results.SourceGenerator.props";
+	const string DisablePropertyName = "DisableResultsSourceGenerator";
+	const string PackagedPropsPath = "src/src/Results/Sdk/buildTransitive/Purview.Results.props";
+	const string ResultsProjectPath = "src/src/Results/Results.csproj";
 	const string ProjectPath = "src/src/SourceGenerator/SourceGenerator.csproj";
 
 	[Test]
@@ -45,6 +46,27 @@ public sealed class SourceGeneratorPackageAssetsTests
 		var content = await File.ReadAllTextAsync(Path.Combine(RepositoryRoot(), PackagedPropsPath));
 
 		await Assert.That(content).Contains(DisablePropertyName);
+	}
+
+	[Test]
+	public async Task ResultsProject_ShouldBundleTheMergedGeneratorAndCodeFix()
+	{
+		// The generator is retired as its own package, so Purview.Results must pack the merged analyzer and
+		// the code fix under analyzers/dotnet/cs without running the generator on this library's compilation.
+		var project = await File.ReadAllTextAsync(Path.Combine(RepositoryRoot(), ResultsProjectPath));
+
+		await Assert.That(project).Contains("PackResultsSourceGenerator");
+		await Assert.That(project).Contains("GetPurviewMergedAnalyzerFile");
+		await Assert.That(project).Contains("..\\SourceGenerator.CodeFixes\\SourceGenerator.CodeFixes.csproj");
+		await Assert.That(project).Contains("analyzers/dotnet/cs/");
+	}
+
+	[Test]
+	public async Task SourceGeneratorProject_ShouldNotBePackable()
+	{
+		var project = await File.ReadAllTextAsync(Path.Combine(RepositoryRoot(), ProjectPath));
+
+		await Assert.That(project).DoesNotContain("<IsPackable>true</IsPackable>");
 	}
 
 	static string RepositoryRoot()

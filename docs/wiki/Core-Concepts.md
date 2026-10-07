@@ -28,6 +28,11 @@ An expected failure is a value; a misuse is a bug. The contract is deliberately 
 An uninitialized result is never treated as a failure or as a success. If that is too strict for a boundary —
 inspecting a result you did not create — use the probing methods instead of the throwing ones.
 
+`Throw()` is the one member that turns an expected failure back into an exception: it returns the successful value
+and throws `ResultException<TError>` carrying the error on failure, and for `default` it throws the same
+`InvalidOperationException` as the combinators. Treat it as an escape hatch for a boundary that must throw, not as
+a way to handle a failure.
+
 ## Probing without throwing
 
 `TryGetValue` and `TryGetError` in `ResultExtensions` are the deliberate exception to the throwing contract: they
@@ -75,6 +80,29 @@ error types — the ASP.NET Core endpoint filter, for example.
 
 Its accessors **never throw**: the accessor that does not describe the current state returns `null`. That is what
 makes it safe for a framework component to inspect a result without knowing the two type arguments.
+
+## Value-less results
+
+An operation that has nothing to return on success — a command, a validation-only step — uses `Result<TError>`,
+the value-less counterpart of `Result<TValue, TError>`. It has the same three states and the same throw-on-misuse
+contract, but a success holds the `Success` marker rather than a value:
+
+| State | How it is reached | `ToString()` |
+| --- | --- | --- |
+| `Uninitialized` | `default(Result<TError>)` | `Uninitialized` |
+| `Success` | `Result<TError>.Success()` | `Success` |
+| `Failure` | `Result<TError>.Failure(error)` | `Failure(error)` |
+
+Because there is no success value, the success callbacks take no argument: `Match(() => ..., error => ...)`,
+`Switch(() => ..., error => ...)` and `Tap(() => ...)`. `Map` produces a value from a success that had none,
+`Bind` continues with another operation, and the value-result extension `DiscardValue()` turns a
+`Result<TValue, TError>` back into a unit result, preserving the error. `Throw()` returns the `Success` marker
+and throws `ResultException<TError>` on failure, exactly as the value result does.
+
+The implicit conversions from `Success` and `TError`, and the `Result<TError>.Success`/`.Failure` and
+`Result.Success<TError>()`/`Result.Failure<TError>(error)` factories, are public contract. `IResultValue` sees a
+successful unit result's `SuccessValue` as the `Success` marker, which is what lets the ASP.NET Core mapper answer
+it with `204 No Content`.
 
 ## Where extension methods live
 

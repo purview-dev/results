@@ -7,10 +7,10 @@
 		"TestFilter": "/*/*/*/*[Category=Unit]"
 	},
 	"PackValidation": {
-		// Purview.Results.SourceGenerator is a Roslyn component: the SDK's Roslyn defaults set
-		// IsRoslynComponentOnly, so it produces no .snupkg. It also sets PurviewPackAnalyzerPdb=false, so it
-		// ships no PDB either; the four library packages produce symbol packages, and RequireSymbolFiles and
-		// the assembly checks below all apply to them.
+		// Every package is a library package that produces a symbol package, so RequireSymbolFiles and the
+		// assembly checks below all apply to them. Purview.Results additionally carries the merged source
+		// generator and its code fix under analyzers/dotnet/cs (no PDB, no lib folder for those), so the
+		// source generator is no longer published as its own package.
 		"RequireSymbolPackage": false,
 		// RequireExplicitContent defaults to true, so this is the exhaustive declaration of what each
 		// package ships: a package with no rule here, or an entry matching none of its globs, fails.
@@ -18,6 +18,9 @@
 			"purview.results": [
 				".agents/**/*",
 				"README.md",
+				"analyzers/dotnet/cs/Purview.Results.SourceGenerator.CodeFixes.dll",
+				"analyzers/dotnet/cs/Purview.Results.SourceGenerator.dll",
+				"buildTransitive/Purview.Results.props",
 				"lib/$(TFM)/Purview.Results.dll",
 				"lib/$(TFM)/Purview.Results.xml",
 				"purview-logo-light.png"
@@ -27,14 +30,6 @@
 				"README.md",
 				"lib/$(TFM)/Purview.Results.AspNetCore.dll",
 				"lib/$(TFM)/Purview.Results.AspNetCore.xml",
-				"purview-logo-light.png"
-			],
-			"purview.results.sourcegenerator": [
-				".agents/**/*",
-				"README.md",
-				"analyzers/dotnet/cs/Purview.Results.SourceGenerator.CodeFixes.dll",
-				"analyzers/dotnet/cs/Purview.Results.SourceGenerator.dll",
-				"buildTransitive/Purview.Results.SourceGenerator.props",
 				"purview-logo-light.png"
 			],
 			"purview.results.zodsharp": [

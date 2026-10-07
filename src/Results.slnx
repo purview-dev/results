@@ -23,6 +23,7 @@
 		<Project Path="src/Examples.AspNetCore/Examples.AspNetCore.csproj" />
 		<Project Path="src/Examples.Basic/Examples.Basic.csproj" />
 		<Project Path="src/Examples.Zod/Examples.Zod.csproj" />
+		<Project Path="src/Examples.ValueObjects.Zod/Examples.ValueObjects.Zod.csproj" />
 	</Folder>
 	<Folder Name="/tests/">
 		<Project Path="tests/AspNetCore.UnitTests/AspNetCore.UnitTests.csproj" />

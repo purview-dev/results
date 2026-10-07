@@ -19,16 +19,16 @@ public sealed class ZodValidationProblemsTests
 		var errors = CreateErrors();
 
 		// Act
-		var (StatusCode, Body, ContentType) = await ExecuteAsync(
+		var (statusCode, body, contentType) = await ExecuteAsync(
 			ZodValidationProblems.ToProblem(errors, CreateOptions()),
 			CreateContext()
 		);
 
 		// Assert
-		await Assert.That(StatusCode).IsEqualTo(StatusCodes.Status400BadRequest);
-		await Assert.That(ContentType).Contains("application/problem+json");
-		await Assert.That(Body).Contains(InvalidNameCode);
-		await Assert.That(Body).Contains("issues");
+		await Assert.That(statusCode).IsEqualTo(StatusCodes.Status400BadRequest);
+		await Assert.That(contentType).Contains("application/problem+json");
+		await Assert.That(body).Contains(InvalidNameCode);
+		await Assert.That(body).Contains("issues");
 	}
 
 	[Test]
@@ -49,14 +49,14 @@ public sealed class ZodValidationProblemsTests
 		ZodProblemDetailsOptions options = new() { Registry = registry };
 
 		// Act
-		var (StatusCode, Body, _) = await ExecuteAsync(
+		var (statusCode, body, _) = await ExecuteAsync(
 			ZodValidationProblems.ToProblem(CreateErrors(), options),
 			CreateContext()
 		);
 
 		// Assert
-		await Assert.That(StatusCode).IsEqualTo(StatusCodes.Status422UnprocessableEntity);
-		await Assert.That(Body).Contains("The name is not valid.");
+		await Assert.That(statusCode).IsEqualTo(StatusCodes.Status422UnprocessableEntity);
+		await Assert.That(body).Contains("The name is not valid.");
 	}
 
 	[Test]
@@ -66,13 +66,13 @@ public sealed class ZodValidationProblemsTests
 		ZodProblemDetailsOptions options = new() { StatusCodeSelector = _ => StatusCodes.Status409Conflict };
 
 		// Act
-		var (StatusCode, Body, ContentType) = await ExecuteAsync(
+		var (statusCode, body, contentType) = await ExecuteAsync(
 			ZodValidationProblems.ToProblem(CreateErrors(), options),
 			CreateContext()
 		);
 
 		// Assert
-		await Assert.That(StatusCode).IsEqualTo(StatusCodes.Status409Conflict);
+		await Assert.That(statusCode).IsEqualTo(StatusCodes.Status409Conflict);
 	}
 
 	[Test]
@@ -82,13 +82,13 @@ public sealed class ZodValidationProblemsTests
 		var context = CreateContext();
 
 		// Act
-		var (_, Body, _) = await ExecuteAsync(
+		var (_, body, _) = await ExecuteAsync(
 			ZodValidationProblems.ToProblem(CreateErrors(), CreateOptions(), traceId: context.TraceIdentifier),
 			context
 		);
 
 		// Assert
-		await Assert.That(Body).Contains(context.TraceIdentifier);
+		await Assert.That(body).Contains(context.TraceIdentifier);
 	}
 
 	[Test]
@@ -101,7 +101,7 @@ public sealed class ZodValidationProblemsTests
 		var context = CreateContext();
 
 		// Act
-		var (StatusCode, Body, ContentType) = await ExecuteAsync(
+		var (statusCode, body, contentType) = await ExecuteAsync(
 			ZodValidationProblems.ToProblem(errors, options),
 			context
 		);
@@ -111,10 +111,10 @@ public sealed class ZodValidationProblemsTests
 		);
 
 		// Assert
-		await Assert.That(StatusCode).IsEqualTo(exceptionProblem.Status);
-		await Assert.That(ContentType).Contains("application/problem+json");
+		await Assert.That(statusCode).IsEqualTo(exceptionProblem.Status);
+		await Assert.That(contentType).Contains("application/problem+json");
 
-		using var document = JsonDocument.Parse(Body);
+		using var document = JsonDocument.Parse(body);
 		var root = document.RootElement;
 
 		await Assert.That(root.GetProperty("title").GetString()).IsEqualTo(exceptionProblem.Title);
@@ -132,14 +132,14 @@ public sealed class ZodValidationProblemsTests
 		var context = CreateContext();
 
 		// Act
-		var (StatusCode, Body, _) = await ExecuteAsync(
+		var (statusCode, body, _) = await ExecuteAsync(
 			new InputRejected(7, CreateErrors()).ToValidationProblem(context),
 			context
 		);
 
 		// Assert
-		await Assert.That(StatusCode).IsEqualTo(StatusCodes.Status400BadRequest);
-		await Assert.That(Body).Contains(InvalidNameCode);
+		await Assert.That(statusCode).IsEqualTo(StatusCodes.Status400BadRequest);
+		await Assert.That(body).Contains(InvalidNameCode);
 	}
 
 	[Test]
@@ -154,13 +154,13 @@ public sealed class ZodValidationProblemsTests
 		var context = CreateContext(provider);
 
 		// Act
-		var (StatusCode, Body, ContentType) = await ExecuteAsync(
+		var (statusCode, body, contentType) = await ExecuteAsync(
 			new InputRejected(7, CreateErrors()).ToValidationProblem(context),
 			context
 		);
 
 		// Assert
-		await Assert.That(Body).DoesNotContain(context.TraceIdentifier);
+		await Assert.That(body).DoesNotContain(context.TraceIdentifier);
 	}
 
 	static ZodProblemDetailsOptions CreateOptions() => new();

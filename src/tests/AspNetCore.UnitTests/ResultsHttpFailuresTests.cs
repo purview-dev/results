@@ -7,8 +7,10 @@ public sealed class ResultsHttpFailuresTests
 	[Test]
 	public async Task Map_GivenUnmappedCase_ReturnsAnInternalServerErrorProblem()
 	{
-		// Arrange
-		var mapper = ResultsHttpTestFactory.CreateMapper();
+		// Arrange — the error type is opt-in because it discloses internal type names to the caller.
+		var mapper = ResultsHttpTestFactory.CreateMapper(static options =>
+			options.IncludeErrorTypeInProblemDetails = true
+		);
 		var context = ResultsHttpTestFactory.CreateContext();
 
 		// Act

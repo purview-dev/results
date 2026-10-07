@@ -1,5 +1,3 @@
-using Purview.Results.SourceGeneration;
-
 namespace Purview.Results.Examples.Basic;
 
 /// <summary>
@@ -7,8 +5,9 @@ namespace Purview.Results.Examples.Basic;
 /// </summary>
 /// <remarks>
 /// The union itself is the error type of <c>Result&lt;Tenant, TenantError&gt;</c>. A bare case value cannot
-/// convert to the result because C# never composes two user-defined conversions, so the generator emits one
-/// <c>AsFailure&lt;TValue&gt;()</c> helper per case of every <c>[GenerateResult]</c> union.
+/// convert to the result because C# never composes two user-defined conversions, so the generator emits a
+/// per-case <c>AsFailure&lt;TValue&gt;()</c> helper and a union-receiver <c>TenantError.Failure(...)</c> factory
+/// for every <c>[GenerateResult]</c> union.
 /// </remarks>
 [GenerateResult]
 readonly union TenantError(TenantNotFound, TenantDisabled, TenantAlreadyExists);

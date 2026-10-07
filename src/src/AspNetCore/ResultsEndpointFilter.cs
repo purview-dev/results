@@ -7,7 +7,8 @@ namespace Purview.Results.AspNetCore;
 /// </summary>
 /// <remarks>
 /// Register it on an endpoint or group with <c>WithResultsHttp()</c>. Handlers can then return
-/// <c>Result&lt;TValue, TError&gt;</c> directly; a handler that returns something else is left untouched.
+/// <c>Result&lt;TValue, TError&gt;</c> or a unit <c>Result&lt;TError&gt;</c> directly; a handler that returns
+/// something else is left untouched.
 /// </remarks>
 public sealed class ResultsEndpointFilter(IResultsHttpMapper mapper) : IEndpointFilter
 {

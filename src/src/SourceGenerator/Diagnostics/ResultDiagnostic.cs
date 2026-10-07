@@ -1,7 +1,7 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 
-namespace Purview.Results.SourceGeneration.Diagnostics;
+namespace Purview.Results.SourceGenerator.Diagnostics;
 
 /// <summary>
 /// A single diagnostic finding produced by the shared diagnostics library.

@@ -1,5 +1,3 @@
-using Purview.Results.SourceGeneration;
-
 namespace Purview.Results.SourceGenerator;
 
 /// <summary>
@@ -57,6 +55,109 @@ public class ResultsSourceGeneratorTests
 	}
 
 	[Test]
+	public async Task GenerateAsync_GivenOptedInUnion_EmitsAUnitFailureHelperPerCase(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		// Act
+		var result = await GenerateAsync(TenantUnionSource, cancellationToken);
+
+		// Assert
+		var generated = result.AssertSingleGeneratedSource();
+
+		// The unit helper's body names Result<TUnion> with no value type argument, which distinguishes it from
+		// the generic AsFailure<TValue>() helper's Result<TValue, TUnion> body.
+		await Assert
+			.That(generated)
+			.Contains("global::Purview.Results.Result<global::Test.TenantError>.Failure(error)");
+
+		// The generic value helper is still emitted alongside it.
+		await Assert
+			.That(generated)
+			.Contains("global::Purview.Results.Result<TValue, global::Test.TenantError>.Failure(error)");
+	}
+
+	[Test]
+	public async Task GenerateAsync_GivenOptedInUnion_EmitsUnionFactoryExtensionBlock(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		// Act
+		var result = await GenerateAsync(TenantUnionSource, cancellationToken);
+
+		// Assert
+		// The union-receiver factory is a C# 14 static extension block on the union type, so a case can be
+		// converted by naming the union (Union.Failure(case)) rather than the case. The writer wraps the long
+		// parameter list onto its own line, so the assertions target the signature head and the parameter.
+		var generated = result.AssertSingleGeneratedSource();
+		await Assert.That(generated).Contains("extension(global::Test.TenantError)");
+		await Assert.That(generated).Contains("> Failure(");
+		await Assert.That(generated).Contains("> Failure<TValue>(");
+		await Assert.That(generated).Contains("global::Test.TenantNotFound error");
+		await Assert.That(generated).Contains("> Success()");
+		await Assert.That(generated).Contains("> Success<TValue>(");
+		await Assert.That(generated).Contains("Result<global::Test.TenantError>.Success()");
+		await Assert
+			.That(generated)
+			.Contains("global::Purview.Results.Result<TValue, global::Test.TenantError>.Success(value)");
+	}
+
+	[Test]
+	public async Task GenerateAsync_GivenSharedCaseType_EmitsTheUnionFactoryForBothUnions(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		// NotFound is shared by both unions (RSG1006), so its per-case AsFailure helper is generated once —
+		// but each union still owns its factory, which is the shared-case safe form.
+		const string source = """
+			using Purview.Results;
+
+			namespace Test
+			{
+				public readonly record struct NotFound(int Id);
+
+				public readonly record struct Rejected(string Reason);
+
+				[GenerateResult]
+				public readonly union GetError(NotFound);
+
+				[GenerateResult]
+				public readonly union SetError(NotFound, Rejected);
+
+				public static class Usage
+				{
+					public static Result<SetError> Unit(NotFound error) => SetError.Failure(error);
+
+					public static Result<int, SetError> Value(NotFound error) => SetError.Failure<int>(error);
+				}
+			}
+			""";
+
+		// Act
+		var result = await GenerateAsync(source, cancellationToken);
+
+		// Assert
+		result.AssertNoCompilationErrors();
+
+		var setTree = result.PrimarySyntaxTrees.Single(static tree =>
+			tree.FilePath.EndsWith("SetErrorResultExtensions.g.cs", StringComparison.Ordinal)
+		);
+		var setSource = (await setTree.GetTextAsync(cancellationToken)).ToString();
+
+		// The shared case's factory is present on the union that lost the AsFailure helper.
+		await Assert.That(setSource).Contains("> Failure(");
+		await Assert.That(setSource).Contains("> Failure<TValue>(");
+		await Assert.That(setSource).Contains("global::Test.NotFound error");
+
+		// The per-case AsFailure helper is generated once, for GetError (the ordinal winner).
+		await Assert.That(setSource).DoesNotContain("this global::Test.NotFound error");
+		await Assert.That(setSource).Contains("this global::Test.Rejected error");
+	}
+
+	[Test]
 	public async Task GenerateAsync_GivenOptedInUnion_EmitsNullableEnabledFullyQualifiedSource(
 		CancellationToken cancellationToken
 	)
@@ -71,6 +172,211 @@ public class ResultsSourceGeneratorTests
 		await Assert.That(generated).Contains("namespace Test;");
 		await Assert.That(generated).DoesNotContain("using ");
 		await Assert.That(generated).Contains("Result<TValue, global::Test.TenantError>.Failure(error)");
+	}
+
+	[Test]
+	public async Task GenerateAsync_GivenIncludedUnion_EmitsFlattenedFactoriesForTheIncludedCases(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		// LookupError is a case of SetError, so its own case (NotFound) is reachable through it. The
+		// generator emits a union-receiver factory for NotFound on SetError that constructs the nested value.
+		const string source = """
+			using Purview.Results;
+
+			namespace Test
+			{
+				public readonly record struct NotFound(int Id);
+
+				public readonly record struct Rejected(string Reason);
+
+				[GenerateResult]
+				public readonly union LookupError(NotFound);
+
+				[GenerateResult]
+				public readonly union SetError(LookupError, Rejected);
+
+				public static class Usage
+				{
+					public static Result<int, SetError> Included(NotFound error) => SetError.Failure<int>(error);
+
+					public static Result<SetError> IncludedUnit(NotFound error) => SetError.Failure(error);
+
+					public static Result<int, SetError> Direct(Rejected error) => SetError.Failure<int>(error);
+				}
+			}
+			""";
+
+		// Act
+		var result = await GenerateAsync(source, cancellationToken);
+
+		// Assert
+		result.AssertNoCompilationErrors();
+
+		var setTree = result.PrimarySyntaxTrees.Single(static tree =>
+			tree.FilePath.EndsWith("SetErrorResultExtensions.g.cs", StringComparison.Ordinal)
+		);
+		var setSource = (await setTree.GetTextAsync(cancellationToken)).ToString();
+
+		// The included case gets a factory, and its body constructs the nested union value.
+		await Assert.That(setSource).Contains("global::Test.NotFound error");
+		await Assert.That(setSource).Contains("new global::Test.SetError(new global::Test.LookupError(error))");
+	}
+
+	[Test]
+	public async Task GenerateAsync_GivenSharedUnionCase_DropsThePerCaseHelperAndReportsNoSharedCaseWarning(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		// LookupError is a union-typed case of both GetError and SetError. Sharing it is the composition
+		// pattern, so no RSG1006 is reported and no per-case AsFailure helper is generated for it on either
+		// union; the union-receiver factory is the safe form.
+		const string source = """
+			using Purview.Results;
+
+			namespace Test
+			{
+				public readonly record struct NotFound(int Id);
+
+				[GenerateResult]
+				public readonly union LookupError(NotFound);
+
+				[GenerateResult]
+				public readonly union GetError(LookupError);
+
+				[GenerateResult]
+				public readonly union SetError(LookupError);
+
+				public static class Usage
+				{
+					public static Result<int, GetError> Get(LookupError error) => GetError.Failure<int>(error);
+
+					public static Result<int, SetError> Set(LookupError error) => SetError.Failure<int>(error);
+				}
+			}
+			""";
+
+		// Act
+		var result = await GenerateAsync(source, cancellationToken);
+
+		// Assert
+		result.AssertNoCompilationErrors();
+		await Assert.That(result).DoesNotHaveDiagnostic("RSG1006");
+
+		var getTree = result.PrimarySyntaxTrees.Single(static tree =>
+			tree.FilePath.EndsWith("GetErrorResultExtensions.g.cs", StringComparison.Ordinal)
+		);
+		var getSource = (await getTree.GetTextAsync(cancellationToken)).ToString();
+
+		await Assert.That(getSource).DoesNotContain("this global::Test.LookupError error");
+		await Assert.That(getSource).Contains("global::Test.LookupError error");
+	}
+
+	[Test]
+	public async Task GenerateAsync_GivenNestedIncludedUnions_ConstructsTheWholeChain(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		// TopError -> MiddleError -> LeafError -> NotFound, so the included factory must construct the whole
+		// nested value, innermost first.
+		const string source = """
+			using Purview.Results;
+
+			namespace Test
+			{
+				public readonly record struct NotFound(int Id);
+
+				[GenerateResult]
+				public readonly union LeafError(NotFound);
+
+				[GenerateResult]
+				public readonly union MiddleError(LeafError);
+
+				[GenerateResult]
+				public readonly union TopError(MiddleError);
+
+				public static class Usage
+				{
+					public static Result<int, TopError> Value(NotFound error) => TopError.Failure<int>(error);
+				}
+			}
+			""";
+
+		// Act
+		var result = await GenerateAsync(source, cancellationToken);
+
+		// Assert
+		result.AssertNoCompilationErrors();
+
+		var topTree = result.PrimarySyntaxTrees.Single(static tree =>
+			tree.FilePath.EndsWith("TopErrorResultExtensions.g.cs", StringComparison.Ordinal)
+		);
+		var topSource = (await topTree.GetTextAsync(cancellationToken)).ToString();
+
+		await Assert
+			.That(topSource)
+			.Contains("new global::Test.TopError(new global::Test.MiddleError(new global::Test.LeafError(error)))");
+	}
+
+	[Test]
+	public async Task GenerateAsync_GivenAmbiguousIncludedCase_SkipsTheAmbiguousFactoryAndKeepsTheOthers(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		// NotFound is reachable through both LeftError and RightError, so no single construction path can be
+		// named for it. The direct cases still get their factories.
+		const string source = """
+			using Purview.Results;
+
+			namespace Test
+			{
+				public readonly record struct NotFound(int Id);
+
+				public readonly record struct Rejected(string Reason);
+
+				[GenerateResult]
+				public readonly union LeftError(NotFound);
+
+				[GenerateResult]
+				public readonly union RightError(NotFound);
+
+				[GenerateResult]
+				public readonly union OuterError(LeftError, RightError, Rejected);
+			}
+			""";
+
+		// Act
+		var result = await GenerateAsync(
+			source,
+			new ResultsSourceGeneratorTestOptions
+			{
+				AnalyzerTypes = [typeof(Purview.Results.SourceGenerator.Analyzers.ResultsDiagnosticAnalyzer)],
+			},
+			cancellationToken
+		);
+
+		// Assert
+		result.AssertNoCompilationErrors();
+		await Assert.That(result.AnalyzerResult).IsNotNull();
+
+		var analyzerDiagnostics = result
+			.AnalyzerResult!.Diagnostics.Select(static diagnostic => diagnostic.Id)
+			.ToArray();
+		await Assert.That(analyzerDiagnostics).Contains("RSG1008");
+
+		var outerTree = result.PrimarySyntaxTrees.Single(static tree =>
+			tree.FilePath.EndsWith("OuterErrorResultExtensions.g.cs", StringComparison.Ordinal)
+		);
+		var outerSource = (await outerTree.GetTextAsync(cancellationToken)).ToString();
+
+		await Assert.That(outerSource).Contains("global::Test.LeftError error");
+		await Assert.That(outerSource).Contains("global::Test.RightError error");
+		await Assert.That(outerSource).Contains("global::Test.Rejected error");
+		await Assert.That(outerSource).DoesNotContain("global::Test.NotFound error");
 	}
 
 	[Test]

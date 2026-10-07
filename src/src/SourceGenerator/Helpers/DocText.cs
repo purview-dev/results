@@ -1,4 +1,4 @@
-namespace Purview.Results.SourceGeneration.Helpers;
+namespace Purview.Results.SourceGenerator.Helpers;
 
 /// <summary>
 /// Composes and escapes text that is written into generated XML documentation.

@@ -1,4 +1,4 @@
-namespace Purview.Results.SourceGeneration.Helpers;
+namespace Purview.Results.SourceGenerator.Helpers;
 
 /// <summary>
 /// Provides the <c>TypeIdentity</c> values and namespaces the results source generator resolves
@@ -11,16 +11,6 @@ namespace Purview.Results.SourceGeneration.Helpers;
 static class ResultsTypeLibrary
 {
 	/// <summary>
-	/// The namespace of the runtime <c>Purview.Results</c> library.
-	/// </summary>
-	public const string ResultsNamespace = PropertyLibrary.ResultsNamespace;
-
-	/// <summary>
-	/// The namespace of the generated opt-in attribute.
-	/// </summary>
-	public const string SourceGenerationNamespace = PropertyLibrary.SourceGenerationNamespace;
-
-	/// <summary>
 	/// The namespace that contains the union contracts the language uses to describe unions.
 	/// </summary>
 	public const string RuntimeCompilerServicesNamespace = "System.Runtime.CompilerServices";
@@ -30,14 +20,28 @@ static class ResultsTypeLibrary
 	/// </summary>
 	public static readonly TypeIdentity GenerateResultAttribute = new(
 		PropertyLibrary.GenerateResultAttributeName,
-		SourceGenerationNamespace
+		PropertyLibrary.ResultsNamespace
 	);
 
 	/// <summary>
 	/// The runtime <c>Result&lt;TValue, TError&gt;</c> result type. Callers apply the generic arguments
 	/// for a specific union.
 	/// </summary>
-	public static readonly TypeIdentity Result = new(typeName: "Result", @namespace: ResultsNamespace, arity: 2);
+	public static readonly TypeIdentity Result = new(
+		typeName: "Result",
+		@namespace: PropertyLibrary.ResultsNamespace,
+		arity: 2
+	);
+
+	/// <summary>
+	/// The runtime <c>Result&lt;TError&gt;</c> unit result type. Callers apply the generic argument for a
+	/// specific union.
+	/// </summary>
+	public static readonly TypeIdentity ResultUnit = new(
+		typeName: "Result",
+		@namespace: PropertyLibrary.ResultsNamespace,
+		arity: 1
+	);
 
 	/// <summary>
 	/// The language-specific <c>System.Runtime.CompilerServices.IUnion</c> interface implemented by

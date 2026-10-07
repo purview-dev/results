@@ -67,6 +67,24 @@ sealed class TenantRegistrationService
 			? Result<Tenant, TenantError>.Success(tenant)
 			: new TenantNotFound(tenantId).AsFailure<Tenant>();
 
+	/// <summary>
+	/// Validates an input without producing a tenant, so the result carries only the failure.
+	/// </summary>
+	/// <param name="input">The input to validate.</param>
+	/// <returns>
+	/// A unit result that succeeds with no value, or a <see cref="TenantError"/> describing why the input was
+	/// rejected.
+	/// </returns>
+	/// <remarks>
+	/// <c>ToUnitResult</c> is the value-discarding counterpart of <c>ToResult</c>: the validated value is
+	/// deliberately dropped, which is what a command that accepts an input and reports only why it was
+	/// rejected needs.
+	/// </remarks>
+	public static Result<TenantError> Validate(TenantInput input) =>
+		TenantInputSchema
+			.Validate(input)
+			.ToUnitResult<TenantInput, TenantError>(errors => new TenantInputInvalid(input, errors));
+
 	Result<Tenant, TenantError> RegisterValidated(TenantInput input)
 	{
 		// Validation guarantees both members are present, so the non-null assertion is safe here.

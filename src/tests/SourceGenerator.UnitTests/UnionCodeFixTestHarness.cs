@@ -4,8 +4,7 @@ using Microsoft.CodeAnalysis.CodeActions;
 using Microsoft.CodeAnalysis.CodeFixes;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Formatting;
-using Purview.Results.SourceGeneration;
-using Purview.Results.SourceGeneration.CodeFixes;
+using Purview.Results.SourceGenerator.CodeFixes;
 
 namespace Purview.Results.SourceGenerator;
 

@@ -51,6 +51,15 @@ public readonly record struct Result<TValue, TError> : IResultValue
 
 	object? IResultValue.ErrorValue => IsFailure ? Error : null;
 
+	// TValue is known statically here, which is the whole point: the visitor's generic parameter binds to the
+	// real type rather than to object, so a serializer has something to resolve under trimming and AOT.
+	TReturn IResultValue.AcceptSuccess<TState, TReturn>(IResultValueVisitor<TState, TReturn> visitor, TState state)
+	{
+		ArgumentNullException.ThrowIfNull(visitor);
+
+		return visitor.VisitSuccess(IsSuccess ? Value : default, state);
+	}
+
 	/// <summary>
 	/// Gets the successful value.
 	/// </summary>
@@ -186,18 +195,38 @@ public readonly record struct Result<TValue, TError> : IResultValue
 
 	static InvalidOperationException CreateUninitializedException() => new("The result is uninitialized.");
 
+	/// <summary>
+	/// Implicitly converts a value into a successful result.
+	/// </summary>
+	/// <param name="value">The successful value.</param>
+	/// <remarks>
+	/// When <typeparamref name="TValue"/> and <typeparamref name="TError"/> are the same type, or one converts
+	/// to the other, this conversion is ambiguous with the <typeparamref name="TError"/> overload. Call
+	/// <see cref="Success(TValue)"/> or <see cref="Failure(TError)"/> explicitly in that case.
+	/// </remarks>
 	public static implicit operator Result<TValue, TError>(TValue value) => Success(value);
 
+	/// <summary>
+	/// Implicitly converts an error into a failed result.
+	/// </summary>
+	/// <param name="error">The error describing the failure.</param>
+	/// <remarks>
+	/// When <typeparamref name="TValue"/> and <typeparamref name="TError"/> are the same type, or one converts
+	/// to the other, this conversion is ambiguous with the <typeparamref name="TValue"/> overload. Call
+	/// <see cref="Success(TValue)"/> or <see cref="Failure(TError)"/> explicitly in that case.
+	/// </remarks>
 	public static implicit operator Result<TValue, TError>(TError error) => Failure(error);
 
 	/// <summary>
 	/// Creates a successful result.
 	/// </summary>
+	[SuppressMessage("Design", "CA1000:Do not declare static members on generic types")]
 	public static Result<TValue, TError> Success(TValue value) => new(value);
 
 	/// <summary>
 	/// Creates a failed result.
 	/// </summary>
+	[SuppressMessage("Design", "CA1000:Do not declare static members on generic types")]
 	public static Result<TValue, TError> Failure(TError error) => new(error);
 
 	enum ResultState : byte
