@@ -14,8 +14,8 @@
 		<DotNetRuntimeVersion Condition="'$(TargetFramework)' == 'net10.0'">10.0.12</DotNetRuntimeVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Purview Versions">
-		<PurviewZodSharpVersion>2.0.1-prerelease.1</PurviewZodSharpVersion>
-		<PurviewValueObjectsVersion>1.0.0-prerelease.12</PurviewValueObjectsVersion>
+		<PurviewZodSharpVersion>2.0.1</PurviewZodSharpVersion>
+		<PurviewValueObjectsVersion>1.0.0</PurviewValueObjectsVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Source Generator Versions">
 		<PurviewSourceGeneratorFrameworkVersion>1.0.0</PurviewSourceGeneratorFrameworkVersion>
