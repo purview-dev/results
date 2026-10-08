@@ -63,6 +63,22 @@ Result<TenantError> Validate(TenantInput input) =>
 
 Use `ToResult` when the success has to carry the validated value, and `ToUnitResult` when it does not.
 
+## Async validation
+
+`ValidateAsync` — on the generated schema, the `{Type}SchemaValidator` DI adapter, or a
+`[ZodSchema(CustomValidationMethodName = ...)]` rule — returns a `ValueTask<ValidationResult<T>>`.
+`ToResultAsync` and `ToUnitResultAsync` fold that into a result exactly as the synchronous methods fold `Validate`:
+
+```csharp
+async Task<Result<TenantError>> Validate(TenantInput input, CancellationToken cancellationToken) =>
+    await TenantInputSchemaValidator
+        .ValidateAsync(input, cancellationToken)
+        .ToUnitResultAsync<TenantInput, TenantError>(errors => new TenantInputInvalid(input, errors));
+```
+
+The error type is named explicitly for the same reason as the synchronous forms, and the failure factory runs only
+when validation failed.
+
 ## Carrying validation errors in the error value
 
 `IValidationErrorCarrier` is implemented by an error value that carries ZodSharp validation errors, so an HTTP
@@ -90,6 +106,8 @@ map every validation-carrying error individually.
 | --- | --- |
 | `ValidationResult<TValue>.ToResult<TValue, TError>(Func<ImmutableArray<ValidationError>, TError> onFailure)` | Success carries the validated value; failure carries the created error. `onFailure` runs only when validation failed, so a successful validation allocates no error |
 | `ValidationResult<TValue>.ToUnitResult<TValue, TError>(Func<ImmutableArray<ValidationError>, TError> onFailure)` | The value-discarding counterpart: success is a unit `Result<TError>`, failure carries the created error |
+| `ValueTask<ValidationResult<TValue>>.ToResultAsync<TValue, TError>(Func<ImmutableArray<ValidationError>, TError> onFailure)` | The asynchronous counterpart, for a schema whose validation awaits |
+| `ValueTask<ValidationResult<TValue>>.ToUnitResultAsync<TValue, TError>(Func<ImmutableArray<ValidationError>, TError> onFailure)` | The value-discarding asynchronous counterpart |
 | `IValidationErrorCarrier` | Implemented by an error value that carries ZodSharp validation errors |
 
 A factory returning a **result** rather than an error is deliberately not offered: for a lambda returning

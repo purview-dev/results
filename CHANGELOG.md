@@ -13,6 +13,18 @@ been published to NuGet.
 
 ### Added
 
+- **Asynchronous validation folding in `Purview.Results.ZodSharp`.** `ToResultAsync` and `ToUnitResultAsync` accept
+  the `ValueTask<ValidationResult<T>>` that `ValidateAsync` returns — on the generated schema, the DI validator
+  adapter, or a `[ZodSchema(CustomValidationMethodName = ...)]` rule — so an async schema folds into the result
+  pipeline the same way the synchronous `Validate` does. As with the synchronous forms, the failure factory runs
+  only when validation failed.
+- The `Examples.ValueObjects.Zod` example (and the matching end-to-end test fixture) now uses the **automatic
+  scalar form**, `[Scalar<Guid>]`, so the composition is exercised against Purview.ValueObjects 1.0.1's
+  generator-declared property rather than only the manual `[Scalar]` form, whose schema Purview.ZodSharp 2.0.2+
+  generates from the attribute itself.
+- A test fixture covering a **nullable scalar** (`[Scalar<string>(Nullable = true)]`) whose type-level rule is
+  ZodSharp's shipped null-tolerant `[NullOrNonWhiteSpace]`: `null` validates, whitespace-only is rejected, and the
+  rejection maps through the result pipeline by its code.
 - The value-less `Result<TError>` type: the same three-state `readonly record struct` contract as
   `Result<TValue, TError>`, but a success holds the stateless `Success` marker instead of a value. Comes with
   `Match`, `Switch`, `Tap`, `TapError`, `Ensure`, `Map`, `Bind`, `MapError`, `MapAsync`, `BindAsync`, `OrElse`,
@@ -36,6 +48,9 @@ been published to NuGet.
 
 ### Changed
 
+- `Purview.Results.ZodSharp.AspNetCore` references `Purview.ZodSharp` explicitly rather than relying on it
+  transitively through `Purview.ZodSharp.AspNetCore`, because the mapping uses `ZodException` and
+  `ValidationError` directly. No package content changes.
 - **Consuming these packages no longer forces preview features on your solution.** `EnablePreviewFeatures`
   was set repo-wide, which emitted `[assembly: RequiresPreviewFeatures]` into all four shipped assemblies.
   Because that attribute is assembly-wide, `CA2252` — an **error** by default — fired on every member a
@@ -120,6 +135,11 @@ been published to NuGet.
 
 ### Fixed
 
+- **Registering the same validation-error rule factory twice is idempotent again.** `ZodResultsHttpOptions`
+  compared two factories by delegate identity, and a method group allocates a new delegate on every use — so
+  `MapCode(code, NotAValidationError)` registered twice was rejected as a conflict even though it answers
+  identically. Factories are now compared by the method they bind (and its target), so the same registration twice
+  keeps one rule while two different lambdas still throw.
 - **An array-typed union case crashed the generator and discarded every other union's output.** The
   discovery code explicitly handles `IArrayTypeSymbol` when checking accessibility and type parameters, then
   cast the case to `INamedTypeSymbol` — which an array is not — throwing `InvalidCastException`. With no

@@ -65,7 +65,7 @@ public readonly record struct Result<TError> : IResultValue
 	{
 		ArgumentNullException.ThrowIfNull(visitor);
 
-		return visitor.VisitSuccess(global::Purview.Results.Success.Instance, state);
+		return visitor.VisitSuccess(Results.Success.Instance, state);
 	}
 
 	/// <summary>

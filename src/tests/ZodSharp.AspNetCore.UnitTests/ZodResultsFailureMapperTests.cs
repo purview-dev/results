@@ -16,6 +16,8 @@ public sealed class ZodResultsFailureMapperTests
 	const string MissingCode = "missing";
 	const string InvalidValueCategory = "invalid_value";
 	const string ValueObjectOrigin = "value_object";
+	const string InvalidTenantIdCode = "invalid_tenant_id";
+	const string NullableAliasInvalidCode = "invalid_string";
 
 	[Test]
 	public async Task Map_GivenCodeRuleWithStatus_ReturnsTheValidationProblemWithThatStatus()
@@ -260,6 +262,61 @@ public sealed class ZodResultsFailureMapperTests
 	}
 
 	[Test]
+	public async Task Map_GivenAFailureFromANullableScalarRule_AnswersByItsCode()
+	{
+		// Arrange
+		// A nullable scalar round-trips null, so its type-level rule is the null-tolerant one: null validates and
+		// whitespace-only is rejected. The code it reports is enough for a code rule to answer the failure.
+		await using var services = CreateServices(zod =>
+			zod.MapCode(NullableAliasInvalidCode, StatusCodes.Status422UnprocessableEntity)
+		);
+		var mapper = services.GetRequiredService<IResultsHttpMapper>();
+		var context = CreateContext(services);
+
+		await Assert.That(NullableTenantAliasSchema.Validate(NullableTenantAlias.Hydrate(null)).IsSuccess).IsTrue();
+
+		var validation = NullableTenantAliasSchema.Validate(NullableTenantAlias.Hydrate("   "));
+		await Assert.That(validation.IsSuccess).IsFalse();
+
+		// Act
+		var result = validation.ToResult<NullableTenantAlias, ValidationTestError>(errors => new InputRejected(
+			7,
+			errors
+		));
+		var (statusCode, body) = await ExecuteAsync(mapper.Map(result, context), context);
+
+		// Assert
+		await Assert.That(statusCode).IsEqualTo(StatusCodes.Status422UnprocessableEntity);
+		await Assert.That(body).Contains(NullableAliasInvalidCode);
+	}
+
+	[Test]
+	public async Task Map_GivenAUnitResultFailureFromAValueObjectRule_AnswersTheValidationProblem()
+	{
+		// Arrange
+		// A command that reports only why it was rejected folds the validation outcome into a unit result; the
+		// value being discarded must not cost the failure its validation response.
+		await using var services = CreateServices(zod =>
+			zod.MapCode(InvalidTenantIdCode, StatusCodes.Status422UnprocessableEntity)
+		);
+		var mapper = services.GetRequiredService<IResultsHttpMapper>();
+		var context = CreateContext(services);
+
+		var validation = ValidatedTenantIdSchema.Validate(ValidatedTenantId.Hydrate(Guid.Empty));
+
+		// Act
+		var result = validation.ToUnitResult<ValidatedTenantId, ValidationTestError>(errors => new InputRejected(
+			7,
+			errors
+		));
+		var (statusCode, body) = await ExecuteAsync(mapper.Map(result, context), context);
+
+		// Assert
+		await Assert.That(statusCode).IsEqualTo(StatusCodes.Status422UnprocessableEntity);
+		await Assert.That(body).Contains(InvalidTenantIdCode);
+	}
+
+	[Test]
 	public async Task MapOrigin_GivenEmptyOrigin_Throws()
 	{
 		// Arrange
@@ -289,6 +346,56 @@ public sealed class ZodResultsFailureMapperTests
 		// Assert
 		await Assert.That(exception).IsNotNull();
 		await Assert.That(exception!.Message).Contains(ValueObjectOrigin);
+	}
+
+	[Test]
+	public async Task Map_GivenDecliningOriginRule_FallsThroughToTheDefaultValidationProblem()
+	{
+		// Arrange
+		// The strict origin rule declines a mixed failure, so the failure keeps the default validation response.
+		await using var services = CreateServices(zod =>
+			zod.MapOrigin(
+				ValueObjectOrigin,
+				(errors, _) => errors.Length == 1 && errors[0].Code == InvalidNameCode ? TypedResults.NotFound() : null
+			)
+		);
+		var mapper = services.GetRequiredService<IResultsHttpMapper>();
+		var context = CreateContext(services);
+
+		// Act
+		var (statusCode, body) = await ExecuteAsync(
+			mapper.Map(
+				new InputRejected(
+					7,
+					CreateOriginErrors(ValueObjectOrigin, InvalidNameCode, MissingCode)
+				).AsFailure<int>(),
+				context
+			),
+			context
+		);
+
+		// Assert
+		await Assert.That(statusCode).IsEqualTo(StatusCodes.Status400BadRequest);
+		await Assert.That(body).Contains(MissingCode);
+	}
+
+	[Test]
+	public async Task Map_GivenACarrierWithNoValidationErrors_ReturnsTheDefaultValidationProblem()
+	{
+		// Arrange
+		await using var services = CreateServices(zod => zod.MapCode(InvalidNameCode, StatusCodes.Status409Conflict));
+		var mapper = services.GetRequiredService<IResultsHttpMapper>();
+		var context = CreateContext(services);
+
+		// Act
+		var (statusCode, body) = await ExecuteAsync(
+			mapper.Map(new InputRejected(7, []).AsFailure<int>(), context),
+			context
+		);
+
+		// Assert
+		await Assert.That(statusCode).IsEqualTo(StatusCodes.Status400BadRequest);
+		await Assert.That(body).DoesNotContain(InvalidNameCode);
 	}
 
 	[Test]
@@ -480,6 +587,28 @@ public sealed class ZodResultsFailureMapperTests
 	}
 
 	[Test]
+	public async Task MapCode_GivenTheSameFactoryTwice_KeepsTheSingleRule()
+	{
+		// Arrange
+		// A method group allocates a new delegate on every use, so identity is not how "the same behaviour" is
+		// recognised: registering the same factory again is the same rule, not a conflicting one.
+		await using var services = CreateServices(zod =>
+			zod.MapCode(InvalidNameCode, NotAValidationError).MapCode(InvalidNameCode, NotAValidationError)
+		);
+		var mapper = services.GetRequiredService<IResultsHttpMapper>();
+		var context = CreateContext(services);
+
+		// Act
+		var (statusCode, _) = await ExecuteAsync(
+			mapper.Map(new InputRejected(7, CreateErrors()).AsFailure<int>(), context),
+			context
+		);
+
+		// Assert
+		await Assert.That(statusCode).IsEqualTo(StatusCodes.Status404NotFound);
+	}
+
+	[Test]
 	public async Task MapCode_GivenTheSameCodeTwiceWithTheSameBehaviour_KeepsTheSingleRule()
 	{
 		// Arrange
@@ -569,6 +698,10 @@ public sealed class ZodResultsFailureMapperTests
 			return caught;
 		}
 	}
+
+	/// <summary>The factory the same-factory-twice test registers, named so it is one method group.</summary>
+	static IResult NotAValidationError(ImmutableArray<ValidationError> errors, HttpContext context) =>
+		TypedResults.NotFound();
 
 	static DefaultHttpContext CreateContext(IServiceProvider services) =>
 		new() { Response = { Body = new MemoryStream() }, RequestServices = services };

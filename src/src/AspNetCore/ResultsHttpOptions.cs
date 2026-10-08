@@ -38,7 +38,6 @@ public sealed class ResultsHttpOptions
 	// ImmutableArray is a struct, so storing it as one would box on every access — once per failure, on
 	// the request path.
 	FrozenDictionary<Type, Func<object, HttpContext, IResult>>? _frozenMappers;
-	IReadOnlyList<Func<ResultsFailureContext, IResult?>>? _frozenFallbacks;
 
 	/// <summary>
 	/// Gets or sets the status code used when a result succeeded. Defaults to <c>200 OK</c>.
@@ -118,8 +117,11 @@ public sealed class ResultsHttpOptions
 	/// consults them is a singleton shared by every request. A fallback added after the first failure is
 	/// handled is therefore ignored rather than mutating a list another thread is enumerating.
 	/// </remarks>
-	public IReadOnlyList<Func<ResultsFailureContext, IResult?>> Fallbacks =>
-		_frozenFallbacks ??= ImmutableArray.CreateRange(_fallbacks);
+	public IReadOnlyList<Func<ResultsFailureContext, IResult?>> Fallbacks
+	{
+		get => field ??= ImmutableArray.CreateRange(_fallbacks);
+		private set;
+	}
 
 	/// <summary>
 	/// Maps a case (or the error itself, for a non-union error type) onto a response.

@@ -188,4 +188,59 @@ public class ZodValidationResultIntegrationTests
 		await Assert.That(result.IsSuccess).IsTrue();
 		await Assert.That(result.Value).IsEqualTo(operationResult);
 	}
+
+	[Test]
+	public async Task ToResultAsync_GivenTheAsyncValidator_ProducesTheSameRejectionAsTheSynchronousSchema(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		// The generated validator adapter is the DI-friendly shape, whose ValidateAsync is what a hosted
+		// service resolves; its outcome must fold into a result exactly like the synchronous schema's.
+		var operation = Operation.Create(null);
+
+		// Act
+		var result = await new OperationSchemaValidator()
+			.ValidateAsync(operation, cancellationToken)
+			.ToResultAsync<Operation, OperationError>(errors => new OperationRejected(operation, errors));
+
+		// Assert
+		await Assert.That(result.IsInitialized).IsTrue();
+		await Assert.That(result.IsFailure).IsTrue();
+		await Assert.That(result.IsSuccess).IsFalse();
+
+		OperationRejected? rejected = result.Error switch
+		{
+			OperationRejected value => value,
+			_ => null,
+		};
+
+		await Assert.That(rejected).IsNotNull();
+		await Assert.That(rejected!.Value.Operation).IsEqualTo(operation);
+		await Assert.That(rejected.Value.Errors[0].Path).Contains(nameof(Operation.Name));
+	}
+
+	[Test]
+	public async Task ToResultAsync_GivenTheAsyncValidatorAndAValidOperation_SucceedsWithoutInvokingTheFactory(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		var operation = Operation.Create("reconcile");
+		var factoryInvocations = 0;
+
+		// Act
+		var result = await new OperationSchemaValidator()
+			.ValidateAsync(operation, cancellationToken)
+			.ToResultAsync<Operation, OperationError>(errors =>
+			{
+				factoryInvocations++;
+				return new OperationRejected(operation, errors);
+			});
+
+		// Assert
+		await Assert.That(result.IsSuccess).IsTrue();
+		await Assert.That(result.Value).IsEqualTo(operation);
+		await Assert.That(factoryInvocations).IsEqualTo(0);
+	}
 }

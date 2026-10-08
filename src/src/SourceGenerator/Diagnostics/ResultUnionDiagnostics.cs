@@ -382,11 +382,9 @@ static class ResultUnionDiagnostics
 		CancellationToken cancellationToken
 	)
 	{
-		HashSet<INamedTypeSymbol> directCases = new(SymbolEqualityComparer.Default);
-		foreach (var caseType in caseTypes)
-			directCases.Add(caseType);
+		HashSet<INamedTypeSymbol> directCases = [with(SymbolEqualityComparer.Default), .. caseTypes];
 
-		Dictionary<INamedTypeSymbol, ImmutableArray<INamedTypeSymbol>> paths = new(SymbolEqualityComparer.Default);
+		Dictionary<INamedTypeSymbol, ImmutableArray<INamedTypeSymbol>> paths = [with(SymbolEqualityComparer.Default)];
 		HashSet<INamedTypeSymbol> ambiguous = [with(SymbolEqualityComparer.Default)];
 		HashSet<INamedTypeSymbol> stack = [with(SymbolEqualityComparer.Default)];
 

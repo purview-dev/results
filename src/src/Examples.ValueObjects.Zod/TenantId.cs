@@ -70,16 +70,19 @@ sealed class NonEmptyTenantIdAttribute : ValidationAttribute
 /// The identifier of a tenant, as a scalar value object.
 /// </summary>
 /// <remarks>
-/// <c>[Scalar]</c> makes the value-object generator emit <c>Create</c>/<c>Hydrate</c>, and <c>[ZodSchema]</c>
-/// makes ZodSharp's generator emit <c>TenantIdSchema</c> from the type-level rule below, so the value object's
-/// own invariant is expressed as schema rules rather than hand-written guards. <c>Hydrate</c> never runs them,
-/// which is what keeps rehydrating persisted values replay-safe.
+/// <para>
+/// <c>[Scalar&lt;Guid&gt;]</c> is the automatic form: the value-object generator declares
+/// <c>public Guid Value { get; init; }</c> and emits <c>Create</c>/<c>Hydrate</c>, and <c>[ZodSchema]</c> makes
+/// ZodSharp's generator emit <c>TenantIdSchema</c> from the type-level rule below, so the value object's own
+/// invariant is expressed as schema rules rather than hand-written guards. <c>Hydrate</c> never runs them, which
+/// is what keeps rehydrating persisted values replay-safe.
+/// </para>
+/// <para>
+/// A generator-declared property has no member for a property-level DataAnnotation to attach to, which is why
+/// the invariant is a type-level rule rather than an attribute on a member.
+/// </para>
 /// </remarks>
-[Scalar]
+[Scalar<Guid>]
 [ZodSchema]
 [NonEmptyTenantId(Code = "invalid_tenant_id", Message = "A tenant id must not be empty.")]
-readonly partial record struct TenantId
-{
-	/// <summary>Gets the underlying identifier value.</summary>
-	public Guid Value { get; }
-}
+readonly partial record struct TenantId { }

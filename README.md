@@ -84,7 +84,7 @@ Tenancy domain the Quick start uses, so one error-union vocabulary drives every 
 | [`Examples.Zod`](src/src/Examples.Zod) | + `Purview.Results.ZodSharp` | A `[ZodSchema]` input validated into a result, where the rejection carries its `ValidationError`s, and a value-discarding `ToUnitResult` validation |
 | [`Examples.AspNetCore`](src/src/Examples.AspNetCore) | + `Purview.Results.AspNetCore` | `AddResultsHttp`/`Map`/`WithResultsHttp`, nested error-union leaf mapping, a successful unit result answering `204`, the mapping-gap and uninitialized-result paths |
 | [`Examples.AspNetCore.Zod`](src/src/Examples.AspNetCore.Zod) | + `Purview.Results.ZodSharp.AspNetCore` | A validation-carrying failure rendered as `HttpValidationProblemDetails`, with a case mapping winning over the fallback |
-| [`Examples.ValueObjects.Zod`](src/src/Examples.ValueObjects.Zod) | `Purview.Results.ZodSharp`, `Purview.ValueObjects` | A `[Scalar]` value object whose type-level `[ZodRule]` owns its code and origin, validated into a result failure the HTTP layer can answer by origin |
+| [`Examples.ValueObjects.Zod`](src/src/Examples.ValueObjects.Zod) | `Purview.Results.ZodSharp`, `Purview.ValueObjects` | An automatic `[Scalar<Guid>]` value object whose type-level `[ZodRule]` owns its code and origin, validated into a result failure the HTTP layer can answer by origin |
 
 ```bash
 dotnet run --project src/src/Examples.Basic
