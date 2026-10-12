@@ -14,15 +14,15 @@
 		<DotNetRuntimeVersion Condition="'$(TargetFramework)' == 'net10.0'">10.0.12</DotNetRuntimeVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Purview Versions">
-		<PurviewZodSharpVersion>2.0.2</PurviewZodSharpVersion>
-		<PurviewValueObjectsVersion>1.0.1</PurviewValueObjectsVersion>
+		<PurviewZodSharpVersion>2.1.0</PurviewZodSharpVersion>
+		<PurviewValueObjectsVersion>1.1.0</PurviewValueObjectsVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Source Generator Versions">
-		<PurviewSourceGeneratorFrameworkVersion>1.0.0</PurviewSourceGeneratorFrameworkVersion>
+		<PurviewSourceGeneratorFrameworkVersion>1.1.0</PurviewSourceGeneratorFrameworkVersion>
 		<RoslynVersion>5.9.0</RoslynVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Testing Versions">
-		<TUnitVersion>1.68.17</TUnitVersion>
+		<TUnitVersion>1.74.0</TUnitVersion>
 	</PropertyGroup>
 	<!-- Packages -->
 	<ItemGroup Label="Purview">
