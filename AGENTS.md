@@ -402,7 +402,7 @@ just build
 repository's `Justfile`; the equivalent direct invocation (after `just ensure-pipeline-tool`) is:
 
 ```text
-.tools/purview-build/purview-build --Release:Mode=LocalNuGet --PublishLocalNuGet:LocalFeedPath=p:/_sync-projects/.local-nuget/
+dotnet purview-build --Release:Mode=LocalNuGet --PublishLocalNuGet:LocalFeedPath=p:/_sync-projects/.local-nuget/
 ```
 
 `LOCAL_NUGET_FEED_PATH` is exported in this environment, so the explicit `--PublishLocalNuGet:LocalFeedPath`

@@ -322,7 +322,7 @@ just pack                  # pack all four packages to ./artifacts
 just pipeline-pr           # the full PR pipeline (restore, build, lint, test, pack)
 ```
 
-`just pipeline-pr` installs the pinned `Purview.Build` tool to `.tools/purview-build` when it is missing.
+`just pipeline-pr` restores the repository's .NET local tools, which include the pinned `Purview.Build`.
 Local CI-equivalent validation:
 
 ```bash

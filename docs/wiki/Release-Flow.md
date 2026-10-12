@@ -72,8 +72,8 @@ just pipeline-local-release   # pack, publish to a local NuGet feed
 just version                  # the version package.json declares
 ```
 
-`pipeline-pr` and the other pipeline recipes install the pinned `Purview.Build` tool into `.tools/purview-build`
-when it is missing.
+`pipeline-pr` and the other pipeline recipes run `dotnet tool restore`, which installs the pinned
+`Purview.Build` from `.config/dotnet-tools.json`.
 
 ## Testing the packed packages locally
 
