@@ -22,7 +22,10 @@
 		<RoslynVersion>5.9.0</RoslynVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Testing Versions">
+		<!-- Purview.Skills.Testing 1.0.6 depends on TUnit.Assertions/TUnit.Core 1.75.0, and central
+		     transitive pinning would otherwise pin TUnit.Core back down to a lower version. -->
 		<TUnitVersion>1.75.0</TUnitVersion>
+		<PurviewSkillsTestingVersion>1.0.6</PurviewSkillsTestingVersion>
 	</PropertyGroup>
 	<!-- Packages -->
 	<ItemGroup Label="Purview">
@@ -52,7 +55,10 @@
 	<ItemGroup Label="Testing">
 		<PackageVersion Include="Bogus" Version="35.6.5" />
 		<PackageVersion Include="TUnit" Version="$(TUnitVersion)" />
+		<PackageVersion Include="TUnit.Assertions" Version="$(TUnitVersion)" />
 		<PackageVersion Include="TUnit.Core" Version="$(TUnitVersion)" />
 		<PackageVersion Include="TUnit.Mocks" Version="$(TUnitVersion)" />
+		<!-- The Agent Skills conformance rule set, used by src/tests/Repository.UnitTests. -->
+		<PackageVersion Include="Purview.Skills.Testing" Version="$(PurviewSkillsTestingVersion)" />
 	</ItemGroup>
 </Project>

@@ -8,6 +8,10 @@ description: "Use when modelling expected failures as a C# 15 union and converti
 Use this skill when a codebase models expected failures as a **union** and returns
 `Result<TValue, TUnion>` or the value-less `Result<TUnion>` from the `Purview.Results` package.
 
+Replacing thrown domain exceptions, `bool`/`out` pairs or error enums in existing code? The
+step-by-step playbook is in
+[references/migrating-error-returns.md](references/migrating-error-returns.md).
+
 ## The shape
 
 ```csharp

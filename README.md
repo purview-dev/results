@@ -300,7 +300,7 @@ The full documentation suite lives in [`docs/wiki`](docs/wiki/Getting-Started.md
 | `src/src/AspNetCore` | Result-to-response mapping, endpoint filter and DI registration |
 | `src/src/ZodSharp` | ZodSharp `ValidationResult<T>` bridge |
 | `src/src/ZodSharp.AspNetCore` | `HttpValidationProblemDetails` mapping for validation-carrying failures |
-| `src/src/<Project>/Sdk` | Package-only assets: `README.md` (packed as the package README) and any `Sdk/.agents/**` skills |
+| `src/src/<Project>/Sdk` | Package-only assets: `README.md` (packed as the package README) |
 | `src/tests` | TUnit unit tests, including source-generation and incremental-cache tests |
 | `src/src/Examples.*` | Runnable, non-packable examples: one project per integration aspect, built on the Tenant* domain |
 | `docs/wiki` | User-facing documentation suite, aggregated by the purview-dev website |
