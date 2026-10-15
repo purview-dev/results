@@ -1,4 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup Label="Agent Skills">
+		<!-- Authored at the repository root in skills/; packed into .agents/skills/ so consumers
+		     still receive them through the mirror. See src/Directory.Build.targets. -->
+		<PurviewSkillsToPack>purview-results-zodsharp-validation</PurviewSkillsToPack>
+	</PropertyGroup>
+
+
 	<!--
 		Integration package that bridges ZodSharp validation results into Purview.Results.
 		It stays a leaf library: Results never depends on ZodSharp, and consumers opt in by referencing
@@ -25,5 +32,6 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\Results\Results.csproj" />
+
 	</ItemGroup>
 </Project>

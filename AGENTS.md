@@ -25,7 +25,8 @@ generator that makes C# 15 union error cases ergonomic), and the ZodSharp and AS
 | `src/src/AspNetCore` | Result-to-response mapping, endpoint filter, DI registration |
 | `src/src/ZodSharp` | ZodSharp `ValidationResult<T>` bridge |
 | `src/src/ZodSharp.AspNetCore` | Validation-problem mapping for validation-carrying failures |
-| `src/src/<Project>/Sdk` | Package-only assets. `Sdk/README.md` is packed as the package README; `Sdk/.agents/**` would ship agent skills with the package |
+| `src/src/<Project>/Sdk` | Package-only assets. `Sdk/README.md` is packed as the package README; `Sdk/.agents/**` ships sub-agent definitions and prompts with the package |
+| `skills` | Authored agent skills, packed into each package's `.agents/skills/` and installable with `npx skills` (see [Agent skills](#agent-skills)) |
 | `src/tests` | TUnit unit tests, including source-generation and incremental-cache tests |
 | `src/src/Examples.*` | Runnable, non-packable examples: one project per integration aspect on a shared Tenant* domain |
 | `docs/wiki` | User-facing documentation suite, aggregated by the purview-dev website |
@@ -311,24 +312,41 @@ result and the HTTP mapping).
 ## Agent skills
 
 The repository-root `.agents/**` tree is **delivered by NuGet packages**; this repository also **authors** its
-own agent content under `src/src/<Project>/Sdk/.agents/**`, which the packages ship to consumers.
+own agent content, which the packages ship to consumers.
 
 `Purview.BuildSdk` mirrors the `.agents` folder of every restored package into the repository root before build
 and records what it copied in `.purview/agent-sync.cache`, so the root tree is complete even though it is not
 maintained here.
 
+**Authored skills live in the repository-root `skills/` folder, not under `Sdk/.agents/skills/`.** The skills
+CLI (`npx skills`) only discovers skills at a root `skills/` folder, and `.agents/` is gitignored here — so it
+is absent from a git clone and cannot be the published source. Sub-agent definitions and prompts are unaffected
+and stay under `src/src/<Project>/Sdk/.agents/`.
+
 ### Authored here (shipped by this repository's packages)
 
-| Content | Package | Path |
-| --- | --- | --- |
-| `skills/purview-results-core`, `skills/purview-results-union-errors`, `agents/purview-results-union-author.agent.md`, `prompts/migrate-error-returns-to-result-unions.prompt.md` | `Purview.Results` | `src/src/Results/Sdk/.agents` |
-| `skills/purview-results-http-mapping` | `Purview.Results.AspNetCore` | `src/src/AspNetCore/Sdk/.agents` |
-| `skills/purview-results-zodsharp-validation` | `Purview.Results.ZodSharp` | `src/src/ZodSharp/Sdk/.agents` |
-| `skills/purview-results-zodsharp-problems` | `Purview.Results.ZodSharp.AspNetCore` | `src/src/ZodSharp.AspNetCore/Sdk/.agents` |
+Each project names the subset it ships through `PurviewSkillsToPack`, so a skill reaches only the package whose
+library it describes. The authored copy still lives once, at the repository root.
 
-- These files **are tracked source** and are packed as `.agents/**` (the SDK also generates the per-skill
-  `.gitignore` inside the package). Update them like any other package asset, and keep each skill's guidance in
+| Skill (in `skills/`) | Package | Declared in |
+| --- | --- | --- |
+| `purview-results-core`, `purview-results-union-errors` | `Purview.Results` | `src/src/Results/Results.csproj` |
+| `purview-results-http-mapping` | `Purview.Results.AspNetCore` | `src/src/AspNetCore/AspNetCore.csproj` |
+| `purview-results-zodsharp-validation` | `Purview.Results.ZodSharp` | `src/src/ZodSharp/ZodSharp.csproj` |
+| `purview-results-zodsharp-problems` | `Purview.Results.ZodSharp.AspNetCore` | `src/src/ZodSharp.AspNetCore/ZodSharp.AspNetCore.csproj` |
+
+Sub-agent definitions and prompts remain under `src/src/Results/Sdk/.agents/` (`agents/purview-results-union-author.agent.md`,
+`prompts/migrate-error-returns-to-result-unions.prompt.md`).
+
+- Packing is performed by the `IncludeRepositorySkillsInPackage` target in `src/Directory.Build.targets`. That
+  is an **interim shim**: `global.json` pins `Purview.BuildSdk` 1.0.5, which does not yet provide the SDK-side
+  equivalent. It implements the same `PurviewSkillsToPack` property the SDK uses, so adopting the newer SDK
+  means setting `PurviewPackRepositorySkills=true` on the same projects and deleting the shim.
+- These files **are tracked source** and are packed as `.agents/skills/**` (the per-skill `.gitignore` is
+  generated into the package too). Update them like any other package asset, and keep each skill's guidance in
   step with the code it documents.
+- Adding a skill: create `skills/<name>/SKILL.md`, then add the name to the owning project's
+  `PurviewSkillsToPack`. A skill that is not named there is installable from git but ships in no package.
 - A consuming repository that imports `Purview.BuildSdk` receives them in its own `.agents/` folder on the next
   restore/build, so consumer-facing guidance is written for consumers (package-facing, not repository-facing).
 - Load the relevant skill before doing the work it covers:

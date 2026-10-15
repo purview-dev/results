@@ -1,4 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup Label="Agent Skills">
+		<!-- Authored at the repository root in skills/; packed into .agents/skills/ so consumers
+		     still receive them through the mirror. See src/Directory.Build.targets. -->
+		<PurviewSkillsToPack>purview-results-http-mapping</PurviewSkillsToPack>
+	</PropertyGroup>
+
+
 	<PropertyGroup>
 		<IsPackable>true</IsPackable>
 		<Title>Purview Results ASP.NET Core</Title>
@@ -26,5 +33,6 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\Results\Results.csproj" />
+
 	</ItemGroup>
 </Project>
