@@ -5,7 +5,6 @@
 		<PurviewSkillsToPack>purview-results-zodsharp-problems</PurviewSkillsToPack>
 	</PropertyGroup>
 
-
 	<PropertyGroup>
 		<IsPackable>true</IsPackable>
 		<Title>Purview Results ZodSharp ASP.NET Core</Title>
@@ -40,6 +39,5 @@
 		<ProjectReference Include="..\AspNetCore\AspNetCore.csproj" />
 
 		<ProjectReference Include="..\ZodSharp\ZodSharp.csproj" />
-
 	</ItemGroup>
 </Project>

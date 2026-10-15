@@ -5,7 +5,6 @@
 		<PurviewSkillsToPack>purview-results-http-mapping</PurviewSkillsToPack>
 	</PropertyGroup>
 
-
 	<PropertyGroup>
 		<IsPackable>true</IsPackable>
 		<Title>Purview Results ASP.NET Core</Title>
@@ -33,6 +32,5 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\Results\Results.csproj" />
-
 	</ItemGroup>
 </Project>

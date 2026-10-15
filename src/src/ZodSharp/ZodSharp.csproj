@@ -5,7 +5,6 @@
 		<PurviewSkillsToPack>purview-results-zodsharp-validation</PurviewSkillsToPack>
 	</PropertyGroup>
 
-
 	<!--
 		Integration package that bridges ZodSharp validation results into Purview.Results.
 		It stays a leaf library: Results never depends on ZodSharp, and consumers opt in by referencing
@@ -32,6 +31,5 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\Results\Results.csproj" />
-
 	</ItemGroup>
 </Project>
