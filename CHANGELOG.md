@@ -6,10 +6,31 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html). `package.json` is the authoritative version; see
 [Release Flow](docs/wiki/Release-Flow.md).
 
-Released versions correspond to `v<version>` GitHub releases. Entries below the `Unreleased` heading have not
-been published to NuGet.
+Released versions correspond to `v<version>` GitHub releases.
 
-## Unreleased
+## 1.0.2
+
+Consolidates the `1.0.0` and `1.0.0.1` releases that followed `1.0.0-prerelease.2`: upgrading from the
+prerelease goes straight to `1.0.2`, and the notes below cover that whole arc.
+
+> **Upgrading?** Start with [Upgrade notes](#upgrade-notes). Two APIs moved or changed shape along the way;
+> each note names the old form, the new form, and the edit to make.
+
+### Upgrade notes
+
+- **The `[GenerateResult]` attribute now lives in `Purview.Results`.**
+  - *Previously:* the generated opt-in attribute was emitted into `Purview.Results.SourceGenerator`.
+  - *Now:* it is `Purview.Results.GenerateResultAttribute`.
+  - *To upgrade:* remove any `using Purview.Results.SourceGenerator;` that was added only for the attribute.
+    `Purview.Results` is already imported wherever the result types are used, so most files need no change.
+- **`IResultValue` gained `AcceptSuccess<TState, TReturn>`.** See
+  [`IResultValueVisitor<TState, TReturn>`](#added--iresultvaluevisitortstate-treturn) for why.
+  - *To upgrade:* nothing, in the normal case — the two result types implement `IResultValue` in-box, and
+    external implementations are not expected. A hand-written implementation needs the new member.
+- **Async combinators now await with `ConfigureAwait(false)`**, so they no longer resume on a captured
+  synchronization context.
+  - *To upgrade:* nothing for an ASP.NET Core or console host. Code that relied on continuing back onto a UI or
+    legacy ASP.NET context must marshal back itself.
 
 ### Added
 
@@ -48,6 +69,9 @@ been published to NuGet.
 
 ### Changed
 
+- **NuGet package validation.** All four packages now enable `EnablePackageValidation` against the previous
+  stable release (`1.0.0.1`), so an unintended change to the public API fails `dotnet pack` rather than
+  shipping. All four validate clean with no suppressions.
 - `Purview.Results.ZodSharp.AspNetCore` references `Purview.ZodSharp` explicitly rather than relying on it
   transitively through `Purview.ZodSharp.AspNetCore`, because the mapping uses `ZodException` and
   `ValidationError` directly. No package content changes.
@@ -65,8 +89,9 @@ been published to NuGet.
   - Declaring your own `[GenerateResult]` union needs `LangVersion=preview` in **that** project.
 
   Both paths are verified against the packed package, the first with `TreatWarningsAsErrors=true`.
-- **Breaking:** the generated `[GenerateResult]` opt-in attribute moved from `Purview.Results.SourceGenerator`
-  to `Purview.Results`. Remove any `using Purview.Results.SourceGenerator;` added for the attribute.
+- The generated `[GenerateResult]` opt-in attribute moved from `Purview.Results.SourceGenerator` to
+  `Purview.Results`, so it sits alongside the types it opts into. Listed under
+  [Upgrade notes](#upgrade-notes).
 - **All four packages are now marked `IsAotCompatible`**, enabling `IsTrimmable` and both the trim and AOT
   analyzers, and all four are verified clean. For `Purview.Results` and `Purview.Results.ZodSharp` this
   independently confirms the "no reflection, no dynamic, no runtime type discovery" guarantee.
@@ -110,6 +135,13 @@ been published to NuGet.
   pinned to `net11.0`.
 - `Results.UnitTests` multi-targets, so the core is now exercised on both runtimes — the suite went from
   342 to 492 executions.
+- **The `net10.0` mapping behaviour is now pinned by a test.** `AspNetCore.UnitTests` is itself pinned to
+  `net11.0` (it declares a union, which cannot compile earlier), so the `net10.0` branch of
+  `DefaultResultsHttpMapper.ResolveCases` could not be executed by the suite at all — the only coverage was the
+  end-to-end packed-consumer check. Two tests now assert the equivalence that branch relies on: a **non-union**
+  error type resolves as its own single case, both when it has a mapping and when it falls through to the
+  unmapped-failure response. That is precisely what `net10.0` always returns, so unwrapping that stopped
+  treating a non-union error as a single case now fails here instead of silently breaking `net10.0` consumers.
 - **Runtime async is scoped to `net11.0`.** `Features=runtime-async=on` was set repo-wide. On `net10.0` it
   lowers `await` to `System.Runtime.CompilerServices.AsyncHelpers`, which is evaluation-only and fails the
   build with `SYSLIB5007` — the API is explicitly subject to change or removal. A `net10.0` consumer
@@ -127,11 +159,11 @@ been published to NuGet.
 - A new visitor interface and `IResultValue.AcceptSuccess<TState, TReturn>` hand a result's successful value
   to infrastructure **with its static type intact**, without reflection. `SuccessValue` remains the right
   shape for inspection; use `AcceptSuccess` whenever the type matters, such as serialization.
-- **Breaking for anyone implementing `IResultValue` themselves** (the two result types implement it in-box;
-  external implementations are not expected).
+- The two result types implement `IResultValue` in-box, so this reaches a consumer only through a
+  hand-written implementation, which is not an expected shape. Listed under
+  [Upgrade notes](#upgrade-notes).
 - Async combinators now await with `ConfigureAwait(false)`, so they no longer resume on a captured
-  synchronization context. This affects consumers that relied on continuation back onto a UI or legacy
-  ASP.NET context.
+  synchronization context. Listed under [Upgrade notes](#upgrade-notes).
 
 ### Fixed
 

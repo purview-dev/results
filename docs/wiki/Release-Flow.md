@@ -10,6 +10,25 @@ GitHub Actions workflows in `.github/workflows/`. Consuming repositories own con
 `Purview.BuildSdk`. Never diverge a project's version by hand. Read the current line from `package.json`
 (`just version`) rather than from this page; a prerelease uses a `MAJOR.MINOR.PATCH-prerelease.N` suffix.
 
+## Releasing a version
+
+A push to `main` publishes, so everything below has to be true *before* the merge.
+
+1. **Rename the changelog heading to the version being released.** `CHANGELOG.md`'s newest `## <version>`
+   heading is the one that ships; there is no `Unreleased` heading, precisely so a merge cannot publish an
+   unnamed release. Anything a consumer has to act on goes under that version's `### Upgrade notes`, each note
+   naming the old form, the new form and the edit to make.
+2. **Move new diagnostics into a shipped block**, as [Analyzer release tracking](#analyzer-release-tracking)
+   describes. A rule stays recorded under the release that *introduced* it, so earlier blocks are never
+   rewritten.
+3. **Bump the package-validation baseline.** `src/Directory.Build.targets` sets
+   `PackageValidationBaselineVersion` to the previous stable release; it must name the version currently on
+   NuGet, not the one being released. The build then fails `dotnet pack` on an unintended public-API change. An
+   intended one needs a `CompatibilitySuppressions.xml` beside the owning project
+   (`dotnet pack /p:GenerateCompatibilitySuppressionFile=true`) *and* a matching upgrade note — the two are each
+   other's evidence.
+4. **Run `just pipeline-pr`**, which covers restore, build, lint, tests, pack and pack validation in one pass.
+
 ## Workflows
 
 | Workflow | Trigger | Pipeline |
@@ -17,14 +36,14 @@ GitHub Actions workflows in `.github/workflows/`. Consuming repositories own con
 | `.github/workflows/pr.yml` | pull requests against `main` (opened, synchronize, reopened, ready_for_review) | shared `purview-build.yml`, with `run-pack: true` and `validate-pack: true` |
 | `.github/workflows/release.yml` | push to `main` | shared `purview-release.yml` with `release-mode: NuGet` |
 
-Both workflows pin `dotnet-version` to the SDK in `global.json` (`11.0.100-rc.1.26425.128`) — the shared workflow
-defaults to the 10.0.x SDK, which cannot resolve a repository that targets `net11.0`. Keep the two workflow files
-and `global.json` in sync.
+Both workflows pin `dotnet-version` to the SDK in `global.json` — the shared workflow defaults to the 10.0.x SDK,
+which cannot resolve a repository that targets `net11.0`. Keep the two workflow files and `global.json` in sync,
+and read the pinned version from `global.json` rather than from this page.
 
 The release workflow packs, publishes to NuGet, and creates the `v<version>` GitHub release only when that tag does
 not already exist. Do not create release tags or publish packages manually.
 
-## `purview-build.json`
+## `.config/purview-build.json`
 
 | Key | Value |
 | --- | --- |
@@ -49,17 +68,20 @@ removed PDB, a renamed analyzer.
   `Purview.Results.SourceGenerator.CodeFixes.dll` and is never IL-merged into the generator. The generator is
   not published as a separate package.
 - The library packages ship `lib/<tfm>/<assembly>.dll` plus the XML documentation file, and a symbol package.
-- Every package ships its `README.md`, its `.agents/**` content and `purview-logo-light.png`.
+- Every package ships its `README.md` and `purview-logo-light.png`. Agent skills are **not** packed —
+  `Purview.BuildSdk` 1.0.6 removed skill packaging, and they are delivered from the repository-root `skills/`
+  folder by the skills CLI instead.
 
 The framework assembly must never appear loose beside the merged analyzer — `ForbiddenContent` rejects
 `analyzers/**/Purview.SourceGeneratorFramework.dll`.
 
 ## Analyzer release tracking
 
-The generator bundled in `Purview.Results` ships public diagnostics (`RSG1000`–`RSG1008`), so it maintains the
-Roslyn release-tracking files. New or changed rules go in
+The generator bundled in `Purview.Results` ships public diagnostics (`RSG1000`–`RSG1009` and `RSG9000`), so it
+maintains the Roslyn release-tracking files. New or changed rules go in
 `src/src/SourceGenerator/AnalyzerReleases.Unshipped.md`, which the compiler's RS2008 catalogue validates during
-the build. `RSG2000` is a *suppression* id, not a reported rule, so it must not appear there.
+the build, and move into a `## Release <version>` block in `AnalyzerReleases.Shipped.md` when that version ships.
+`RSG2000` is a *suppression* id, not a reported rule, so it must not appear in either file.
 
 ## Commands
 
