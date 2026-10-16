@@ -25,7 +25,8 @@ generator that makes C# 15 union error cases ergonomic), and the ZodSharp and AS
 | `src/src/AspNetCore` | Result-to-response mapping, endpoint filter, DI registration |
 | `src/src/ZodSharp` | ZodSharp `ValidationResult<T>` bridge |
 | `src/src/ZodSharp.AspNetCore` | Validation-problem mapping for validation-carrying failures |
-| `src/src/<Project>/Sdk` | Package-only assets. `Sdk/README.md` is packed as the package README; `Sdk/.agents/**` would ship agent skills with the package |
+| `src/src/<Project>/Sdk` | Package-only assets. `Sdk/README.md` is packed as the package README |
+| `skills` | Authored agent skills, installable with the skills CLI (see [Agent skills](#agent-skills)) |
 | `src/tests` | TUnit unit tests, including source-generation and incremental-cache tests |
 | `src/src/Examples.*` | Runnable, non-packable examples: one project per integration aspect on a shared Tenant* domain |
 | `docs/wiki` | User-facing documentation suite, aggregated by the purview-dev website |
@@ -35,8 +36,6 @@ generator that makes C# 15 union error cases ergonomic), and the ZodSharp and AS
 | `package.json` | Authoritative repository and package version |
 | `purview-build.json` | Shared `Purview.Build` pipeline configuration (solution, test discovery, test filter) |
 | `Justfile` | Supported local workflow commands |
-| `.agents` | Package-delivered skills, agents and prompts (see [Agent skills](#agent-skills)) |
-| `.purview/agent-sync.cache` | SDK-managed manifest recording which `.agents` files are already mirrored |
 
 ## Standard workflow
 
@@ -310,51 +309,41 @@ result and the HTTP mapping).
 
 ## Agent skills
 
-The repository-root `.agents/**` tree is **delivered by NuGet packages**; this repository also **authors** its
-own agent content under `src/src/<Project>/Sdk/.agents/**`, which the packages ship to consumers.
+Authored skills live in the repository-root `skills/` folder. **Nothing packs them into a NuGet package.**
+`Purview.BuildSdk` 1.0.6 removed skill packaging outright — the skills CLI clones the *git* repository and only
+discovers a root `skills/` folder, so that is the one delivery route. `PurviewSkillsToPack`, the
+`IncludeRepositorySkillsInPackage` shim in `src/Directory.Build.targets`, the `Sdk/.agents/**` sub-agents and
+prompts, and the `.agents/**/*` entries in `.config/purview-build.json` went with it.
 
-`Purview.BuildSdk` mirrors the `.agents` folder of every restored package into the repository root before build
-and records what it copied in `.purview/agent-sync.cache`, so the root tree is complete even though it is not
-maintained here.
+`.agents/skills/` is the CLI's install location for skills from **other** repositories, and is gitignored. This
+repository's own skills are never installed into it — that would leave two copies to drift apart. Read them at
+their authored path, `skills/<name>/SKILL.md`.
 
-### Authored here (shipped by this repository's packages)
-
-| Content | Package | Path |
-| --- | --- | --- |
-| `skills/purview-results-core`, `skills/purview-results-union-errors`, `agents/purview-results-union-author.agent.md`, `prompts/migrate-error-returns-to-result-unions.prompt.md` | `Purview.Results` | `src/src/Results/Sdk/.agents` |
-| `skills/purview-results-http-mapping` | `Purview.Results.AspNetCore` | `src/src/AspNetCore/Sdk/.agents` |
-| `skills/purview-results-zodsharp-validation` | `Purview.Results.ZodSharp` | `src/src/ZodSharp/Sdk/.agents` |
-| `skills/purview-results-zodsharp-problems` | `Purview.Results.ZodSharp.AspNetCore` | `src/src/ZodSharp.AspNetCore/Sdk/.agents` |
-
-- These files **are tracked source** and are packed as `.agents/**` (the SDK also generates the per-skill
-  `.gitignore` inside the package). Update them like any other package asset, and keep each skill's guidance in
-  step with the code it documents.
-- A consuming repository that imports `Purview.BuildSdk` receives them in its own `.agents/` folder on the next
-  restore/build, so consumer-facing guidance is written for consumers (package-facing, not repository-facing).
-- Load the relevant skill before doing the work it covers:
-  - modelling or migrating to result error unions → `purview-results-union-errors`
-  - the result type, its states or its combinators → `purview-results-core`
-  - result-to-HTTP mapping or unmapped-failure `500`s → `purview-results-http-mapping`
-  - ZodSharp validation flowing through results → `purview-results-zodsharp-validation`, then
-    `purview-results-zodsharp-problems`
-
-### Delivered by upstream packages (re-synced, do not edit)
-
-| Content | Source package |
+| Skill | Answers |
 | --- | --- |
-| `skills/project-placement-defaults`, `skills/sdk-configuration-reference`, `skills/sdk-project-behavior-and-detection`, `agents/sdk-consumer-setup.md`, `prompts/sdk-diagnose-agent-folder-copy.md` | `Purview.BuildSdk` |
-| `skills/source-generator-codewriter-modernization`, `agents/source-generator-framework-writer.agent.md`, `prompts/refactor-source-generator-to-codewriter.prompt.md` | `Purview.SourceGeneratorFramework` |
-| `skills/source-generator-testing` | `Purview.SourceGeneratorFramework.Testing` |
-| `skills/tunit-test-authoring`, `agents/test-author-writer.agent.md`, `prompts/modernize-test-to-codequery-tunit.prompt.md` | `Purview.SourceGeneratorFramework.Testing.TUnit` |
+| `skills/purview-results-core/` | the result type, its three states, the throw-on-misuse contract and the combinators |
+| `skills/purview-results-union-errors/` | modelling failures as a `[GenerateResult]` union, the generated helpers, the `RSG1000`–`RSG1008` diagnostics, and migrating ad-hoc failure signalling |
+| `skills/purview-results-http-mapping/` | result-to-HTTP mapping, failure resolution order and unmapped-failure `500`s |
+| `skills/purview-results-zodsharp-validation/` | ZodSharp validation flowing through a result |
+| `skills/purview-results-zodsharp-problems/` | validation problems from result failures |
 
-- **Upstream skills are not tracked by git.** Each `.agents/skills/<name>/` folder carries an SDK-generated
-  `.gitignore` that ignores everything except itself, so only those stub files appear in `git status`. Treat that
-  content as read-only: do not edit it here and do not force-add it to git. Changes belong in the owning package
-  repository (`build-sdk`, `sourcegenerator-framework`).
-- Upstream agents and prompts under `.agents/agents/**` and `.agents/prompts/**` are tracked, but they are still
-  package-owned: editing them locally is overwritten by the next restore or build.
-- If `.agents` content looks missing or stale after a package bump, run a build and inspect
-  `.purview/agent-sync.cache`; deleting an entry (or the manifest) forces a fresh copy.
+Every skill carries the `purview-results` prefix. Skills install into one flat directory per agent, shared with
+every skill a developer has installed from anywhere, so an unprefixed name collides and the loser is whichever
+installed second.
+
+To add a skill: create `skills/<name>/SKILL.md` with spec-legal frontmatter, and nothing else. There is no
+per-project registration any more. Deep, task-shaped detail belongs in that skill's own `references/` folder —
+`skills/purview-results-union-errors/references/migrating-error-returns.md` is the worked example.
+
+A relative link from one `SKILL.md` into another skill's folder is a rule violation: only a skill's own folder is
+installed with it, so such a link works here and nowhere else. Name the other skill in prose instead.
+
+`src/tests/Repository.UnitTests/SkillTests.cs` validates every skill on every test run, through
+`Purview.Skills.Testing`'s rule set (the Agent Skills specification: frontmatter fields, name and description
+constraints, bundled links, body size). The `[InheritsTests]` attribute on that class is load-bearing — TUnit does
+not walk base types during discovery, so without it the run is green and nothing is checked. That project pins
+`net10.0` rather than taking the repository's testing set, because it asserts something about the repository
+rather than about the runtime's reach.
 
 ## Build, format, test and pack commands
 
@@ -402,7 +391,7 @@ just build
 repository's `Justfile`; the equivalent direct invocation (after `just ensure-pipeline-tool`) is:
 
 ```text
-.tools/purview-build/purview-build --Release:Mode=LocalNuGet --PublishLocalNuGet:LocalFeedPath=p:/_sync-projects/.local-nuget/
+dotnet purview-build --Release:Mode=LocalNuGet --PublishLocalNuGet:LocalFeedPath=p:/_sync-projects/.local-nuget/
 ```
 
 `LOCAL_NUGET_FEED_PATH` is exported in this environment, so the explicit `--PublishLocalNuGet:LocalFeedPath`

@@ -84,7 +84,7 @@ Tenancy domain the Quick start uses, so one error-union vocabulary drives every 
 | [`Examples.Zod`](src/src/Examples.Zod) | + `Purview.Results.ZodSharp` | A `[ZodSchema]` input validated into a result, where the rejection carries its `ValidationError`s, and a value-discarding `ToUnitResult` validation |
 | [`Examples.AspNetCore`](src/src/Examples.AspNetCore) | + `Purview.Results.AspNetCore` | `AddResultsHttp`/`Map`/`WithResultsHttp`, nested error-union leaf mapping, a successful unit result answering `204`, the mapping-gap and uninitialized-result paths |
 | [`Examples.AspNetCore.Zod`](src/src/Examples.AspNetCore.Zod) | + `Purview.Results.ZodSharp.AspNetCore` | A validation-carrying failure rendered as `HttpValidationProblemDetails`, with a case mapping winning over the fallback |
-| [`Examples.ValueObjects.Zod`](src/src/Examples.ValueObjects.Zod) | `Purview.Results.ZodSharp`, `Purview.ValueObjects` | A `[Scalar]` value object whose type-level `[ZodRule]` owns its code and origin, validated into a result failure the HTTP layer can answer by origin |
+| [`Examples.ValueObjects.Zod`](src/src/Examples.ValueObjects.Zod) | `Purview.Results.ZodSharp`, `Purview.ValueObjects` | An automatic `[Scalar<Guid>]` value object whose type-level `[ZodRule]` owns its code and origin, validated into a result failure the HTTP layer can answer by origin |
 
 ```bash
 dotnet run --project src/src/Examples.Basic
@@ -300,7 +300,7 @@ The full documentation suite lives in [`docs/wiki`](docs/wiki/Getting-Started.md
 | `src/src/AspNetCore` | Result-to-response mapping, endpoint filter and DI registration |
 | `src/src/ZodSharp` | ZodSharp `ValidationResult<T>` bridge |
 | `src/src/ZodSharp.AspNetCore` | `HttpValidationProblemDetails` mapping for validation-carrying failures |
-| `src/src/<Project>/Sdk` | Package-only assets: `README.md` (packed as the package README) and any `Sdk/.agents/**` skills |
+| `src/src/<Project>/Sdk` | Package-only assets: `README.md` (packed as the package README) |
 | `src/tests` | TUnit unit tests, including source-generation and incremental-cache tests |
 | `src/src/Examples.*` | Runnable, non-packable examples: one project per integration aspect, built on the Tenant* domain |
 | `docs/wiki` | User-facing documentation suite, aggregated by the purview-dev website |
@@ -322,7 +322,7 @@ just pack                  # pack all four packages to ./artifacts
 just pipeline-pr           # the full PR pipeline (restore, build, lint, test, pack)
 ```
 
-`just pipeline-pr` installs the pinned `Purview.Build` tool to `.tools/purview-build` when it is missing.
+`just pipeline-pr` restores the repository's .NET local tools, which include the pinned `Purview.Build`.
 Local CI-equivalent validation:
 
 ```bash

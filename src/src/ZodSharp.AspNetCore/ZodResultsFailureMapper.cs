@@ -84,7 +84,7 @@ public sealed partial class ZodResultsFailureMapper(
 	}
 
 	/// <summary>
-	/// The log messages this mapper emits, with stable <see cref="Microsoft.Extensions.Logging.EventId"/>s.
+	/// The log messages this mapper emits, with stable <see cref="EventId"/>s.
 	/// </summary>
 	/// <remarks>
 	/// Source-generated, so the identifier is fixed and the message allocates nothing when Debug is

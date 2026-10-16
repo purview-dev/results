@@ -22,7 +22,16 @@
 	</ItemGroup>
 
 	<ItemGroup>
+		<!--
+			ZodSharp types (ZodException, ValidationError) are used directly by the mapping, so the package is
+			referenced explicitly rather than relied on transitively through Purview.ZodSharp.AspNetCore.
+		-->
+		<PackageReference Include="Purview.ZodSharp" />
+	</ItemGroup>
+
+	<ItemGroup>
 		<ProjectReference Include="..\AspNetCore\AspNetCore.csproj" />
+
 		<ProjectReference Include="..\ZodSharp\ZodSharp.csproj" />
 	</ItemGroup>
 </Project>

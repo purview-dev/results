@@ -67,6 +67,22 @@ Result<TenantError> Validate(TenantInput input) =>
 Use `ToResult` when the success carries the validated value, `ToUnitResult` when it carries nothing, and the
 generated `AsFailure<TValue>()` when the success carries something else.
 
+## Async validation
+
+`ValidateAsync` returns a `ValueTask<ValidationResult<T>>`, and the async counterparts fold it in the same way:
+
+```csharp
+async Task<Result<TenantError>> Validate(TenantInput input, CancellationToken cancellationToken) =>
+    await TenantInputSchemaValidator
+        .ValidateAsync(input, cancellationToken)
+        .ToUnitResultAsync<TenantInput, TenantError>(errors => new TenantInputInvalid(input, errors));
+```
+
+- `ToResultAsync` carries the validated value on success; `ToUnitResultAsync` discards it.
+- The error type is named explicitly for the same reason as the synchronous forms.
+- Do not block on `ValidateAsync` to reuse the synchronous methods — that reintroduces the sync-over-async the
+  bridge exists to avoid.
+
 ## Carrying the errors
 
 ```csharp
@@ -97,7 +113,8 @@ results. Naming the error type explicitly keeps the intent unambiguous.
 ## Checklist
 
 1. Validation outcomes are mapped, never thrown.
-2. The error type is named explicitly (`ToResult<TValue, TUnion>(…)` or `ToUnitResult<TValue, TUnion>(…)`).
+2. The error type is named explicitly (`ToResult<TValue, TUnion>(…)` or `ToUnitResult<TValue, TUnion>(…)`, and
+   the async counterparts for a `ValidateAsync` outcome).
 3. The case that carries the errors implements `IValidationErrorCarrier`.
 4. A method whose success type differs uses `AsFailure<TValue>()`, or `AsFailure()` for a unit result, with the
    validation errors.

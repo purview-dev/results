@@ -7,6 +7,12 @@
 		"TestFilter": "/*/*/*/*[Category=Unit]"
 	},
 	"PackValidation": {
+		// Explicit because Purview.Build 0.5.3 defaults RequiredCompilerFlags to empty. Earlier
+		// versions forced this check on and could not be configured off, so these packages have
+		// always been validated against it; declaring it keeps that behaviour.
+		"RequiredCompilerFlags": [
+			"optimization=release"
+		],
 		// Every package is a library package that produces a symbol package, so RequireSymbolFiles and the
 		// assembly checks below all apply to them. Purview.Results additionally carries the merged source
 		// generator and its code fix under analyzers/dotnet/cs (no PDB, no lib folder for those), so the
@@ -16,7 +22,6 @@
 		// package ships: a package with no rule here, or an entry matching none of its globs, fails.
 		"RequiredContent": {
 			"purview.results": [
-				".agents/**/*",
 				"README.md",
 				"analyzers/dotnet/cs/Purview.Results.SourceGenerator.CodeFixes.dll",
 				"analyzers/dotnet/cs/Purview.Results.SourceGenerator.dll",
@@ -26,21 +31,18 @@
 				"purview-logo-light.png"
 			],
 			"purview.results.aspnetcore": [
-				".agents/**/*",
 				"README.md",
 				"lib/$(TFM)/Purview.Results.AspNetCore.dll",
 				"lib/$(TFM)/Purview.Results.AspNetCore.xml",
 				"purview-logo-light.png"
 			],
 			"purview.results.zodsharp": [
-				".agents/**/*",
 				"README.md",
 				"lib/$(TFM)/Purview.Results.ZodSharp.dll",
 				"lib/$(TFM)/Purview.Results.ZodSharp.xml",
 				"purview-logo-light.png"
 			],
 			"purview.results.zodsharp.aspnetcore": [
-				".agents/**/*",
 				"README.md",
 				"lib/$(TFM)/Purview.Results.ZodSharp.AspNetCore.dll",
 				"lib/$(TFM)/Purview.Results.ZodSharp.AspNetCore.xml",
@@ -50,11 +52,12 @@
 		"ForbiddenContent": {
 			// The generator ships a merged, self-contained analyzer, so the framework assembly must never
 			// appear loose beside it.
-			"*": ["analyzers/**/Purview.SourceGeneratorFramework.dll"]
+			"*": [
+				"analyzers/**/Purview.SourceGeneratorFramework.dll"
+			]
 		}
 	},
 	"Release": {
 		"Mode": "None"
 	}
 }
-

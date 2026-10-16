@@ -47,16 +47,30 @@ return await ReconcileCoreAsync(validated.Value, repositories, cancellationToken
 | --- | --- |
 | `ValidationResult<TValue>.ToResult<TValue, TError>(Func<ImmutableArray<ValidationError>, TError> onFailure)` | Success carries the validated value; failure carries the created error. `onFailure` runs only when validation failed, so a successful validation allocates no error |
 | `ValidationResult<TValue>.ToUnitResult<TValue, TError>(Func<ImmutableArray<ValidationError>, TError> onFailure)` | The value-discarding counterpart: success is a unit `Result<TError>` and failure carries the created error. Use it when the method reports only why the input was rejected |
+| `ValueTask<ValidationResult<TValue>>.ToResultAsync<TValue, TError>(Func<ImmutableArray<ValidationError>, TError> onFailure)` | The asynchronous counterpart, for a schema whose validation awaits |
+| `ValueTask<ValidationResult<TValue>>.ToUnitResultAsync<TValue, TError>(Func<ImmutableArray<ValidationError>, TError> onFailure)` | The value-discarding asynchronous counterpart |
 | `IValidationErrorCarrier` | Implemented by an error value that carries ZodSharp validation errors, so an HTTP layer can turn it into a validation problem without knowing the error type |
 
 The error type must be named explicitly when it is a union, as in
 `ToResult<RepositoryReconciliationResult, ReconciliationError>(...)`, because a union case does not carry the
-union type that contains it. `ToUnitResult` still names the validated value type for the same reason, even though
-it discards it.
+union type that contains it. `ToUnitResult` (and the async forms) still name the validated value type for the same
+reason, even when the value is discarded.
 
 A factory returning a result rather than an error is deliberately **not** offered: for a lambda returning
 `Result<TValue, TError>` the compiler prefers a `Func<..., TError>` parameter and would silently nest the
 results. Naming the error type explicitly keeps the intent unambiguous.
+
+## Async validation
+
+`ValidateAsync` — on the generated schema, the DI validator adapter, or a
+`[ZodSchema(CustomValidationMethodName = ...)]` rule — returns a `ValueTask<ValidationResult<T>>`, and
+`ToResultAsync`/`ToUnitResultAsync` fold that into a result exactly as the synchronous methods fold `Validate`:
+
+```csharp
+return await TenantInputSchemaValidator
+    .ValidateAsync(input, cancellationToken)
+    .ToUnitResultAsync<TenantInput, TenantError>(errors => new TenantInputInvalid(input, errors));
+```
 
 ## Examples
 

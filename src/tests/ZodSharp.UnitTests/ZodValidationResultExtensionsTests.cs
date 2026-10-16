@@ -162,4 +162,135 @@ public class ZodValidationResultExtensionsTests
 		// Act & Assert
 		await Assert.That(() => validation.ToUnitResult<int, string>(null!)).Throws<ArgumentNullException>();
 	}
+
+	[Test]
+	public async Task ToResultAsync_GivenSuccessfulValidation_ReturnsTheValidatedValueWithoutInvokingTheFactory()
+	{
+		// Arrange
+		var validation = ValueTask.FromResult(ValidationResult<int>.Success(42));
+		var factoryInvocations = 0;
+
+		// Act
+		var result = await validation.ToResultAsync(errors =>
+		{
+			factoryInvocations++;
+			return errors.Length;
+		});
+
+		// Assert
+		await Assert.That(result.IsInitialized).IsTrue();
+		await Assert.That(result.IsSuccess).IsTrue();
+		await Assert.That(result.Value).IsEqualTo(42);
+		await Assert.That(factoryInvocations).IsEqualTo(0);
+	}
+
+	[Test]
+	public async Task ToResultAsync_GivenFailedValidation_MapsTheErrorValue()
+	{
+		// Arrange
+		var validation = ValueTask.FromResult(
+			ValidationResult<string>.Failure(ValidationError.Create("too_small", "Value is too short.", ["Value"]))
+		);
+
+		// Act
+		var result = await validation.ToResultAsync(errors => errors.Single());
+
+		// Assert
+		await Assert.That(result.IsInitialized).IsTrue();
+		await Assert.That(result.IsFailure).IsTrue();
+		await Assert.That(result.IsSuccess).IsFalse();
+		await Assert.That(result.Error.Code).IsEqualTo("too_small");
+		await Assert.That(result.Error.Message).IsEqualTo("Value is too short.");
+		await Assert.That(result.Error.Path).IsEquivalentTo(["Value"]);
+	}
+
+	[Test]
+	public async Task ToResultAsync_GivenFailedValidation_KeepsEveryError()
+	{
+		// Arrange
+		var errorsSeenByFactory = 0;
+		var validation = ValueTask.FromResult(
+			ValidationResult<int>.Failure([
+				ValidationError.Create("first", "The first failure.", []),
+				ValidationError.Create("second", "The second failure.", []),
+			])
+		);
+
+		// Act
+		var result = await validation.ToResultAsync(errors =>
+		{
+			errorsSeenByFactory = errors.Length;
+			return errors.Length;
+		});
+
+		// Assert
+		await Assert.That(result.IsFailure).IsTrue();
+		await Assert.That(result.Error).IsEqualTo(2);
+		await Assert.That(errorsSeenByFactory).IsEqualTo(2);
+	}
+
+	[Test]
+	public async Task ToResultAsync_GivenNullFailureFactory_ThrowsArgumentNullException()
+	{
+		// Arrange
+		var validation = ValueTask.FromResult(ValidationResult<int>.Success(1));
+
+		// Act & Assert
+		await Assert
+			.That(async () => await validation.ToResultAsync<int, string>(null!))
+			.Throws<ArgumentNullException>();
+	}
+
+	[Test]
+	public async Task ToUnitResultAsync_GivenSuccessfulValidation_ReturnsAUnitSuccessWithoutInvokingTheFactory()
+	{
+		// Arrange
+		var validation = ValueTask.FromResult(ValidationResult<int>.Success(42));
+		var factoryInvocations = 0;
+
+		// Act
+		var result = await validation.ToUnitResultAsync<int, OperationError>(errors =>
+		{
+			factoryInvocations++;
+			return new OperationRejected(new Operation(), errors);
+		});
+
+		// Assert
+		await Assert.That(result.IsInitialized).IsTrue();
+		await Assert.That(result.IsSuccess).IsTrue();
+		await Assert.That(factoryInvocations).IsEqualTo(0);
+	}
+
+	[Test]
+	public async Task ToUnitResultAsync_GivenFailedValidation_ReturnsAUnitFailureCarryingTheCreatedError()
+	{
+		// Arrange
+		var validation = ValueTask.FromResult(
+			ValidationResult<string>.Failure(ValidationError.Create("too_small", "Value is too short.", ["Value"]))
+		);
+
+		// Act
+		var result = await validation.ToUnitResultAsync<string, OperationError>(errors => new OperationRejected(
+			new Operation(),
+			errors
+		));
+
+		// Assert
+		await Assert.That(result.IsInitialized).IsTrue();
+		await Assert.That(result.IsFailure).IsTrue();
+		await Assert.That(result.IsSuccess).IsFalse();
+		await Assert.That(result.Error is OperationRejected).IsTrue();
+	}
+
+	[Test]
+	public async Task ToUnitResultAsync_GivenNullFailureFactory_ThrowsArgumentNullException()
+	{
+		// Arrange
+		var validation = ValueTask.FromResult(ValidationResult<int>.Success(1));
+
+		// Act & Assert
+		await Assert
+			.That(async () => await validation.ToUnitResultAsync<int, string>(null!))
+			.Throws<ArgumentNullException>();
+	}
 }

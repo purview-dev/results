@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 	<!--
 		Trimming and Native AOT. Verified clean under both the trim and AOT analyzers: this package contains
 		no reflection, no dynamic codegen and no runtime type discovery. IsAotCompatible turns on IsTrimmable

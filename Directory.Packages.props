@@ -11,18 +11,21 @@
 			something older.
 		-->
 		<DotNetRuntimeVersion>11.0.0-rc.1.26425.128</DotNetRuntimeVersion>
-		<DotNetRuntimeVersion Condition="'$(TargetFramework)' == 'net10.0'">10.0.12</DotNetRuntimeVersion>
+		<DotNetRuntimeVersion Condition="'$(TargetFramework)' == 'net10.0'">10.0.13</DotNetRuntimeVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Purview Versions">
-		<PurviewZodSharpVersion>2.0.2</PurviewZodSharpVersion>
-		<PurviewValueObjectsVersion>1.0.1</PurviewValueObjectsVersion>
+		<PurviewZodSharpVersion>2.1.0</PurviewZodSharpVersion>
+		<PurviewValueObjectsVersion>1.1.0</PurviewValueObjectsVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Source Generator Versions">
-		<PurviewSourceGeneratorFrameworkVersion>1.0.0</PurviewSourceGeneratorFrameworkVersion>
+		<PurviewSourceGeneratorFrameworkVersion>1.1.1</PurviewSourceGeneratorFrameworkVersion>
 		<RoslynVersion>5.9.0</RoslynVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Testing Versions">
-		<TUnitVersion>1.68.17</TUnitVersion>
+		<!-- Purview.Skills.Testing 1.0.6 depends on TUnit.Assertions/TUnit.Core 1.75.0, and central
+		     transitive pinning would otherwise pin TUnit.Core back down to a lower version. -->
+		<TUnitVersion>1.75.0</TUnitVersion>
+		<PurviewSkillsTestingVersion>1.0.6</PurviewSkillsTestingVersion>
 	</PropertyGroup>
 	<!-- Packages -->
 	<ItemGroup Label="Purview">
@@ -47,12 +50,15 @@
 		<PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="$(DotNetRuntimeVersion)" />
 	</ItemGroup>
 	<ItemGroup Label="Other">
-		<PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.401" />
+		<PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.402" />
 	</ItemGroup>
 	<ItemGroup Label="Testing">
 		<PackageVersion Include="Bogus" Version="35.6.5" />
 		<PackageVersion Include="TUnit" Version="$(TUnitVersion)" />
+		<PackageVersion Include="TUnit.Assertions" Version="$(TUnitVersion)" />
 		<PackageVersion Include="TUnit.Core" Version="$(TUnitVersion)" />
 		<PackageVersion Include="TUnit.Mocks" Version="$(TUnitVersion)" />
+		<!-- The Agent Skills conformance rule set, used by src/tests/Repository.UnitTests. -->
+		<PackageVersion Include="Purview.Skills.Testing" Version="$(PurviewSkillsTestingVersion)" />
 	</ItemGroup>
 </Project>

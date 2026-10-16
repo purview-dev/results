@@ -27,6 +27,7 @@
 	</Folder>
 	<Folder Name="/tests/">
 		<Project Path="tests/AspNetCore.UnitTests/AspNetCore.UnitTests.csproj" />
+		<Project Path="tests/Repository.UnitTests/Repository.UnitTests.csproj" />
 		<Project Path="tests/SourceGenerator.UnitTests/SourceGenerator.UnitTests.csproj" />
 		<Project Path="tests/Results.UnitTests/Results.UnitTests.csproj" />
 		<Project Path="tests/ZodSharp.AspNetCore.UnitTests/ZodSharp.AspNetCore.UnitTests.csproj" />

@@ -150,6 +150,67 @@ public sealed class DefaultResultsHttpMapperTests
 		await Assert.That(response.Body).Contains("already exists");
 	}
 
+	/// <summary>
+	/// Pins the equivalence that lets <c>Purview.Results.AspNetCore</c> ship <c>net10.0</c>: union unwrapping in
+	/// <c>DefaultResultsHttpMapper.ResolveCases</c> is compiled for <c>net11.0</c> only, and on <c>net10.0</c> an
+	/// error is always its own single case. A non-union error must therefore resolve to exactly one case here too,
+	/// so both targets answer identically for every error a <c>net10.0</c> consumer is able to declare.
+	/// </summary>
+	/// <remarks>
+	/// This project is pinned to <c>net11.0</c> because it declares a union, so the <c>net10.0</c> branch cannot be
+	/// executed directly. Asserting the equivalence on <c>net11.0</c> is what keeps the two in step: a change to
+	/// the unwrapping that stopped treating a non-union error as a single case would break <c>net10.0</c>
+	/// consumers silently, and fails here instead.
+	/// </remarks>
+	[Test]
+	public async Task Map_GivenNonUnionErrorType_ResolvesTheErrorAsItsOwnSingleCase()
+	{
+		// Arrange
+		var mapper = ResultsHttpTestFactory.CreateMapper(options =>
+			options.Map<NotAUnionError>(error =>
+				TypedResults.Problem(statusCode: StatusCodes.Status418ImATeapot, title: error.Reason)
+			)
+		);
+		var context = ResultsHttpTestFactory.CreateContext();
+
+		// Act
+		var response = await ResultsHttpTestFactory.ExecuteAsync(
+			mapper.Map(Result<int, NotAUnionError>.Failure(new NotAUnionError("brewing")), context),
+			context
+		);
+
+		// Assert
+		await Assert.That(response.StatusCode).IsEqualTo(StatusCodes.Status418ImATeapot);
+		await Assert.That(response.Body).Contains("brewing");
+	}
+
+	/// <summary>
+	/// A non-union error with no mapping of its own still reaches the unmapped-failure response rather than being
+	/// mistaken for a case of something else — the other half of the <c>net10.0</c> equivalence above.
+	/// </summary>
+	[Test]
+	public async Task Map_GivenUnmappedNonUnionErrorType_ReturnsTheUnmappedFailureResponse()
+	{
+		// Arrange
+		var mapper = ResultsHttpTestFactory.CreateMapper();
+		var context = ResultsHttpTestFactory.CreateContext();
+
+		// Act
+		var response = await ResultsHttpTestFactory.ExecuteAsync(
+			mapper.Map(Result<int, NotAUnionError>.Failure(new NotAUnionError("brewing")), context),
+			context
+		);
+
+		// Assert
+		await Assert.That(response.StatusCode).IsEqualTo(StatusCodes.Status500InternalServerError);
+	}
+
+	/// <summary>
+	/// A plain error type, deliberately not a union and not a case of one: this is the only error shape a
+	/// <c>net10.0</c> consumer can declare, because unions need .NET 11.
+	/// </summary>
+	sealed record NotAUnionError(string Reason);
+
 	[Test]
 	public async Task Map_GivenCaseMappingAndErrorTypeMapping_PrefersTheCaseMapping()
 	{

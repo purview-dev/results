@@ -68,6 +68,33 @@ public readonly partial record struct AssetId
 }
 ```
 
+### Automatic and manual scalar forms
+
+`[Scalar]` is the *manual* form — you declare the underlying property. The *automatic* form, `[Scalar<Guid>]`
+(or `[Scalar(typeof(Guid))]`), has the value-object generator declare `public Guid Value { get; init; }`, and
+Purview.ZodSharp 2.0.2+ generates the schema from that attribute even though the member is not visible to it:
+
+```csharp
+[Scalar<Guid>]
+[ZodSchema]
+[NonEmpty(Code = "invalid_asset_id", Message = "AssetId must not be empty.")]
+public readonly partial record struct AssetId;
+```
+
+The automatic form is what a generator-declared property requires anyway: a property-level DataAnnotation has no
+member to attach to, so the invariant has to be a **type-level** rule. Keep the manual form when property-level
+DataAnnotations are needed. The two forms are mutually exclusive — declaring the generator-owned property yourself
+is `VO1022`.
+
+A **nullable** scalar (`[Scalar<string>(Nullable = true)]`, or a `T?` value type) round-trips JSON `null`, so its
+schema must be null-tolerant. Use ZodSharp's shipped `[NullOrNonWhiteSpace]`, which accepts `null` but rejects an
+empty or whitespace-only value, where `[RequiredZod]` (which always rejects `null`) cannot express the check.
+
+> **An escape hatch, not the pipeline.** A `[ZodSchema]` value object's generated `Create` throws `ZodException`
+> on failure, and `TryCreate` catches it and returns `false`. That is the right shape for a call site that only
+> needs a boolean — but expected rejections belong in the result pipeline, where the errors stay structured and
+> the HTTP layer can render them.
+
 ## The rejection as a result failure
 
 The case that carries the errors implements `IValidationErrorCarrier`, so the HTTP layer can render it without
@@ -118,7 +145,7 @@ registration-ordered; see [ZodSharp Problem Details](ZodSharp-ProblemDetails.md)
 ## Runnable example
 
 [`Examples.ValueObjects.Zod`](https://github.com/purview-dev/results/tree/main/src/src/Examples.ValueObjects.Zod)
-runs the whole composition: a `[Scalar]` tenant identifier whose type-level `[ZodRule]` owns
+runs the whole composition: an automatic `[Scalar<Guid>]` tenant identifier whose type-level `[ZodRule]` owns
 `Code = "invalid_tenant_id"` and `Origin = "value_object"`, validated into a `Result<Tenant, TenantError>`
 failure and answerable by `MapOrigin("value_object", …)`.
 

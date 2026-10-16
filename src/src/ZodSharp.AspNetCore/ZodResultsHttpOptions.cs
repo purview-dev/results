@@ -203,7 +203,7 @@ public sealed class ZodResultsHttpOptions
 				continue;
 
 			// The same rule twice is idempotent; two different answers for one value are ambiguous.
-			if (rule.Behaviour == behaviour)
+			if (IsSameBehaviour(rule.Behaviour, behaviour))
 				return this;
 
 			// The same value with different behaviour is a configuration error.
@@ -216,6 +216,27 @@ public sealed class ZodResultsHttpOptions
 		rules.Add(new ZodErrorRule(value, behaviour));
 
 		return this;
+	}
+
+	/// <summary>
+	/// Answers whether two behaviours answer identically, comparing a factory by the method it binds rather than
+	/// by delegate identity.
+	/// </summary>
+	/// <remarks>
+	/// A delegate comparison would treat the same method group registered twice as different registrations —
+	/// each occurrence allocates its own delegate — and so reject a configuration that answers one way. Two
+	/// different lambdas compile to different methods, so they are still rejected.
+	/// </remarks>
+	static bool IsSameBehaviour(ZodErrorRuleBehaviour left, ZodErrorRuleBehaviour right)
+	{
+		if (left.StatusCode != right.StatusCode)
+			return false;
+
+		if (left.Map is null || right.Map is null)
+			return left.Map is null && right.Map is null;
+
+		// Compare the method and target of the factory, not the delegate itself, so the same method group is treated as the same behaviour.
+		return left.Map.Target == right.Map.Target && left.Map.Method.Equals(right.Map.Method);
 	}
 
 	/// <summary>

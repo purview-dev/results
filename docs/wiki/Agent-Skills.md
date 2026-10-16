@@ -1,22 +1,22 @@
 # Agent Skills
 
-The packages ship **agent skills** to consumers. A repository that imports `Purview.BuildSdk` receives them in
-its own `.agents/` folder on the next restore or build, so AI agents working there get the guidance
-automatically. The content is authored in this repository under `src/src/<Project>/Sdk/.agents/**` and packed as
-`.agents/**`; there is nothing to install by hand.
+This repository authors **agent skills** so AI agents working with `Purview.Results` get the guidance
+automatically. They are authored at `skills/<name>/SKILL.md` and installed with the skills CLI, which clones
+this git repository — **no package ships them**. `Purview.BuildSdk` 1.0.6 removed skill packaging and the
+build-time `.agents/` mirror, so the CLI is the only delivery route.
 
-## Skills shipped by this repository
+## Skills published by this repository
 
-| Content | Package | Covers |
-| --- | --- | --- |
-| `skills/purview-results-core` | `Purview.Results` | The result type, its three states, combinators and the throw-on-misuse contract |
-| `skills/purview-results-union-errors` | `Purview.Results` | Union modelling, the generated helpers, the diagnostics table, and the language rules that make the helper necessary |
-| `skills/purview-results-http-mapping` | `Purview.Results.AspNetCore` | Result-to-HTTP mapping, the failure resolution order, and unmapped-failure `500`s |
-| `skills/purview-results-zodsharp-validation` | `Purview.Results.ZodSharp` | ZodSharp validation flowing through results |
-| `skills/purview-results-zodsharp-problems` | `Purview.Results.ZodSharp.AspNetCore` | Rendering validation-carrying failures as ProblemDetails |
+| Skill | Covers |
+| --- | --- |
+| `skills/purview-results-core` | The result type, its three states, combinators and the throw-on-misuse contract |
+| `skills/purview-results-union-errors` | Union modelling, the generated helpers, the diagnostics table, and the language rules that make the helper necessary |
+| `skills/purview-results-http-mapping` | Result-to-HTTP mapping, the failure resolution order, and unmapped-failure `500`s |
+| `skills/purview-results-zodsharp-validation` | ZodSharp validation flowing through results |
+| `skills/purview-results-zodsharp-problems` | Rendering validation-carrying failures as ProblemDetails |
 
-The `Purview.Results` package also ships the `purview-results-union-author` agent and the
-`migrate-error-returns-to-result-unions` prompt.
+Task-shaped detail lives in a skill's own `references/` folder — migrating existing code onto error unions is
+`skills/purview-results-union-errors/references/migrating-error-returns.md`.
 
 ## When to load which skill
 
@@ -28,9 +28,11 @@ The `Purview.Results` package also ships the `purview-results-union-author` agen
 
 ## Upstream skills
 
-`Purview.BuildSdk` and the source-generator framework packages also deliver their own skills (project placement,
-SDK configuration, generator authoring and testing, TUnit authoring) into the same `.agents/` tree. Those are
-owned by the package that ships them — changes belong in the owning repository, not here.
+`Purview.BuildSdk` and the source-generator framework repositories publish their own skills (project placement,
+SDK configuration, generator authoring and testing, TUnit authoring) through the same CLI. Those are owned by
+the repository that publishes them — changes belong there, not here. The CLI installs them into `.agents/skills/`,
+which is gitignored; this repository's own skills are never installed into it, because two copies would drift
+apart.
 
 ## Related
 

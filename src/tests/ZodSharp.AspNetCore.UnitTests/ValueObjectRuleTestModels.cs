@@ -3,6 +3,7 @@ using Purview.ValueObjects;
 using Purview.ValueObjects.Serialization;
 using ZodSharp;
 using ZodSharp.Core;
+using ZodSharp.Rules;
 
 namespace Purview.Results.ZodSharp.AspNetCore;
 
@@ -66,11 +67,26 @@ sealed class NonEmptyValidatedIdAttribute : ValidationAttribute
 /// A Guid-backed scalar value object whose validation is driven entirely by a type-level custom rule, so its
 /// generated <c>Create</c> surfaces the rule's own code and origin while <c>Hydrate</c> stays replay-safe.
 /// </summary>
-[Scalar]
+/// <remarks>
+/// <c>[Scalar&lt;Guid&gt;]</c> is the automatic form — the value-object generator declares the underlying
+/// property — and Purview.ZodSharp 2.0.2+ generates the schema from that attribute, so this exercises the
+/// composition on the newest ValueObjects surface rather than the manual <c>[Scalar]</c> form.
+/// </remarks>
+[Scalar<Guid>]
 [ZodSchema]
 [NonEmptyValidatedId(Code = "invalid_tenant_id", Message = "A tenant id must not be empty.")]
-readonly partial record struct ValidatedTenantId
-{
-	/// <summary>Gets the underlying identifier value.</summary>
-	public Guid Value { get; }
-}
+readonly partial record struct ValidatedTenantId { }
+
+/// <summary>
+/// A nullable string scalar whose type-level rule is one of ZodSharp's built-in, generator-attributed rules, so
+/// the schema accepts <see langword="null"/> but rejects an empty or whitespace-only value.
+/// </summary>
+/// <remarks>
+/// A nullable scalar round-trips JSON <see langword="null"/>, so its schema has to be null-tolerant — which is
+/// what <see cref="NullOrNonWhiteSpaceRule"/> exists for, where <c>[RequiredZod]</c> (which always rejects
+/// <see langword="null"/>) cannot express the check.
+/// </remarks>
+[Scalar<string>(Nullable = true)]
+[ZodSchema]
+[NullOrNonWhiteSpace]
+readonly partial record struct NullableTenantAlias { }

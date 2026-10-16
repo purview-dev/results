@@ -20,7 +20,7 @@ jobs:
       # the .NET 11 SDK in global.json. Without the matching SDK the runner cannot resolve global.json
       # ("A compatible .NET SDK was not found") and every step fails.
       # Keep in sync with `sdk.version` in global.json.
-      dotnet-version: "11.0.100-rc.1.26425.128"
+      dotnet-version: "11.0.100-rc.2.26504.105"
       # Mirrors Build:TestFilter in purview-build.json: every test project is a *.UnitTests project
       # whose tests the SDK categorises as Unit.
       test-filter: "/*/*/*/*[Category=Unit]"

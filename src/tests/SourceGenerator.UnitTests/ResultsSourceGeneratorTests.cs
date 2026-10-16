@@ -352,10 +352,7 @@ public class ResultsSourceGeneratorTests
 		// Act
 		var result = await GenerateAsync(
 			source,
-			new ResultsSourceGeneratorTestOptions
-			{
-				AnalyzerTypes = [typeof(Purview.Results.SourceGenerator.Analyzers.ResultsDiagnosticAnalyzer)],
-			},
+			new ResultsSourceGeneratorTestOptions { AnalyzerTypes = [typeof(Analyzers.ResultsDiagnosticAnalyzer)] },
 			cancellationToken
 		);
 
