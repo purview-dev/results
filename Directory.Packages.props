@@ -1,7 +1,4 @@
 <Project>
-	<PropertyGroup>
-		<CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
-	</PropertyGroup>
 	<!-- Version Definitions -->
 	<PropertyGroup Label=".NET Versions">
 		<!--
@@ -14,16 +11,14 @@
 		<DotNetRuntimeVersion Condition="'$(TargetFramework)' == 'net10.0'">10.0.13</DotNetRuntimeVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Purview Versions">
-		<PurviewZodSharpVersion>2.1.0</PurviewZodSharpVersion>
-		<PurviewValueObjectsVersion>1.1.0</PurviewValueObjectsVersion>
+		<PurviewZodSharpVersion>2.3.0</PurviewZodSharpVersion>
+		<PurviewValueObjectsVersion>1.2.0</PurviewValueObjectsVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Source Generator Versions">
 		<PurviewSourceGeneratorFrameworkVersion>1.2.0</PurviewSourceGeneratorFrameworkVersion>
 		<RoslynVersion>5.9.0</RoslynVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Testing Versions">
-		<!-- Purview.Skills.Testing 1.0.6 depends on TUnit.Assertions/TUnit.Core 1.75.0, and central
-		     transitive pinning would otherwise pin TUnit.Core back down to a lower version. -->
 		<TUnitVersion>1.76.0</TUnitVersion>
 		<PurviewSkillsTestingVersion>1.1.0</PurviewSkillsTestingVersion>
 	</PropertyGroup>
