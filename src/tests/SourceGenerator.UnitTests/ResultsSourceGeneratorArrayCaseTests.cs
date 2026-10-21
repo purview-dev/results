@@ -34,7 +34,7 @@ public class ResultsSourceGeneratorArrayCaseTests
 	{
 		// Act — the generator must report or skip, never crash. A crash takes every other union in the
 		// compilation down with it.
-		var result = await GenerateAsync(ArrayCaseSource, cancellationToken);
+		using var result = await GenerateAsync(ArrayCaseSource, cancellationToken);
 
 		// Assert
 		await Assert.That(result).IsNotNull();
@@ -46,7 +46,7 @@ public class ResultsSourceGeneratorArrayCaseTests
 	)
 	{
 		// Act
-		var result = await GenerateAsync(ArrayCaseSource, cancellationToken);
+		using var result = await GenerateAsync(ArrayCaseSource, cancellationToken);
 
 		// Assert — the named case is unaffected by the unusable one.
 		var generated = result.AssertSingleGeneratedSource();
