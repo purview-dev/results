@@ -18,14 +18,14 @@
 		<PurviewValueObjectsVersion>1.1.0</PurviewValueObjectsVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Source Generator Versions">
-		<PurviewSourceGeneratorFrameworkVersion>1.1.1</PurviewSourceGeneratorFrameworkVersion>
+		<PurviewSourceGeneratorFrameworkVersion>1.2.0</PurviewSourceGeneratorFrameworkVersion>
 		<RoslynVersion>5.9.0</RoslynVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Testing Versions">
 		<!-- Purview.Skills.Testing 1.0.6 depends on TUnit.Assertions/TUnit.Core 1.75.0, and central
 		     transitive pinning would otherwise pin TUnit.Core back down to a lower version. -->
-		<TUnitVersion>1.75.0</TUnitVersion>
-		<PurviewSkillsTestingVersion>1.0.6</PurviewSkillsTestingVersion>
+		<TUnitVersion>1.76.0</TUnitVersion>
+		<PurviewSkillsTestingVersion>1.1.0</PurviewSkillsTestingVersion>
 	</PropertyGroup>
 	<!-- Packages -->
 	<ItemGroup Label="Purview">
