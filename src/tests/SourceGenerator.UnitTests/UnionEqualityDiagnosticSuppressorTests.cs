@@ -126,7 +126,7 @@ public class UnionEqualityDiagnosticSuppressorTests
 	/// </summary>
 	async Task<Compilation> GenerateCompilationAsync(string source, CancellationToken cancellationToken)
 	{
-		var result = await GenerateAsync(source, cancellationToken);
+		using var result = await GenerateAsync(source, cancellationToken);
 
 		result.AssertNoCompilationErrors();
 

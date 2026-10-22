@@ -29,7 +29,7 @@ public class ResultsSourceGeneratorTests
 	{
 		// Arrange
 		// Act
-		var result = await GenerateAsync(TenantUnionSource, cancellationToken);
+		using var result = await GenerateAsync(TenantUnionSource, cancellationToken);
 
 		// Assert
 		result.AssertNoCompilationErrors();
@@ -43,7 +43,7 @@ public class ResultsSourceGeneratorTests
 	{
 		// Arrange
 		// Act
-		var result = await GenerateAsync(TenantUnionSource, cancellationToken);
+		using var result = await GenerateAsync(TenantUnionSource, cancellationToken);
 
 		// Assert
 		var generated = result.AssertSingleGeneratedSource();
@@ -61,7 +61,7 @@ public class ResultsSourceGeneratorTests
 	{
 		// Arrange
 		// Act
-		var result = await GenerateAsync(TenantUnionSource, cancellationToken);
+		using var result = await GenerateAsync(TenantUnionSource, cancellationToken);
 
 		// Assert
 		var generated = result.AssertSingleGeneratedSource();
@@ -85,7 +85,7 @@ public class ResultsSourceGeneratorTests
 	{
 		// Arrange
 		// Act
-		var result = await GenerateAsync(TenantUnionSource, cancellationToken);
+		using var result = await GenerateAsync(TenantUnionSource, cancellationToken);
 
 		// Assert
 		// The union-receiver factory is a C# 14 static extension block on the union type, so a case can be
@@ -137,7 +137,7 @@ public class ResultsSourceGeneratorTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(source, cancellationToken);
+		using var result = await GenerateAsync(source, cancellationToken);
 
 		// Assert
 		result.AssertNoCompilationErrors();
@@ -164,7 +164,7 @@ public class ResultsSourceGeneratorTests
 	{
 		// Arrange
 		// Act
-		var result = await GenerateAsync(TenantUnionSource, cancellationToken);
+		using var result = await GenerateAsync(TenantUnionSource, cancellationToken);
 
 		// Assert
 		var generated = result.AssertSingleGeneratedSource();
@@ -209,7 +209,7 @@ public class ResultsSourceGeneratorTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(source, cancellationToken);
+		using var result = await GenerateAsync(source, cancellationToken);
 
 		// Assert
 		result.AssertNoCompilationErrors();
@@ -259,7 +259,7 @@ public class ResultsSourceGeneratorTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(source, cancellationToken);
+		using var result = await GenerateAsync(source, cancellationToken);
 
 		// Assert
 		result.AssertNoCompilationErrors();
@@ -306,7 +306,7 @@ public class ResultsSourceGeneratorTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(source, cancellationToken);
+		using var result = await GenerateAsync(source, cancellationToken);
 
 		// Assert
 		result.AssertNoCompilationErrors();
@@ -350,7 +350,7 @@ public class ResultsSourceGeneratorTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(
+		using var result = await GenerateAsync(
 			source,
 			new ResultsSourceGeneratorTestOptions { AnalyzerTypes = [typeof(Analyzers.ResultsDiagnosticAnalyzer)] },
 			cancellationToken
@@ -403,7 +403,7 @@ public class ResultsSourceGeneratorTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(source, cancellationToken);
+		using var result = await GenerateAsync(source, cancellationToken);
 
 		// Assert
 		result.AssertNoCompilationErrors();
@@ -442,7 +442,7 @@ public class ResultsSourceGeneratorTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(source, cancellationToken);
+		using var result = await GenerateAsync(source, cancellationToken);
 
 		// Assert
 		result.AssertNoCompilationErrors();
@@ -474,7 +474,7 @@ public class ResultsSourceGeneratorTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(source, cancellationToken);
+		using var result = await GenerateAsync(source, cancellationToken);
 
 		// Assert
 		result.AssertNoCompilationErrors();
@@ -510,7 +510,7 @@ public class ResultsSourceGeneratorTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(source, cancellationToken);
+		using var result = await GenerateAsync(source, cancellationToken);
 
 		// Assert
 		result.AssertNoCompilationErrors();
@@ -541,7 +541,7 @@ public class ResultsSourceGeneratorTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(source, cancellationToken);
+		using var result = await GenerateAsync(source, cancellationToken);
 
 		// Assert
 		result.AssertNoCompilationErrors();
@@ -567,7 +567,7 @@ public class ResultsSourceGeneratorTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(
+		using var result = await GenerateAsync(
 			source,
 			new ResultsSourceGeneratorTestOptions { ThrowOnGenerationException = false },
 			cancellationToken
@@ -611,7 +611,7 @@ public class ResultsSourceGeneratorTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(source, cancellationToken);
+		using var result = await GenerateAsync(source, cancellationToken);
 
 		// Assert
 		result.AssertNoCompilationErrors();
@@ -641,7 +641,7 @@ public class ResultsSourceGeneratorTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(source, cancellationToken);
+		using var result = await GenerateAsync(source, cancellationToken);
 
 		// Assert
 		result.AssertNoCompilationErrors();
@@ -672,7 +672,7 @@ public class ResultsSourceGeneratorTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(source, cancellationToken);
+		using var result = await GenerateAsync(source, cancellationToken);
 
 		// Assert
 		result.AssertNoCompilationErrors();
@@ -702,7 +702,7 @@ public class ResultsSourceGeneratorTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(source, cancellationToken);
+		using var result = await GenerateAsync(source, cancellationToken);
 
 		// Assert
 		result.AssertNoCompilationErrors();
@@ -725,7 +725,7 @@ public class ResultsSourceGeneratorTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(source, cancellationToken);
+		using var result = await GenerateAsync(source, cancellationToken);
 
 		// Assert
 		result.AssertNoCompilationErrors();
@@ -767,8 +767,8 @@ public class ResultsSourceGeneratorTests
 			""";
 
 		// Act
-		var forward = await GenerateAsync([first, second], cancellationToken);
-		var reversed = await GenerateAsync([second, first], cancellationToken);
+		using var forward = await GenerateAsync([first, second], cancellationToken);
+		using var reversed = await GenerateAsync([second, first], cancellationToken);
 
 		// Assert
 		var forwardSource = string.Join(
@@ -802,7 +802,7 @@ public class ResultsSourceGeneratorTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(
+		using var result = await GenerateAsync(
 			source,
 			new ResultsSourceGeneratorTestOptions { DisableSourceGeneratorValue = true },
 			cancellationToken

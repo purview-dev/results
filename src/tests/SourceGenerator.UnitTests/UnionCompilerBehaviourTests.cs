@@ -49,7 +49,7 @@ public class UnionCompilerBehaviourTests
 	[Test]
 	public async Task Union_GivenDeclaredUnion_ExposesExpectedSemanticShape(CancellationToken cancellationToken)
 	{
-		var result = await GenerateAsync(UnionSource, cancellationToken);
+		using var result = await GenerateAsync(UnionSource, cancellationToken);
 
 		result.AssertNoCompilationErrors();
 
@@ -93,7 +93,7 @@ public class UnionCompilerBehaviourTests
 			}
 			""";
 
-		var result = await GenerateAsync(
+		using var result = await GenerateAsync(
 			[UnionSource, usage],
 			new ResultsSourceGeneratorTestOptions { ThrowOnGenerationException = false },
 			cancellationToken
@@ -136,7 +136,7 @@ public class UnionCompilerBehaviourTests
 			}
 			""";
 
-		var result = await GenerateAsync([UnionSource, usage], cancellationToken);
+		using var result = await GenerateAsync([UnionSource, usage], cancellationToken);
 
 		result.AssertNoCompilationErrors();
 	}
@@ -169,7 +169,7 @@ public class UnionCompilerBehaviourTests
 			}
 			""";
 
-		var result = await GenerateAsync(
+		using var result = await GenerateAsync(
 			[UnionSource, usage],
 			new ResultsSourceGeneratorTestOptions { ThrowOnGenerationException = false },
 			cancellationToken
@@ -308,7 +308,7 @@ public class UnionCompilerBehaviourTests
 			}
 			""";
 
-		var result = await GenerateAsync(
+		using var result = await GenerateAsync(
 			[UnionSource, usage],
 			new ResultsSourceGeneratorTestOptions { ThrowOnGenerationException = false },
 			cancellationToken
@@ -346,7 +346,7 @@ public class UnionCompilerBehaviourTests
 			}
 			""";
 
-		var result = await GenerateAsync([source, usage], cancellationToken);
+		using var result = await GenerateAsync([source, usage], cancellationToken);
 
 		result.AssertNoCompilationErrors();
 	}
@@ -370,14 +370,14 @@ public class UnionCompilerBehaviourTests
 			}
 			""";
 
-		var result = await GenerateAsync([UnionSource, usage], cancellationToken);
+		using var result = await GenerateAsync([UnionSource, usage], cancellationToken);
 
 		result.AssertNoCompilationErrors();
 	}
 
 	async Task<string[]> AllErrorCodesAsync(string source, CancellationToken cancellationToken)
 	{
-		var result = await GenerateAsync(
+		using var result = await GenerateAsync(
 			[UnionSource, source],
 			new ResultsSourceGeneratorTestOptions { ThrowOnGenerationException = false },
 			cancellationToken

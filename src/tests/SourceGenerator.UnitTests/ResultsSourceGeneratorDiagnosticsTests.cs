@@ -32,7 +32,7 @@ public class ResultsSourceGeneratorDiagnosticsTests
 		foreach (var target in targets)
 		{
 			// Act
-			var result = await GenerateAsync($"namespace Test {{ {target} }}", cancellationToken);
+			using var result = await GenerateAsync($"namespace Test {{ {target} }}", cancellationToken);
 
 			// Assert
 			// The analyzer reports RSG1000; the generator blocks generation and reports nothing itself.
@@ -56,7 +56,7 @@ public class ResultsSourceGeneratorDiagnosticsTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(source, cancellationToken);
+		using var result = await GenerateAsync(source, cancellationToken);
 
 		// Assert
 		await Assert.That(result).HasNoDiagnostics();
@@ -78,7 +78,7 @@ public class ResultsSourceGeneratorDiagnosticsTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(
+		using var result = await GenerateAsync(
 			source,
 			new ResultsSourceGeneratorTestOptions { ThrowOnGenerationException = false },
 			cancellationToken
@@ -108,7 +108,7 @@ public class ResultsSourceGeneratorDiagnosticsTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(source, cancellationToken);
+		using var result = await GenerateAsync(source, cancellationToken);
 
 		// Assert
 		// RSG1003 is a case-scope finding reported by the analyzer, and generation continues for the
@@ -144,7 +144,7 @@ public class ResultsSourceGeneratorDiagnosticsTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(
+		using var result = await GenerateAsync(
 			[first, second],
 			new ResultsSourceGeneratorTestOptions { ThrowOnGenerationException = false },
 			cancellationToken
@@ -178,7 +178,7 @@ public class ResultsSourceGeneratorDiagnosticsTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(source, cancellationToken);
+		using var result = await GenerateAsync(source, cancellationToken);
 
 		// Assert
 		// RSG1006 needs every opted-in union, so the generator reports it; it is non-blocking and only the
@@ -233,7 +233,7 @@ public class ResultsSourceGeneratorDiagnosticsTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(source, cancellationToken);
+		using var result = await GenerateAsync(source, cancellationToken);
 
 		// Assert
 		await Assert.That(result).HasDiagnostic("RSG1005");
@@ -258,7 +258,7 @@ public class ResultsSourceGeneratorDiagnosticsTests
 			""";
 
 		// Act
-		var result = await GenerateAsync(
+		using var result = await GenerateAsync(
 			source,
 			new ResultsSourceGeneratorTestOptions
 			{
