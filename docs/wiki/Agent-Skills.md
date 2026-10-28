@@ -28,11 +28,13 @@ Task-shaped detail lives in a skill's own `references/` folder — migrating exi
 
 ## Upstream skills
 
-`Purview.BuildSdk` and the source-generator framework repositories publish their own skills (project placement,
-SDK configuration, generator authoring and testing, TUnit authoring) through the same CLI. Those are owned by
-the repository that publishes them — changes belong there, not here. The CLI installs them into `.agents/skills/`,
-which is gitignored; this repository's own skills are never installed into it, because two copies would drift
-apart.
+The Purview engineering playbook, `Purview.BuildSdk`, the source-generator framework, ZodSharp and
+Purview.ValueObjects publish their own skills (engineering conventions, SDK configuration and project layout,
+generator authoring and testing, ZodSharp integration, value-object composition) through the same CLI. Those are owned by the repository that publishes them — changes belong there,
+not here. This repository installs them into the universal `.agents/skills/` folder only (`-a universal`) and
+commits that folder together with the CLI's `skills-lock.json`, so a clone has them without running anything;
+nothing is installed into `.claude/` or any other per-agent folder. This repository's own skills are never
+installed into `.agents/skills/`, because two copies would drift apart.
 
 ## Related
 

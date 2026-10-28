@@ -18,9 +18,9 @@ Exceptional circumstances still throw; expected outcomes are values.
 
 Each package README is the same file that ships inside the `.nupkg` (project `Sdk/README.md`), so this table
 links straight to the package documentation. The source generator is not a separate package: it ships inside
-`Purview.Results` under `analyzers/dotnet/cs`, together with its IDE code fix. Every package also ships agent
-skills under `.agents/` (union modelling and the result core, HTTP mapping, and the two ZodSharp bridges), which
-`Purview.BuildSdk` mirrors into a consuming repository's own `.agents/` folder on the next restore or build.
+`Purview.Results` under `analyzers/dotnet/cs`, together with its IDE code fix. Agent skills for every package (union
+modelling and the result core, HTTP mapping, and the two ZodSharp bridges) are published from this repository rather
+than any package: `npx skills add purview-dev/results`. See [Agent Skills](docs/wiki/Agent-Skills.md).
 
 ## Quick start
 

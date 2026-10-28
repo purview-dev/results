@@ -342,11 +342,11 @@ ASP.NET Core + Zod examples as well.
 
 ## Agent skills
 
-This package ships the `purview-results-union-errors` agent skill, the `purview-results-union-author` agent and
-the `migrate-error-returns-to-result-unions` prompt under `.agents/`, so a repository that imports
-`Purview.BuildSdk` receives them in its own `.agents/` folder on the next restore or build. The skill covers
-union modelling, the generated helpers, the diagnostics table, and the language rules that make the helper
-necessary.
+The `purview-results-union-errors` agent skill covers union modelling, the generated helpers, the diagnostics table, and the language rules that make the helper necessary. No package ships skills: install them, with every other Purview.Results skill, from the git repository with the skills CLI:
+
+```bash
+npx skills add purview-dev/results
+```
 
 ## License
 

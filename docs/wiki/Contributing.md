@@ -19,7 +19,7 @@ src/
     Examples.Zod/
     Examples.AspNetCore/
     Examples.AspNetCore.Zod/
-    <Project>/Sdk/          Package-only assets: README.md and .agents/** skills
+    <Project>/Sdk/          Package-only assets: the package README.md
   tests/                    TUnit unit tests (one *.UnitTests project per package)
 docs/wiki/                  This documentation suite
 Directory.Packages.props    Centrally managed NuGet versions

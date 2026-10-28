@@ -123,9 +123,11 @@ shows a type-level `[ZodRule]` whose `Origin = "value_object"` is answered by `M
 
 ## Agent skills
 
-This package ships the `purview-results-zodsharp-problems` agent skill under `.agents/`. Repositories that import
-`Purview.BuildSdk` get it mirrored into their own `.agents/` folder on the next restore or build, so AI agents
-working there receive the guidance automatically.
+The `purview-results-zodsharp-problems` agent skill covers this package. No package ships skills: install them, with every other Purview.Results skill, from the git repository with the skills CLI:
+
+```bash
+npx skills add purview-dev/results
+```
 
 ## License
 
