@@ -249,11 +249,23 @@ the host mapping it — unless a rule answers one of its codes, categories or or
 {
   "title": "One or more validation errors occurred.",
   "status": 400,
-  "errors": { "TenantId": ["Required field 'TenantId' is null"] },
-  "issues": [{ "code": "missing_field", "path": ["TenantId"], "message": "Required field 'TenantId' is null" }],
+  "errors": { "TenantId": ["TenantId is required"] },
+  "issues": [
+    {
+      "path": "TenantId",
+      "segments": ["TenantId"],
+      "code": "missing_field",
+      "category": "invalid_type",
+      "message": "TenantId is required",
+      "parameters": { "displayName": "TenantId", "declaringType": "TenantInput", "member": "TenantId" }
+    }
+  ],
   "traceId": "0HNOUQVQNF7CV:00000001"
 }
 ```
+
+(Purview.ZodSharp 3 writes `issues[].path` as the dotted key and the segments separately, and keeps parameters per
+issue; `declaringType` is the full CLR name of the validated type, shortened here.)
 
 ## Documentation
 
@@ -266,6 +278,7 @@ The full documentation suite lives in [`docs/wiki`](docs/wiki/Getting-Started.md
 - [ASP.NET Core integration](docs/wiki/AspNetCore-Integration.md)
 - [ZodSharp integration](docs/wiki/ZodSharp-Integration.md) and [problem details](docs/wiki/ZodSharp-ProblemDetails.md)
 - [Value objects composition](docs/wiki/Value-Objects-Composition.md)
+- [Blazor and Native AOT](docs/wiki/Blazor-and-Native-AOT.md)
 - [Guarantees and limitations](docs/wiki/Guarantees-and-Limitations.md)
 
 ## Requirements
@@ -278,6 +291,8 @@ The full documentation suite lives in [`docs/wiki`](docs/wiki/Getting-Started.md
   `net10.0`. Everything else works on both: the result types, the combinators, the ASP.NET Core mapping and
   the ZodSharp bridge. On `net10.0` an error type is simply a plain type rather than a union, which the HTTP
   mapper already handles — register a mapping for the error type itself.
+- **Purview.ZodSharp 3** for the ZodSharp integrations, on the same `net10.0`/`net11.0` set. Trimmed, Native AOT and
+  Blazor applications: see [Blazor and Native AOT](docs/wiki/Blazor-and-Native-AOT.md).
 - **C# 15 preview — only to *declare* a union.** The requirement is per-project and scoped:
   - Using `Result<TValue, TError>`, `Result<TError>` and the combinators needs **nothing special**. No
     `LangVersion`, no `EnablePreviewFeatures`.

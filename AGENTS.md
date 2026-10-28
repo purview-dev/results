@@ -357,7 +357,17 @@ just test-unit
 just lint-check
 just pack
 just pipeline-pr
+just smoke-packed-consumers
+just verify-pack-rules
 ```
+
+`just smoke-packed-consumers` (`scripts/test-packed-consumers.ps1`) is the packed-consumer gate: it packs every
+package to an isolated feed and cache and publishes and runs, from the packages alone, a Native AOT console, a Blazor
+WebAssembly app (trimmed and `RunAOTCompilation`, in a headless browser), a Blazor Server app and a `net10.0`
+console, then leak-scans every output for compiler-host assemblies. It needs the Native AOT toolchain, the
+`wasm-tools` workload and Chrome or Edge; dependency versions not yet on nuget.org restore from
+`LOCAL_NUGET_FEED_PATH`. Run it when the generator, packaging or a dependency version changes. The consumers'
+union-declaring files are listed in `.csharpierignore` like every other union file.
 
 Local CI-equivalent validation:
 

@@ -17,6 +17,9 @@ This guide installs the packages, models an error union, returns a result, and m
 
   These packages do not set `EnablePreviewFeatures`, so they do not force preview features on your
   solution. See [Guarantees and Limitations](Guarantees-and-Limitations.md).
+- **Purview.ZodSharp 3** for the ZodSharp integrations (`Purview.Results.ZodSharp`,
+  `Purview.Results.ZodSharp.AspNetCore`), which target the same `net10.0`/`net11.0` set. Trimmed, Native AOT and
+  Blazor applications are covered in [Blazor and Native AOT](Blazor-and-Native-AOT.md).
 
 ## 1. Reference the packages
 

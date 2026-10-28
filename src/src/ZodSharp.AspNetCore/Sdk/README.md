@@ -91,9 +91,13 @@ category or origin registered twice with different behaviour is rejected at conf
 | `ImmutableArray<ValidationError>.ToValidationProblem(HttpContext, int statusCode = 400)` | Creates the validation problem for a set of errors |
 | `ZodValidationProblems.ToProblem(errors, options, defaultStatusCode = 400, traceId = null)` | The underlying mapper, for hosts that resolve the options themselves |
 
-The status code resolved by `ZodProblemDetailsOptions.StatusCodeSelector` wins; `statusCode` (or
-`defaultStatusCode`, or a rule's `statusCode`) is only used when the resolved error type does not define one. The
-trace identifier is included when `ResultsHttpOptions.IncludeTraceId` is `true` (the default).
+The response is written by Purview.ZodSharp's `ZodProblemDetailsWriter` with the host's `ZodProblemDetailsOptions`,
+so every option applies exactly as it does to a thrown `ZodException` - path naming, `ErrorType` message formatting,
+the `issues` extension, `MergeParametersIntoExtensions` and the error type resolver. The status code follows
+Purview.ZodSharp 3's precedence: `statusCode` (or `defaultStatusCode`, or a rule's `statusCode`) is the default, the
+highest `ErrorType.HttpStatus` replaces it, `ZodProblemDetailsOptions.StatusCodeSelector` wins over both, and
+`StatusCodeOverride` has the last word. The trace identifier is included when `ResultsHttpOptions.IncludeTraceId` is
+`true` (the default).
 
 ## Examples
 

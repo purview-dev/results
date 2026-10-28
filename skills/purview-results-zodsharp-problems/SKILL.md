@@ -74,9 +74,12 @@ MVC problem-details writer.
 
 ## Status code and trace identifier
 
-- The status code resolved by `ZodProblemDetailsOptions.StatusCodeSelector` wins.
-- `statusCode` (or `defaultStatusCode`) is only used when the resolved error type does not define one — the
-  default is `400 Bad Request`.
+- The response is written by `ZodProblemDetailsWriter` with the host's `ZodProblemDetailsOptions`, so every
+  option (path naming, `ErrorType` message formatting, `issues`, `MergeParametersIntoExtensions`) applies as it
+  does to a thrown `ZodException`.
+- Status precedence (Purview.ZodSharp 3): `statusCode`/`defaultStatusCode`/a rule's status is the default
+  (`400 Bad Request`), the highest `ErrorType.HttpStatus` replaces it, `StatusCodeSelector` wins over both, and
+  `StatusCodeOverride` has the last word.
 - The request trace identifier is included when `ResultsHttpOptions.IncludeTraceId` is `true` (the default).
 
 ## Pitfalls

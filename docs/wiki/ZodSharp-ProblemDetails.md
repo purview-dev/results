@@ -84,8 +84,26 @@ category or origin registered twice with different behaviour is rejected at conf
 A failure that does **not** carry validation errors is declined (`null`), so other mappers and fallbacks still
 apply — this mapper never answers a failure it does not understand.
 
-## API
+## .NET 11 request validation runs first
 
+On .NET 11, Purview.ZodSharp 3's `AddZodSharpValidation()` - which `AddZodSharpBlazor()` also calls - plugs ZodSharp
+into the platform's minimal-API validation. A `[ZodSchema]` endpoint parameter is then validated **before the
+handler runs**, and an invalid request is answered by ZodSharp's own validation problem: the handler never returns
+its result, so the code, category and origin rules above never see the failure.
+
+When an endpoint's handler validates the input itself and returns a result, turn the pipeline off for that endpoint:
+
+```csharp
+app.MapPost("/tenants", (TenantRegistration registration, TenantRegistrationService service) =>
+        service.Register(registration))
+    .WithResultsHttp()
+    .DisableValidation();
+```
+
+Both paths write through ZodSharp's `ZodProblemDetailsWriter`, so the body has the same shape either way; only the
+result rules' statuses are lost when the pipeline answers first.
+
+## API
 | Member | Purpose |
 | --- | --- |
 | `AddResultsZodSharpHttp(Action<ZodResultsHttpOptions>? configure = null)` | Registers the ZodSharp options and adds the validation failure mapper to `ResultsHttpOptions` |
@@ -95,9 +113,13 @@ apply — this mapper never answers a failure it does not understand.
 | `ImmutableArray<ValidationError>.ToValidationProblem(HttpContext, int statusCode = 400)` | Creates the validation problem for a set of errors |
 | `ZodValidationProblems.ToProblem(errors, options, defaultStatusCode = 400, traceId = null)` | The underlying mapper, for hosts that resolve the options themselves |
 
-The status code resolved by `ZodProblemDetailsOptions.StatusCodeSelector` wins; `statusCode` (or
-`defaultStatusCode`, or a rule's `statusCode`) is only used when the resolved error type does not define one. The
-trace identifier is included when `ResultsHttpOptions.IncludeTraceId` is `true` (the default).
+The response is written by Purview.ZodSharp's `ZodProblemDetailsWriter` with the host's `ZodProblemDetailsOptions`,
+so every option applies exactly as it does to a thrown `ZodException` - path naming, `ErrorType` message formatting,
+the `issues` extension, `MergeParametersIntoExtensions` and the error type resolver. The status code follows
+Purview.ZodSharp 3's precedence: `statusCode` (or `defaultStatusCode`, or a rule's `statusCode`) is the default, the
+highest `ErrorType.HttpStatus` replaces it, `ZodProblemDetailsOptions.StatusCodeSelector` wins over both, and
+`StatusCodeOverride` has the last word. The trace identifier is included when `ResultsHttpOptions.IncludeTraceId` is
+`true` (the default).
 
 The mapper reuses `ZodValidationProblems.ToProblem` rather than reimplementing error-to-problem mapping, which is
 what keeps a result-carried validation failure and a thrown `ZodException` in agreement on status code, title,

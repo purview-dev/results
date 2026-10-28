@@ -81,7 +81,9 @@ async Task<Result<TenantError>> Validate(TenantInput input, CancellationToken ca
 - `ToResultAsync` carries the validated value on success; `ToUnitResultAsync` discards it.
 - The error type is named explicitly for the same reason as the synchronous forms.
 - Do not block on `ValidateAsync` to reuse the synchronous methods — that reintroduces the sync-over-async the
-  bridge exists to avoid.
+  bridge exists to avoid.- With Purview.ZodSharp 3 every generated `{Type}Schema` also has a static `ValidateAsync(value, services, ct)`,
+  and CA1849 flags the synchronous `Validate` inside an async method: in async code, fold `ValidateAsync` with
+  `ToResultAsync`; keep `Validate` + `ToResult` for synchronous code.
 
 ## Carrying the errors
 
