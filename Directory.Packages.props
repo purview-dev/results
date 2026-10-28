@@ -20,7 +20,7 @@
 	</PropertyGroup>
 	<PropertyGroup Label="Testing Versions">
 		<TUnitVersion>1.76.0</TUnitVersion>
-		<PurviewSkillsTestingVersion>1.1.0</PurviewSkillsTestingVersion>
+		<PurviewSkillsTestingVersion>1.2.0</PurviewSkillsTestingVersion>
 	</PropertyGroup>
 	<!-- Packages -->
 	<ItemGroup Label="Purview">
