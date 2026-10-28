@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+	<!--
+		Packed-consumer gate (scripts/test-packed-consumers.ps1), consumer (b): a standalone Blazor WebAssembly app that
+		references Purview.Results, Purview.Results.ZodSharp, Purview.ZodSharp and Purview.ZodSharp.Blazor as packages,
+		and nothing else from the repository. The script copies this folder (and ../Shared) outside the repository,
+		beside guard Directory.Build.props/.targets and Directory.Packages.props files that stop any inheritance, and
+		supplies the versions as $(ResultsPackageVersion), $(ZodSharpPackageVersion) and $(AspNetCorePackageVersion).
+
+		It declares a [GenerateResult] union, so the packed generator runs here (C# 15 unions need LangVersion preview).
+		It is published trimmed with every warning an error, then again with RunAOTCompilation=true, and each publish is
+		served and loaded in a headless browser when one is available.
+	-->
+	<PropertyGroup>
+		<TargetFramework>net11.0</TargetFramework>
+		<LangVersion>preview</LangVersion>
+		<AssemblyName>PackedResultsWasm</AssemblyName>
+		<RootNamespace>PackedResultsWasm</RootNamespace>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<PublishTrimmed>true</PublishTrimmed>
+		<TrimmerSingleWarn>false</TrimmerSingleWarn>
+		<InvariantGlobalization>true</InvariantGlobalization>
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+		<ILLinkTreatWarningsAsErrors>true</ILLinkTreatWarningsAsErrors>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="$(AspNetCorePackageVersion)" />
+		<PackageReference Include="Purview.Results" Version="$(ResultsPackageVersion)" />
+		<PackageReference Include="Purview.Results.ZodSharp" Version="$(ResultsPackageVersion)" />
+		<PackageReference Include="Purview.ZodSharp" Version="$(ZodSharpPackageVersion)" />
+		<PackageReference Include="Purview.ZodSharp.Blazor" Version="$(ZodSharpPackageVersion)" />
+	</ItemGroup>
+
+	<Target Name="RequirePackageVersions" BeforeTargets="CollectPackageReferences;Restore">
+		<Error
+			Condition="'$(ResultsPackageVersion)' == '' or '$(ZodSharpPackageVersion)' == '' or '$(AspNetCorePackageVersion)' == ''"
+			Text="ResultsPackageVersion, ZodSharpPackageVersion and AspNetCorePackageVersion must be set. Run this consumer through scripts/test-packed-consumers.ps1."
+		/>
+	</Target>
+</Project>

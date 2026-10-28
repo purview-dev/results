@@ -15,3 +15,5 @@ src/src/Examples.ValueObjects.Zod/TenantError.cs
 src/src/Examples.AspNetCore/TenantError.cs
 src/src/Examples.AspNetCore/BillingError.cs
 src/src/Examples.AspNetCore.Zod/TenantError.cs
+scripts/packed-consumers/Shared/TenantError.cs
+scripts/packed-consumers/AotConsole/Model.cs
