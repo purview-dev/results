@@ -15,13 +15,10 @@
 		<LangVersion>preview</LangVersion>
 
 		<!--
-			Runtime async is a .NET 11 experiment, so it is scoped to that target framework. On net10.0 it
-			lowers await to System.Runtime.CompilerServices.AsyncHelpers, which is evaluation-only and fails
-			the build with SYSLIB5007 — the API is explicitly subject to change or removal. The compiled
-			async behaviour differs between the two targets as a result, which is the point: a net10.0
-			consumer gets the stable lowering.
+			Runtime async (Features=runtime-async=on) is set in Directory.Build.targets, for net11.0 projects that
+			do not ship only: it needs IsPackable, which a project declares after this file is imported. See the
+			comment there for why a shipped assembly must not use it.
 		-->
-		<Features Condition="'$(TargetFramework)' == 'net11.0'">$(Features);runtime-async=on</Features>
 
 		<!--
 			EnablePreviewFeatures is deliberately NOT set.
