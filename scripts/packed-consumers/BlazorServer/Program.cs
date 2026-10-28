@@ -26,20 +26,11 @@ var app = builder.Build();
 app.UseAntiforgery();
 app.MapStaticAssets();
 
-// AddZodSharpBlazor registers the .NET 11 validation pipeline (AddZodSharpValidation), which validates a [ZodSchema]
-// parameter before the handler runs and answers with its own 400 - so the result rules below would never see the
-// failure. This endpoint's service validates and returns a result, so the pipeline is turned off for it.
+// The service validates and returns a result, which WithResultsHttp maps. AddZodSharpBlazor validates form models only
+// and does not turn on minimal-API parameter validation, so the handler always runs and the result rules above answer:
+// the refinement's 422, the existing tenant's 409, and the standard validation problem for everything else.
 app.MapPost(
 		"/api/tenants",
-		(TenantRegistration registration, TenantRegistrationService service) => service.Register(registration)
-	)
-	.WithResultsHttp()
-	.DisableValidation()
-	.DisableAntiforgery();
-
-// The same endpoint with the pipeline left on, to show what a host that forgets gets: ZodSharp's 400, not the rule's 422.
-app.MapPost(
-		"/api/tenants/prevalidated",
 		(TenantRegistration registration, TenantRegistrationService service) => service.Register(registration)
 	)
 	.WithResultsHttp()

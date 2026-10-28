@@ -38,8 +38,7 @@
 	       still serve both target frameworks they ship.
 	4. Scans every consumer bin and publish folder with scripts/assert-no-compiler-host-assemblies.ps1.
 
-	Gaps in a dependency are reported as KNOWN ISSUES, not failures, so they stay visible without blocking this
-	repository; -StrictKnownIssues makes them failures.
+	Every check is a hard failure, including the ones that exercise Purview.ZodSharp behaviour the consumers rely on.
 
 	The temporary workspace is deleted afterwards unless -KeepArtifacts is passed. Packing restores the shipping
 	projects against the isolated cache, so they are restored again against the normal cache at the end.
@@ -71,9 +70,6 @@
 .PARAMETER PreflightOnly
 	Run only the dependency restore check, so CI can fail on it before installing toolchains.
 
-.PARAMETER StrictKnownIssues
-	Fail the gate when a known dependency issue reproduces.
-
 .PARAMETER KeepArtifacts
 	Leave the temporary workspace in place for inspection.
 
@@ -94,7 +90,6 @@ param (
 	[string] $Browser = 'Auto',
 	[string] $PackOutput,
 	[switch] $PreflightOnly,
-	[switch] $StrictKnownIssues,
 	[switch] $KeepArtifacts
 )
 
@@ -148,17 +143,11 @@ $exe = $IsWindows ? '.exe' : ''
 
 $timings = [System.Collections.Generic.List[object]]::new()
 $scanned = [System.Collections.Generic.List[string]]::new()
-$knownIssues = [System.Collections.Generic.List[string]]::new()
 $previousNuGetPackages = $env:NUGET_PACKAGES
 $repositoryRestoreTouched = $false
 
 function Write-Failure([string] $message) {
 	if ($env:GITHUB_ACTIONS) { Write-Host "::error::$message" } else { Write-Host "ERROR: $message" -ForegroundColor Red }
-}
-
-function Write-KnownIssue([string] $message) {
-	$knownIssues.Add($message)
-	if ($env:GITHUB_ACTIONS) { Write-Host "::warning::Known issue: $message" } else { Write-Host "KNOWN ISSUE: $message" -ForegroundColor Yellow }
 }
 
 function Invoke-Step([string] $name, [scriptblock] $body) {
@@ -365,10 +354,6 @@ function Invoke-BrowserSelfTest([string] $url, [string] $name) {
 		$state.report | Set-Content (Join-Path $logs "$name.self-test.log")
 		$state.report -split "\r?\n" | Where-Object { $_.Trim() } | ForEach-Object { Write-Host "  $_" }
 		if ($state.result -eq 'running') { throw "$url did not finish its self-test within 90 seconds." }
-
-		foreach ($line in ($state.report -split "\r?\n" | Where-Object { $_ -match '^KNOWN ' })) {
-			Write-KnownIssue "[$name] $($line.Substring(6).Trim())"
-		}
 
 		if ($state.result -ne 'passed') {
 			$failed = ($state.report -split "\r?\n" | Where-Object { $_ -match '^FAIL ' }) -join "`n"
@@ -702,23 +687,11 @@ try {
 				}
 			}
 
+			# The endpoint does not opt out of anything: AddZodSharpBlazor() validates form models only, so the handler
+			# runs and the result's code rule answers. Minimal-API parameter validation answering first would be a 400.
 			$refined = Send-Api '{"tenantId":"same-name","name":"same-name","ownerEmail":"owner@example.com"}'
 			if ($refined.Status -ne 422 -or -not $refined.Body.Contains('tenant_id_matches_name')) {
 				throw "The refinement's code rule answered $($refined.Status), not 422 with tenant_id_matches_name."
-			}
-
-			# The same request to an endpoint that leaves the .NET 11 validation pipeline on: ZodSharp validates the
-			# [ZodSchema] parameter before the handler, so the result rule never sees the failure.
-			$prevalidated = Invoke-WebRequest "$base/api/tenants/prevalidated" -Method Post -ContentType 'application/json' `
-				-Body '{"tenantId":"same-name","name":"same-name","ownerEmail":"owner@example.com"}' -SkipHttpErrorCheck
-			Write-Host "  POST /api/tenants/prevalidated (validation pipeline on) -> $($prevalidated.StatusCode)"
-			if ($prevalidated.StatusCode -ne 422) {
-				Write-KnownIssue (
-					"[blazor-server] With AddZodSharpBlazor/AddZodSharpValidation registered, Purview.ZodSharp 3's .NET 11 " +
-					'validation pipeline answers a minimal-API [ZodSchema] parameter itself (here ' +
-					"$($prevalidated.StatusCode)) before the handler runs, so a result-returning endpoint's " +
-					'AddResultsZodSharpHttp rules are bypassed unless the endpoint calls DisableValidation().'
-				)
 			}
 
 			$duplicate = Send-Api '{"tenantId":"acme","name":"Acme","ownerEmail":"owner@example.com"}'
@@ -790,10 +763,6 @@ try {
 
 		Assert-NoLeaks @((Join-Path $consumers 'Net10Console/bin'))
 	}
-
-	if ($StrictKnownIssues -and $knownIssues.Count -gt 0) {
-		throw "$($knownIssues.Count) known issue(s) reproduced (-StrictKnownIssues)."
-	}
 }
 catch {
 	$exitCode = 1
@@ -819,18 +788,6 @@ finally {
 	$timings | Format-Table -AutoSize | Out-Host
 	Write-Host ("Total: {0:N1}s" -f $totalStopwatch.Elapsed.TotalSeconds)
 	if ($scanned.Count -gt 0) { Write-Host "Leak-scanned $($scanned.Count) folder(s)." }
-	if ($knownIssues.Count -gt 0) {
-		# One line per distinct issue, naming every consumer it reproduced in.
-		$grouped = $knownIssues | ForEach-Object {
-			$match = [regex]::Match($_, '^\[(?<where>[^\]]+)\] (?<what>.*)$')
-			[pscustomobject]@{ Where = $match.Groups['where'].Value; What = $match.Groups['what'].Value }
-		} | Group-Object What
-		Write-Host "`nKnown dependency issues ($($grouped.Count) distinct, $($knownIssues.Count) occurrences):" -ForegroundColor Yellow
-		foreach ($issue in $grouped) {
-			$where = ($issue.Group.Where | Sort-Object -Unique) -join ', '
-			Write-Host "  - [$where] $($issue.Name)" -ForegroundColor Yellow
-		}
-	}
 
 	if ($KeepArtifacts) {
 		Write-Host "Artifacts kept at $workspace" -ForegroundColor Yellow
