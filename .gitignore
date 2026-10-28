@@ -661,3 +661,7 @@ sketch
 
 # Test run reports produced by the Microsoft.Testing.Platform runner
 TestResults/
+
+# Agent skills are installed into the universal .agents/skills/ folder only, and that folder and
+# skills-lock.json are committed. Per-agent folders (and Claude Code's local settings) stay out.
+/.claude/

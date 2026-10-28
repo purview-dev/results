@@ -12,6 +12,12 @@
 			out here: a runtime lifecycle change becomes an SDK bump instead of an edit in this file.
 		-->
 		<PurviewTargetFrameworkSet>Supported</PurviewTargetFrameworkSet>
+
+		<!--
+			Installed skills live in the universal .agents/skills/ folder only, and are committed. The
+			SDK's default (*) would make InstallPurviewSkills write a copy into every agent's folder.
+		-->
+		<PurviewSkillsAgents>universal</PurviewSkillsAgents>
 		<LangVersion>preview</LangVersion>
 
 		<!--
