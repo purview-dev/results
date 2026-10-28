@@ -105,10 +105,8 @@ public sealed class ZodValidationProblemsTests
 			ZodValidationProblems.ToProblem(errors, options),
 			context
 		);
-		var exceptionProblem = new ZodException(errors).ToHttpValidationProblemDetails(
-			registry,
-			StatusCodes.Status400BadRequest
-		);
+		// The options-based conversion is the writer ZodSharp's exception handler uses.
+		var exceptionProblem = new ZodException(errors).ToHttpValidationProblemDetails(options);
 
 		// Assert
 		await Assert.That(statusCode).IsEqualTo(exceptionProblem.Status);
@@ -123,6 +121,131 @@ public sealed class ZodValidationProblemsTests
 			.IsEqualTo(exceptionProblem.Errors["Name"][0]);
 		await Assert.That(root.TryGetProperty("issues", out var issues)).IsTrue();
 		await Assert.That(issues.GetArrayLength()).IsEqualTo(1);
+	}
+
+	[Test]
+	public async Task ToProblem_GivenAnErrorTypeMessageFormat_FormatsTheMessageLikeAThrownException()
+	{
+		// Arrange
+		ErrorTypeRegistry registry = new();
+		registry.Register(
+			new ErrorType(
+				Code: InvalidNameCode,
+				Category: "invalid_value",
+				Description: "The name is not valid.",
+				HttpStatus: StatusCodes.Status422UnprocessableEntity,
+				MessageFormat: "The name '{Name}' is not valid.",
+				Parameters: [ErrorType.Param<string>("Name")]
+			)
+		);
+		ZodProblemDetailsOptions options = new() { Registry = registry };
+		var errors = CreateErrors();
+
+		// Act
+		var (_, body, _) = await ExecuteAsync(ZodValidationProblems.ToProblem(errors, options), CreateContext());
+		var exceptionProblem = new ZodException(errors).ToHttpValidationProblemDetails(options);
+
+		// Assert
+		using var document = JsonDocument.Parse(body);
+		var message = document.RootElement.GetProperty("errors").GetProperty("Name")[0].GetString();
+		await Assert.That(message).IsEqualTo("The name 'operation' is not valid.");
+		await Assert.That(message).IsEqualTo(exceptionProblem.Errors["Name"][0]);
+	}
+
+	[Test]
+	public async Task ToProblem_GivenMergeParametersIntoExtensions_WritesTheParametersAtTheRoot()
+	{
+		// Arrange
+		ZodProblemDetailsOptions merged = new() { MergeParametersIntoExtensions = true };
+
+		// Act
+		var (_, mergedBody, _) = await ExecuteAsync(
+			ZodValidationProblems.ToProblem(CreateErrors(), merged),
+			CreateContext()
+		);
+		var (_, defaultBody, _) = await ExecuteAsync(
+			ZodValidationProblems.ToProblem(CreateErrors(), CreateOptions()),
+			CreateContext()
+		);
+
+		// Assert
+		using var mergedDocument = JsonDocument.Parse(mergedBody);
+		using var defaultDocument = JsonDocument.Parse(defaultBody);
+		await Assert.That(mergedDocument.RootElement.TryGetProperty("name", out var name)).IsTrue();
+		await Assert.That(name.GetString()).IsEqualTo("operation");
+		await Assert.That(defaultDocument.RootElement.TryGetProperty("name", out _)).IsFalse();
+	}
+
+	[Test]
+	public async Task ToProblem_GivenARuleStatusAndAStatusCodeSelector_LetsTheSelectorWin()
+	{
+		// Arrange - the default status a ZodResultsHttpOptions rule supplies is the lowest-precedence input, as it is
+		// for ZodProblemDetailsOptions.DefaultStatusCode.
+		ZodProblemDetailsOptions options = new() { StatusCodeSelector = _ => StatusCodes.Status409Conflict };
+
+		// Act
+		var (statusCode, _, _) = await ExecuteAsync(
+			ZodValidationProblems.ToProblem(CreateErrors(), options, StatusCodes.Status422UnprocessableEntity),
+			CreateContext()
+		);
+
+		// Assert
+		await Assert.That(statusCode).IsEqualTo(StatusCodes.Status409Conflict);
+	}
+
+	[Test]
+	public async Task ToProblem_GivenARuleStatus_UsesItAsTheDefault()
+	{
+		// Act
+		var (statusCode, _, _) = await ExecuteAsync(
+			ZodValidationProblems.ToProblem(CreateErrors(), CreateOptions(), StatusCodes.Status422UnprocessableEntity),
+			CreateContext()
+		);
+
+		// Assert
+		await Assert.That(statusCode).IsEqualTo(StatusCodes.Status422UnprocessableEntity);
+	}
+
+	[Test]
+	public async Task WithDefaultStatusCode_GivenADifferentStatus_CopiesEverySettableOption()
+	{
+		// Arrange - every settable option set to a non-default value, so a member the copy misses shows up here.
+		ErrorTypeRegistry registry = new();
+		Func<string, ErrorType?> resolver = _ => null;
+		Func<ImmutableArray<ValidationError>, int> selector = _ => 418;
+		Func<ImmutableArray<ValidationError>, int, int> statusOverride = (_, status) => status;
+		ZodProblemDetailsOptions options = new()
+		{
+			Registry = registry,
+			ErrorTypeResolver = resolver,
+			FormatMessages = false,
+			PathNaming = ZodPathNaming.Json,
+			IncludeIssues = false,
+			MergeParametersIntoExtensions = true,
+			ProjectDataAnnotationsIssues = false,
+			DefaultStatusCode = StatusCodes.Status400BadRequest,
+			StatusCodeSelector = selector,
+			StatusCodeOverride = statusOverride,
+		};
+
+		// Act
+		var copy = ZodValidationProblems.WithDefaultStatusCode(options, StatusCodes.Status422UnprocessableEntity);
+
+		// Assert
+		await Assert.That(copy).IsNotSameReferenceAs(options);
+		await Assert.That(copy.DefaultStatusCode).IsEqualTo(StatusCodes.Status422UnprocessableEntity);
+		var settable = typeof(ZodProblemDetailsOptions)
+			.GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+			.Where(static property =>
+				property.CanWrite && property.Name != nameof(ZodProblemDetailsOptions.DefaultStatusCode)
+			);
+		foreach (var property in settable)
+		{
+			await Assert
+				.That(Equals(property.GetValue(copy), property.GetValue(options)))
+				.IsTrue()
+				.Because($"ZodProblemDetailsOptions.{property.Name} must be copied");
+		}
 	}
 
 	[Test]
