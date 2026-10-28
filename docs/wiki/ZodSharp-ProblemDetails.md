@@ -84,21 +84,17 @@ category or origin registered twice with different behaviour is rejected at conf
 A failure that does **not** carry validation errors is declined (`null`), so other mappers and fallbacks still
 apply — this mapper never answers a failure it does not understand.
 
-## .NET 11 request validation runs first
+## .NET 11 request validation
 
-On .NET 11, Purview.ZodSharp 3's `AddZodSharpValidation()` - which `AddZodSharpBlazor()` also calls - plugs ZodSharp
-into the platform's minimal-API validation. A `[ZodSchema]` endpoint parameter is then validated **before the
-handler runs**, and an invalid request is answered by ZodSharp's own validation problem: the handler never returns
-its result, so the code, category and origin rules above never see the failure.
+On .NET 11, Purview.ZodSharp 3's `AddZodSharpValidation()` plugs ZodSharp into the platform's minimal-API validation.
+A `[ZodSchema]` endpoint parameter is then validated **before the handler runs**, and an invalid request is answered
+by ZodSharp's own validation problem: the handler never returns its result, so the code, category and origin rules
+above never see the failure.
 
-When an endpoint's handler validates the input itself and returns a result, turn the pipeline off for that endpoint:
-
-```csharp
-app.MapPost("/tenants", (TenantRegistration registration, TenantRegistrationService service) =>
-        service.Register(registration))
-    .WithResultsHttp()
-    .DisableValidation();
-```
+`AddZodSharpBlazor()` does not turn that on - it validates form models only - so a Blazor host's result-returning
+endpoints keep their result rules. A host whose handlers validate and return results either does not call
+`AddZodSharpValidation()`, or registers it for type validation only (`validateParameters: false`, or
+`ZodValidationOptions.ValidateParameters = false`).
 
 Both paths write through ZodSharp's `ZodProblemDetailsWriter`, so the body has the same shape either way; only the
 result rules' statuses are lost when the pipeline answers first.

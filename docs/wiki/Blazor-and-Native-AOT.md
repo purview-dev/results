@@ -64,15 +64,14 @@ builder.Services.AddZodSharpBlazor();
 
 On a Blazor Server or Web App host, the same service behind a minimal API maps onto HTTP with `WithResultsHttp()`: a
 `TenantInputInvalid` (an `IValidationErrorCarrier`) becomes the ZodSharp validation problem, a code rule from
-`AddResultsZodSharpHttp` answers its code, and a case mapping from `AddResultsHttp` answers its case. `AddZodSharpBlazor()`
-also turns on .NET 11 request validation, which answers an invalid `[ZodSchema]` parameter before the handler runs,
-so call `DisableValidation()` on an endpoint whose result carries the validation failure. See
-[ZodSharp Problem Details](ZodSharp-ProblemDetails.md#net-11-request-validation-runs-first).
+`AddResultsZodSharpHttp` answers its code, and a case mapping from `AddResultsHttp` answers its case.
+`AddZodSharpBlazor()` validates form models only - it does not turn on .NET 11 minimal-API parameter validation - so
+the handler runs and the result rules answer. See
+[ZodSharp Problem Details](ZodSharp-ProblemDetails.md#net-11-request-validation).
 
 ## Value objects in a Blazor client
 
 A `[Scalar]` from Purview.ValueObjects with a type-level `[ZodRule]` such as `[NonSentinel]` composes with results
-in a Native AOT application (see [Value Objects Composition](Value-Objects-Composition.md)). In a Blazor WebAssembly
-client published with `RunAOTCompilation=true`, Purview.ZodSharp 3.0.0-prerelease.1's generated validation for such
-a rule crashes the Mono AOT compiler; the trimmed (non-AOT) WebAssembly publish is unaffected. Purview.ValueObjects'
-own guide documents this and its other Blazor notes.
+in a Native AOT application and in a Blazor WebAssembly client, trimmed or published with `RunAOTCompilation=true`
+(see [Value Objects Composition](Value-Objects-Composition.md)). Purview.ValueObjects' own guide covers binding a
+value object in a form and where its validation messages are placed.
