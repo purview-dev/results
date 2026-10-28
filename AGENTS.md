@@ -27,6 +27,7 @@ generator that makes C# 15 union error cases ergonomic), and the ZodSharp and AS
 | `src/src/ZodSharp.AspNetCore` | Validation-problem mapping for validation-carrying failures |
 | `src/src/<Project>/Sdk` | Package-only assets. `Sdk/README.md` is packed as the package README |
 | `skills` | Authored agent skills, installable with the skills CLI (see [Agent skills](#agent-skills)) |
+| `.agents/skills`, `skills-lock.json` | Skills installed from other repositories, committed (see [Installed skills](#installed-skills-agentsskills)) |
 | `src/tests` | TUnit unit tests, including source-generation and incremental-cache tests |
 | `src/src/Examples.*` | Runnable, non-packable examples: one project per integration aspect on a shared Tenant* domain |
 | `docs/wiki` | User-facing documentation suite, aggregated by the purview-dev website |
@@ -307,6 +308,59 @@ result and the HTTP mapping).
 - Examples must compile conceptually against the current public API. Use placeholders for credentials and
   environment-specific values.
 
+## Installed skills (`.agents/skills/`)
+
+Specialist guidance this repository depends on - the Purview engineering playbook, `Purview.BuildSdk`
+configuration, the `Purview.SourceGeneratorFramework` generator and test APIs, ZodSharp, and Purview.ValueObjects
+composition - is published by the repositories that own it, and installed here by the skills CLI. The installed skills are
+**committed**: `.agents/skills/**` and the CLI's `skills-lock.json` (source, skill path and content hash of every
+entry) are both in source, so a clone has them without running anything.
+
+| Skill | Source | Load before |
+| --- | --- | --- |
+| `purview-engineering-principles` | `purview-dev/engineering-playbook` | setting up, reviewing or rationalising the repository against the Purview conventions |
+| `purview-architecture` | `purview-dev/engineering-playbook` | deciding project shape or generating substantial implementation code |
+| `purview-architecture-testing` | `purview-dev/engineering-playbook` | adding or changing architecture tests |
+| `purview-testing-conventions` | `purview-dev/engineering-playbook` | writing or reviewing tests (TUnit, AAA, naming, builders) |
+| `purview-persistence` | `purview-dev/engineering-playbook` | choosing a storage approach, abstracting EF Core, or a GUID primary-key strategy |
+| `purview-telemetry` | `purview-dev/engineering-playbook` | adding or reviewing observability, including the results HTTP telemetry |
+| `purview-buildsdk-*` (8 skills) | `purview-dev/build-sdk` | build/SDK configuration, project layout and detection, testing, skill installation and skill tests |
+| `purview-sourcegenerator-codewriter` | `purview-dev/sourcegenerator-framework` | writing or reviewing emitter code (`CodeWriter`, scopes) |
+| `purview-sourcegenerator-pipeline` | `purview-dev/sourcegenerator-framework` | changing the incremental pipeline or its value-equatable models |
+| `purview-sourcegenerator-diagnostics` | `purview-dev/sourcegenerator-framework` | adding or changing an `RSG` diagnostic or the analyzer |
+| `purview-sourcegenerator-packaging` | `purview-dev/sourcegenerator-framework` | changing how the generator and code fix are packed or merged |
+| `purview-sourcegenerator-testing` | `purview-dev/sourcegenerator-framework` | writing generator, analyzer or code-fix tests (`CodeQuery`) |
+| `purview-sourcegenerator-tunit-tests` | `purview-dev/sourcegenerator-framework` | the TUnit base classes and assertion extensions |
+| `purview-zodsharp-*` (6 skills) | `purview-dev/zodsharp` | the ZodSharp bridge and ProblemDetails integration: `[ZodSchema]`, rules, JSON, ASP.NET Core, `ZODSGEN` diagnostics |
+| `purview-value-objects*` (4 skills) | `purview-dev/value-objects` | the value-objects composition example, tests and packed consumer |
+
+Skills are installed into the universal `.agents/skills/` location **only**. Never install copies into `.claude/`
+or any other per-agent folder, and never add a `CLAUDE.md`: `AGENTS.md` is the one instruction file, and
+`/.claude/` is gitignored. Pass `-a universal`, which writes `.agents/skills/` and nothing else:
+
+```bash
+# add or update every skill from a source
+npx -y skills@1 add purview-dev/engineering-playbook -s '*' -a universal -y
+npx -y skills@1 add purview-dev/build-sdk -s '*' -a universal -y
+npx -y skills@1 add purview-dev/sourcegenerator-framework -s '*' -a universal -y
+npx -y skills@1 add purview-dev/zodsharp -s '*' -a universal -y
+npx -y skills@1 add purview-dev/value-objects -s '*' -a universal -y
+
+# restore the committed set from skills-lock.json
+npx -y skills@1 experimental_install
+```
+
+Commit the changed `.agents/skills/**` and `skills-lock.json` together, in their own `chore` commit. Do not edit
+anything under `.agents/skills/` by hand - the CLI is its only writer, and a hand edit no longer matches the
+lockfile's hash. `Purview.BuildSdk`'s `InstallPurviewSkills` target delegates to the same CLI;
+`src/Directory.Build.props` sets `PurviewSkillsAgents=universal` so it is restricted the same way rather than
+defaulting to every agent (`*`).
+
+`src/tests/Repository.UnitTests/InstalledSkillTests.cs` keeps this honest: every `skills-lock.json` entry has its
+`.agents/skills/<name>/SKILL.md`, every installed folder is in the lockfile, no skill authored in `skills/` is
+copied into `.agents/skills/`, no `.claude/skills/` copy exists, and there is no `CLAUDE.md` (at the root or in
+`.github/`).
+
 ## Agent skills
 
 Authored skills live in the repository-root `skills/` folder. **Nothing packs them into a NuGet package.**
@@ -315,9 +369,9 @@ discovers a root `skills/` folder, so that is the one delivery route. `PurviewSk
 `IncludeRepositorySkillsInPackage` shim in `src/Directory.Build.targets`, the `Sdk/.agents/**` sub-agents and
 prompts, and the `.agents/**/*` entries in `.config/purview-build.json` went with it.
 
-`.agents/skills/` is the CLI's install location for skills from **other** repositories, and is gitignored. This
-repository's own skills are never installed into it — that would leave two copies to drift apart. Read them at
-their authored path, `skills/<name>/SKILL.md`.
+`.agents/skills/` holds the skills installed from **other** repositories (above). This repository's own skills are
+never installed into it — that would leave two copies to drift apart. Read them at their authored path,
+`skills/<name>/SKILL.md`.
 
 | Skill | Answers |
 | --- | --- |

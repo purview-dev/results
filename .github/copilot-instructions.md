@@ -15,5 +15,5 @@ Keep product, architecture, and general engineering standards centralized in `AG
 
 - Apply the `AGENTS.md` testing bar strictly (TUnit with the source-generator framework's `CodeQuery` assertions, `{SubjectUnderTest}_{Scenario}_{Expectation}` naming, cancellation token rule).
 - Treat work as incomplete until relevant tests pass.
-- Consult the repository `.agents/` folder for additional skills/workflows that may improve execution quality. Skill content is delivered by NuGet packages and is read-only here.
+- Consult the skills installed in `.agents/skills/` (recorded in `skills-lock.json`) for upstream guidance that may improve execution quality. They are installed by the skills CLI and read-only here; see `AGENTS.md`, "Installed skills".
 - Keep edits minimal, focused, and aligned with existing SDK and repository conventions.
