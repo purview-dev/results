@@ -7,8 +7,8 @@
 			default on the newest line so a new target framework fails loudly rather than silently resolving
 			something older.
 		-->
-		<DotNetRuntimeVersion>11.0.0-rc.1.26425.128</DotNetRuntimeVersion>
-		<DotNetRuntimeVersion Condition="'$(TargetFramework)' == 'net10.0'">10.0.13</DotNetRuntimeVersion>
+		<DotNetRuntimeVersion>11.0.100-rc.3.26522.148</DotNetRuntimeVersion>
+		<DotNetRuntimeVersion Condition="'$(TargetFramework)' == 'net10.0'">10.0.14</DotNetRuntimeVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Purview Versions">
 		<PurviewZodSharpVersion>3.0.0-prerelease.1</PurviewZodSharpVersion>
