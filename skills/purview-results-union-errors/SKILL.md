@@ -1,6 +1,6 @@
 ---
 name: purview-results-union-errors
-description: "Use when modelling expected failures as a C# 15 union and converting its cases into Purview.Results values — declaring [GenerateResult] unions, using the generated per-case AsFailure<TValue>()/AsFailure() helpers and the union-receiver Union.Failure(...)/Union.Success(...) factories, reacting to the RSG1000-RSG1008 diagnostics, or explaining why a union case cannot convert implicitly."
+description: "Use when modelling expected failures as a C# 15 union and converting its cases into Purview.Results values — declaring [GenerateResult] unions, using the generated per-case AsFailure<TValue>()/AsFailure() helpers and the union-receiver Union.Failure(...)/Union.Success(...) factories, reacting to the RSG1000-RSG1009 and RSG9000 diagnostics, or explaining why a union case cannot convert implicitly."
 ---
 
 # Modelling error unions for Purview.Results
@@ -33,7 +33,9 @@ public static Result<Tenant, TenantError> Get(TenantId id) =>
 ```
 
 `AsFailure<TValue>()` and the non-generic `AsFailure()` are generated **once per case type**, into
-`public static class {Union}ResultExtensions` in the union's own namespace. The generic helper calls
+`static class {Union}ResultExtensions` in the union's own namespace (`public` only when the union and every case it
+references are visible, otherwise `internal`; a nested union's class is prefixed with its containing types, as
+`Outer_TenantErrorResultExtensions`). The generic helper calls
 `Result<TValue, TUnion>.Failure(case)`; the non-generic one calls `Result<TUnion>.Failure(case)` and produces a
 value-less unit result:
 
@@ -83,8 +85,8 @@ Result<Tenant, TenantError> Get(TenantId id) => (TenantError)new TenantNotFound(
 `return new TenantNotFound(id);` in a `Result<TValue, TUnion>`- or `Result<TUnion>`-returning member, the
 lightbulb offers the `Union.Failure<TValue>(case)` or `Union.Failure(case)` rewrite. The fix names the union, so it
 is correct even when the case type is shared with another union. It is only offered when the rewrite will bind (the
-converted type is a result, the error type is a `[GenerateResult]` union, the value is one of its cases, and the
-union is in scope by simple name).
+converted type is a result, the error type is a `[GenerateResult]` union, the value is one of its cases or a case
+reachable through an included union, and the union is in scope by simple name).
 
 ## Chaining across services
 
@@ -138,11 +140,20 @@ The package ships an analyzer and a generator that share one diagnostics library
 | `RSG1006` | Warning | A **leaf** case type is shared with another union, so its per-case `AsFailure` helper is generated once; the union-receiver `Failure(...)` factory is generated for every union. A union-typed case shared across unions is composition and is not reported |
 | `RSG1007` | Error | The union uses an `IUnionMembers` member provider, which is not supported |
 | `RSG1008` | Warning | A case is reachable through two different included unions, so no inclusion factory can name its construction path; that case's inclusion factory is skipped |
+| `RSG1009` | Warning | A case type is not a named type (an array, for example), so no helper or factory can be declared against it; wrap it in a record or struct case |
+| `RSG9000` | Error | The generator failed unexpectedly; reported instead of letting `CS8785` discard every union's output. Please report it |
 
-`RSG1004`, `RSG1006` and `RSG1008` are non-blocking: the union (or the shared/ambiguous case) is skipped and
-reported.
+Not every finding stops generation. `RSG1004` is generated once; `RSG1006`, `RSG1008` and `RSG1009` skip only the
+affected case's helper or factory; `RSG1002` and `RSG1003` skip only the offending case when it is a case type
+rather than the union itself. The other rules skip the union.
 
 Unsupported by design: `IUnionMembers` member providers (`RSG1007`) and generic unions (`RSG1002`).
+
+## Trimming, Native AOT and Blazor
+
+The generated helpers and factories are plain static calls to `Result<...>.Failure`/`.Success` and union
+constructors: no reflection, no dynamic code. A `[GenerateResult]` union is safe in a trimmed or Native AOT
+application and in a Blazor WebAssembly client (trimmed or `RunAOTCompilation=true`).
 
 ## CA1815 needs no pragma
 
@@ -160,7 +171,9 @@ compared by value.
 
 ## Requirements and switches
 
-- **.NET 11 SDK or later** with `LangVersion=preview` — union declarations are a preview language feature.
+- **.NET 11 SDK or later**, a `net11.0` target and `LangVersion=preview` in the project that declares the union —
+  union declarations are a preview language feature, and `IUnion`/`UnionAttribute` do not exist before .NET 11.
+  Projects that only *use* the result types can target `net10.0`.
 - A reference to `Purview.Results`, which provides both result shapes (`Result<TValue, TError>` and
   `Result<TError>`) and this generator.
 - `-p:DisableResultsSourceGenerator=true` (or a `Directory.Build.props` setting) disables the helpers while
@@ -175,5 +188,5 @@ compared by value.
    success carries no value.
 4. Failures are produced with `new Case(...).AsFailure<TValue>()` (or `AsFailure()` for a unit result, the
    union-receiver `Union.Failure<TValue>(case)` / `Union.Failure(case)` factory, or the cast form).
-5. The build is clean of `RSG1000`–`RSG1008`.
+5. The build is clean of `RSG1000`–`RSG1009` and `RSG9000`.
 6. The union is mapped to responses once, in the host (see `purview-results-http-mapping`).

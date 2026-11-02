@@ -1,6 +1,6 @@
 ---
 name: purview-results-http-mapping
-description: "Use when an ASP.NET Core endpoint returns Purview.Results values — registering AddResultsHttp, mapping error cases to status codes with Map<T>, answering a failure by its shape with an IResultsFailureMapper, using fallbacks, correcting unmapped-failure 500s, or converting a result with ToHttpResult."
+description: "Use when an ASP.NET Core endpoint returns Purview.Results values — registering AddResultsHttp, mapping error cases to status codes with Map<T>, answering a failure by its shape with an IResultsFailureMapper, using fallbacks, correcting unmapped-failure 500s, converting a result with ToHttpResult, or serving results from a Native AOT host."
 ---
 
 # Mapping results onto ASP.NET Core responses
@@ -29,8 +29,12 @@ app.MapGet("/tenants/{id:int}", (int id) => GetTenant(id)).WithResultsHttp();
 - `WithResultsHttp()` exists on both `RouteHandlerBuilder` and `RouteGroupBuilder` and adds the endpoint filter.
   A handler that returns something other than an `IResultValue` is left untouched, so the filter is safe to
   apply to a whole group.
-- Mapping by hand is also supported: `result.ToHttpResult(context)` resolves the mapper from the request
-  services, and `result.ToHttpResult(mapper, context)` takes one directly.
+- Mapping by hand: `result.ToHttpResult()` returns a `ResultHttpResult`, an `IResult` the registered mapper maps
+  when it executes (identical responses to `WithResultsHttp()`, no filter, OpenAPI success metadata included).
+  `result.ToHttpResult(context)` maps immediately, and `result.ToHttpResult(mapper, context)` takes a mapper. All
+  three exist for both `Result<TValue, TError>` and the unit `Result<TError>`.
+- Options are startup configuration. The mappings and fallbacks are frozen the first time a request reads them,
+  so a `Map` or `AddFallback` call after that is ignored.
 
 ## Response resolution order
 
@@ -55,8 +59,10 @@ resolves to its leaf; or the error itself when it is not a union), then:
    first; returning `null` defers to the next entry;
 5. the **unmapped-failure** response.
 
-Registering the same type twice replaces the earlier mapping. Fallbacks receive the *leaf* case value, so a
-fallback never has to unwrap the union itself.
+Registering the same type twice replaces the earlier mapping. A mapping matches the **exact runtime type** only:
+`Map<ITenantFailure>` or `Map<SomeBaseRecord>` never matches a case that implements or derives from it. Answer an
+interface or base-type shape with a failure mapper (below). Fallbacks receive the *leaf* case value, so a fallback
+never has to unwrap the union itself.
 
 ## Shape-based rules
 
@@ -91,23 +97,51 @@ builder.Services.AddResultsHttp(options => options.AddFailureMapper<BlankIdentif
 | Option | Default | Notes |
 | --- | --- | --- |
 | `SuccessStatusCode` | `200` | Status for a serialized successful value |
-| `SuccessMapper` | `null` | Replaces the default success handling |
+| `SuccessMapper` | `null` | Replaces the default success handling; receives the value as `object?` (the `Success` marker for a unit result) |
 | `UnmappedStatusCode` | `500` | Status for a failure with no mapping |
 | `UnmappedTitle` | *"The operation failed with an error that is not mapped to an HTTP response."* | Title of the unmapped problem |
-| `ThrowOnUnmappedFailure` | `false` | Throw instead of responding; use during development |
+| `ThrowOnUnmappedFailure` | `false` | Throw on an unmapped failure instead of responding; use during development |
+| `IncludeErrorTypeInProblemDetails` | `false` | Write the error's CLR type name into the unmapped problem's `errorType` extension |
 | `IncludeTraceId` | `true` | Whether problems this package writes carry the request trace identifier |
 
 ## Treat an unmapped failure as a bug in the host
 
 An unmapped failure is a **mapping gap**, not a domain outcome: the response is `UnmappedStatusCode` (`500`)
-with a `ProblemDetails` carrying an `errorType` extension naming the case, and an error is logged. When you see
-one in the logs, add the mapping; do not widen a catch-all mapping to silence it.
+with a `ProblemDetails` carrying the status and `UnmappedTitle`, and an error is logged (EventId `1001`) naming the
+case type. The type name is written into the response's `errorType` extension only when
+`IncludeErrorTypeInProblemDetails` is set, because it discloses internal namespaces; enable it per environment
+(`builder.Environment.IsDevelopment()`). When you see one in the logs, add the mapping; do not widen a catch-all
+mapping to silence it.
 
-The same path handles an **uninitialized** result (`default`), which is logged and answered with
-`errorType = "results_uninitialized"` — an endpoint returning `default` is always a bug in the handler.
+An **uninitialized** result (`default`) is answered the same way, always with `errorType = "results_uninitialized"`
+(a fixed discriminator, not a type name), and logged with EventId `1000`. An endpoint returning `default` is always
+a bug in the handler.
 
-During development, `ThrowOnUnmappedFailure = true` turns both into an `InvalidOperationException` so the gap
-surfaces at the call site.
+During development, `ThrowOnUnmappedFailure = true` turns an unmapped failure into an
+`InvalidOperationException` so the gap surfaces at the call site. It does not apply to an uninitialized result,
+which always answers the `500`.
+
+Both paths are counted under the meter `ResultsHttpTelemetry.MeterName` (`Purview.Results.AspNetCore`):
+`purview.results.failures.mapped`, `purview.results.failures.unmapped` and `purview.results.uninitialized`, each
+tagged `purview.results.error_type` (also added to `Activity.Current`). Register it with
+`metrics.AddMeter(ResultsHttpTelemetry.MeterName)` and alert on the unmapped counter.
+
+## Native AOT and trimming
+
+The package is `IsAotCompatible`. A successful value reaches `TypedResults` with its static type (through
+`IResultValue.AcceptSuccess`), so it binds `Ok<TValue>` — or `Json<TValue>` for another `SuccessStatusCode` —
+never `Ok<object>`. Under Native AOT:
+
+- **return `result.ToHttpResult()` from every handler, never the result.** The request delegate generator resolves
+  JSON metadata for a handler's declared return type when it builds the endpoints; a `Result<...>` has none (and a
+  union error cannot get any: `SYSLIB1227`), so every request fails at startup with a `NotSupportedException`.
+  `WithResultsHttp()` runs too late to help, and adding the result type to a `JsonSerializerContext` does not work;
+- register each request body and successful **value** type (not the `Result<...>` type) in the app's
+  `JsonSerializerContext`:
+  `builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonContext.Default));`
+- the problem responses need nothing extra; they resolve from ASP.NET Core's own context;
+- a `SuccessMapper` receives `object?`, so cast to the value type before serializing — `TypedResults.Json(value)`
+  on an `object` has no metadata under AOT.
 
 ## Choosing status codes
 

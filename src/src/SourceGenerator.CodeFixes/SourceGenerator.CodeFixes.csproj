@@ -2,17 +2,17 @@
 	<PropertyGroup>
 		<!--
 			The IDE side of the generator's call-site ergonomics. It ships inside the Purview.Results package:
-			the generator project references this one, and Purview.Results packs this project's analyzer
-			artifact under analyzers/dotnet/cs/ beside the merged generator, so both assemblies land there and
-			this project is deliberately not packable itself.
+			Purview.Results packs this project's analyzer artifact under analyzers/dotnet/cs/ beside the merged
+			generator, so both assemblies land there and this project is deliberately not packable itself.
 
 			The reference direction matters: this project does not reference the generator, so no reference
-			cycle can form and the generator's analyzer closure never acquires the Workspaces layer.
+			cycle can form. The generator project references this one analyzer-style only
+			(ReferenceOutputAssembly=false), so the generator's analyzer closure never acquires the Workspaces layer.
 		-->
 		<IsRoslynComponent>true</IsRoslynComponent>
 		<TargetFramework>netstandard2.0</TargetFramework>
 		<Title>Purview Results Source Generator Code Fixes</Title>
-		<Description>IDE code fixes for the Purview.Results source generator: rewrites a returned union case value into the generated AsFailure&lt;TValue&gt;() failed result.</Description>
+		<Description>IDE code fixes for the Purview.Results source generator: rewrites a returned union case value (CS0029) into the generated union-receiver factory, Union.Failure&lt;TValue&gt;(case) or Union.Failure(case).</Description>
 	</PropertyGroup>
 
 	<ItemGroup>

@@ -26,7 +26,7 @@ builder.Services.AddResultsHttp(options => options
 
 var app = builder.Build();
 
-app.MapGet("/tenants/{id:int}", (int id) => GetTenant(id)).WithResultsHttp();
+app.MapGet("/tenants/{id}", (string id) => GetTenant(new TenantId(id))).WithResultsHttp();
 ```
 
 `AddResultsHttp` also registers problem-details services (`AddProblemDetails()`), so the unmapped-failure and
@@ -53,11 +53,14 @@ union resolves to its leaf; or the error itself for a non-union error), then map
 4. the **fallback stage**, in registration order: `AddFallback(...)` delegates and `AddFailureMapper<TMapper>()`
    mappers share one ordered list; a fallback or mapper receives the leaf case and returns `null` to defer to the
    next entry
-5. a `ProblemDetails` response using `UnmappedStatusCode` (`500`), `UnmappedTitle`, and an `errorType` extension
-   naming the unmapped case — or an `InvalidOperationException` when `ThrowOnUnmappedFailure` is set
+5. a `ProblemDetails` response using `UnmappedStatusCode` (`500`) and `UnmappedTitle` — or an
+   `InvalidOperationException` when `ThrowOnUnmappedFailure` is set. The case's type name is always logged, but it
+   is written into the response's `errorType` extension only when `IncludeErrorTypeInProblemDetails` is set,
+   because it discloses internal namespaces to the caller
 
-An **uninitialized** result (`default`) takes the same path and is logged, because an endpoint returning `default`
-is a host bug rather than a domain outcome.
+An **uninitialized** result (`default`) is logged and answered with the same `500`, always with
+`errorType = "results_uninitialized"` (a fixed discriminator, not a type name), because an endpoint returning
+`default` is a host bug rather than a domain outcome. `ThrowOnUnmappedFailure` does not apply to it.
 
 ## Options
 
@@ -67,14 +70,17 @@ is a host bug rather than a domain outcome.
 | `SuccessMapper` | `null` | Replaces the default success handling entirely |
 | `UnmappedStatusCode` | `500` | Status code for a failure with no mapping |
 | `UnmappedTitle` | *"The operation failed with an error that is not mapped to an HTTP response."* | Title of the unmapped `ProblemDetails` |
-| `ThrowOnUnmappedFailure` | `false` | Throw instead of producing a problem response; useful during development |
+| `ThrowOnUnmappedFailure` | `false` | Throw on an unmapped failure instead of producing a problem response; useful during development |
+| `IncludeErrorTypeInProblemDetails` | `false` | Write the unmapped error's CLR type name into the `errorType` extension; enable per environment |
 | `IncludeTraceId` | `true` | Whether problem responses this package writes itself carry the request trace identifier |
 | `Map<TCase>(Func<TCase, IResult>)` | — | Maps a case (or the error itself) to a response |
 | `Map<TCase>(Func<TCase, HttpContext, IResult>)` | — | Same, with access to the request |
 | `AddFallback(Func<object?, HttpContext, IResult?>)` | — | Consulted in order for unmapped failures, with the case value |
 | `AddFailureMapper<TMapper>()` | — | Same stage, for a mapper class resolved from dependency injection |
 
-Registering the same type twice replaces the earlier mapping.
+Registering the same type twice replaces the earlier mapping. A mapping matches the exact runtime type only, so
+`Map<ISomeInterface>` never matches; answer an interface or base-type shape with a failure mapper. The options are
+startup configuration: the mappings and fallbacks are frozen the first time a request reads them.
 
 ## Choosing an extension point
 
@@ -114,13 +120,40 @@ shapes you can name and return `null` for the rest.
 
 ## Converting a result by hand
 
+`ToHttpResult()` wraps a result in a `ResultHttpResult`, an `IResult` that the registered `IResultsHttpMapper` maps
+when it executes, so the response is exactly the one `WithResultsHttp()` produces and no filter is needed:
+
 ```csharp
-app.MapGet("/tenants/{id:int}", (int id, HttpContext context) =>
-    GetTenant(id).ToHttpResult(context));
+app.MapGet("/tenants/{id}", (string id) => GetTenant(new TenantId(id)).ToHttpResult());
+app.MapDelete("/tenants/{id}", (string id) => DeleteTenant(new TenantId(id)).ToHttpResult());   // 204 on success
 ```
 
-`ToHttpResult(HttpContext)` resolves `IResultsHttpMapper` from the request services; the
-`ToHttpResult(IResultsHttpMapper, HttpContext)` overload takes one directly.
+It exists for both `Result<TValue, TError>` and the unit `Result<TError>`, and describes the success response to
+OpenAPI: `TValue` as JSON with `SuccessStatusCode`, or `204` for a unit result (nothing when `SuccessMapper` is set).
+`ToHttpResult(HttpContext)` maps immediately with the mapper resolved from the request services, and
+`ToHttpResult(IResultsHttpMapper, HttpContext)` takes one directly.
+
+## Native AOT
+
+The package is `IsAotCompatible` and hands a successful value to `TypedResults` with its static type, so it binds
+`Ok<TValue>`, never `Ok<object>`. A Native AOT host needs two things:
+
+- **Return `result.ToHttpResult()`, not the result.** Under `PublishAot` the request delegate generator resolves
+  JSON metadata for every handler's declared return type when it builds the endpoints. A `Result<...>` has none - it
+  is never serialized, and System.Text.Json's source generator cannot describe a union error (`SYSLIB1227`) - so a
+  handler that returns the result itself fails every request at startup, before `WithResultsHttp()` can run.
+- **Put the value types in your `JsonSerializerContext`**, with the request body types. The problem responses resolve
+  from ASP.NET Core's own context.
+
+See [Blazor and Native AOT](Blazor-and-Native-AOT.md#a-native-aot-minimal-api) for a complete host.
+
+## Observability
+
+The mapper counts under the meter `ResultsHttpTelemetry.MeterName` (`Purview.Results.AspNetCore`):
+`purview.results.failures.mapped`, `purview.results.failures.unmapped` and `purview.results.uninitialized`, each
+tagged `purview.results.error_type` (the case type name, or `unknown` for an uninitialized result) and added to
+`Activity.Current`. Register it with `metrics.AddMeter(ResultsHttpTelemetry.MeterName)`. Log statements carry
+stable event ids: `1000` for an uninitialized result and `1001` for an unmapped failure.
 
 ## Extensibility
 
@@ -145,7 +178,8 @@ Running `Examples.AspNetCore`:
 | `GET /tenants/hooli/billing` | `402 Payment Required` — the leaf `BillingAccountMissing` case |
 | `GET /tenants/initech/billing` | `404 Not Found` — a nested tenant failure resolves to the `TenantNotFound` leaf |
 | `GET /tenants/globex/billing` | `403 Forbidden` — a nested tenant failure resolves to the `TenantDisabled` leaf |
-| `GET /tenants/broken` | `500` with an `errorType` extension, because an endpoint returning `default` is a host bug |
+| `GET /tenants/broken` | `500` with `errorType = "results_uninitialized"`, because an endpoint returning `default` is a host bug |
+| `GET /explicit/tenants/initech` | `404 Not Found` — the same mapping, through `ToHttpResult()` instead of the filter |
 
 ```bash
 dotnet run --project src/src/Examples.AspNetCore --urls http://localhost:5215

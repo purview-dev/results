@@ -79,12 +79,12 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 			if (unionType is null || (!isUnit && valueType is null))
 				continue;
 
-			// The expression must be a case of the union, otherwise AsFailure<TValue>() would not exist for
-			// it and the rewrite would not compile.
+			// The expression must be a case of the union, otherwise the union's Failure factory would have no
+			// overload for it and the rewrite would not compile.
 			if (!IsCaseOf(unionType, model.GetTypeInfo(expression, cancellationToken).Type))
 				continue;
 
-			// The helper is generated into the union's namespace, so the rewrite only binds where that
+			// The factory is generated into the union's namespace, so the rewrite only binds where that
 			// namespace is reachable by simple name.
 			if (!IsUnionVisibleBySimpleName(model, unionType, expression.SpanStart))
 				continue;

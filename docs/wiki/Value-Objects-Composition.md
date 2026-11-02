@@ -3,7 +3,9 @@
 `Purview.Results` composes with [Purview.ValueObjects](https://www.nuget.org/packages/Purview.ValueObjects) and
 [Purview.ZodSharp](https://www.nuget.org/packages/Purview.ZodSharp) without depending on either. This page shows
 the end-to-end shape: a value object's invariants are validated by ZodSharp, the outcome becomes an ordinary
-result failure, and the failure is rendered by the ZodSharp.AspNetCore mapping.
+result failure, and an ASP.NET Core host can render that failure with the ZodSharp.AspNetCore mapping. The
+runnable example stops at the result — it is a console app with no HTTP layer — so the rendering section shows the
+host registration on its own.
 
 ## Why the composition works
 
@@ -72,7 +74,7 @@ public readonly partial record struct AssetId
 
 `[Scalar]` is the *manual* form — you declare the underlying property. The *automatic* form, `[Scalar<Guid>]`
 (or `[Scalar(typeof(Guid))]`), has the value-object generator declare `public Guid Value { get; init; }`, and
-Purview.ZodSharp 2.0.2+ generates the schema from that attribute even though the member is not visible to it:
+Purview.ZodSharp (the 3.x line this repository builds against) generates the schema from that attribute even though the member is not visible to it:
 
 ```csharp
 [Scalar<Guid>]
@@ -104,22 +106,41 @@ knowing the error type:
 [GenerateResult]
 readonly union TenantError(TenantInputInvalid, TenantAlreadyExists);
 
-readonly record struct TenantInputInvalid(TenantInput Input, ImmutableArray<ValidationError> Errors)
+readonly record struct TenantInputInvalid(Guid TenantId, ImmutableArray<ValidationError> Errors)
     : IValidationErrorCarrier
 {
     ImmutableArray<ValidationError> IValidationErrorCarrier.ValidationErrors => Errors;
 }
+
+readonly record struct TenantAlreadyExists(TenantId TenantId);
 ```
 
-`ToResult` maps the validation outcome into that union, naming the error type explicitly because a union case does
-not carry the union that contains it:
+The service hydrates the value object without running its rule, validates it through the generated schema, and
+turns a rejection into the carrier case with the generated `AsFailure<TValue>()` helper:
 
 ```csharp
-return TenantInputSchema
-    .Validate(input)
-    .ToResult<TenantInput, TenantError>(errors => new TenantInputInvalid(input, errors))
-    .Bind(RegisterValidated);
+public Result<Tenant, TenantError> Register(Guid tenantId, string name)
+{
+    var candidate = TenantId.Hydrate(tenantId);
+    var validation = TenantIdSchema.Validate(candidate);
+
+    if (!validation.IsSuccess)
+        return new TenantInputInvalid(tenantId, validation.Errors).AsFailure<Tenant>();
+
+    var id = validation.Value;
+
+    if (_tenants.ContainsKey(id))
+        return new TenantAlreadyExists(id).AsFailure<Tenant>();
+
+    Tenant tenant = new(id, name, Enabled: true);
+    _tenants[id] = tenant;
+
+    return Result<Tenant, TenantError>.Success(tenant);
+}
 ```
+
+`ToResult<TValue, TError>(errors => ...)` from `Purview.Results.ZodSharp` is the one-call alternative when the
+validated value flows straight on; see [ZodSharp Integration](ZodSharp-Integration.md).
 
 ## Rendering it, keyed by the rule's identity
 
@@ -147,7 +168,8 @@ registration-ordered; see [ZodSharp Problem Details](ZodSharp-ProblemDetails.md)
 [`Examples.ValueObjects.Zod`](https://github.com/purview-dev/results/tree/main/src/src/Examples.ValueObjects.Zod)
 runs the whole composition: an automatic `[Scalar<Guid>]` tenant identifier whose type-level `[ZodRule]` owns
 `Code = "invalid_tenant_id"` and `Origin = "value_object"`, validated into a `Result<Tenant, TenantError>`
-failure and answerable by `MapOrigin("value_object", …)`.
+failure. It prints each error's code, origin and (empty) path — the identity a host's `MapCode`/`MapOrigin` rules
+would key on.
 
 ```bash
 dotnet run --project src/src/Examples.ValueObjects.Zod

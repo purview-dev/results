@@ -80,6 +80,17 @@ A factory receives the failure's **full error set**, so a rule never hides the o
 fix, and the `int statusCode` overloads still render every error as an `HttpValidationProblemDetails`. A code,
 category or origin registered twice with different behaviour is rejected at configuration time.
 
+A failure whose case does not carry validation errors (is not an `IValidationErrorCarrier`) is declined (`null`),
+so other mappers and fallbacks still apply — this mapper never answers a failure it does not understand.
+
+## .NET 11 request validation
+
+On .NET 11, Purview.ZodSharp 3's `AddZodSharpValidation()` validates a `[ZodSchema]` endpoint parameter **before
+the handler runs** and answers an invalid request with ZodSharp's own validation problem, so the handler never
+returns its result and the rules above never see the failure. A host whose handlers validate and return results
+either does not call `AddZodSharpValidation()` or registers it for type validation only (`validateParameters:
+false`). `AddZodSharpBlazor()` validates form models only and does not turn parameter validation on.
+
 ## API
 
 | Member | Purpose |
@@ -112,7 +123,8 @@ dotnet run --project src/src/Examples.AspNetCore.Zod --urls http://localhost:521
 The [repository README](https://github.com/purview-dev/results#examples) lists the Basic, ZodSharp and
 ASP.NET Core examples too. The
 [value-objects composition example](https://github.com/purview-dev/results/tree/main/src/src/Examples.ValueObjects.Zod)
-shows a type-level `[ZodRule]` whose `Origin = "value_object"` is answered by `MapOrigin`.
+is a console app with no HTTP layer: it shows a type-level `[ZodRule]` reporting `Origin = "value_object"` into a
+result failure — the identity a `MapOrigin("value_object", …)` rule in this package keys on.
 
 ## Related packages
 

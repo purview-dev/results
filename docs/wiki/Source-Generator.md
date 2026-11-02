@@ -114,13 +114,15 @@ change, wrap or replace `Result<TValue, TError>` or `Result<TError>`.
 
 The switch reaches `PackageReference` consumers through `buildTransitive/Purview.Results.props`, so
 `-p:DisableResultsSourceGenerator=true` (or a `Directory.Build.props` setting) disables the helpers there too.
-Release tracking for the rules lives in `src/src/SourceGenerator/AnalyzerReleases.Unshipped.md`.
+Release tracking for the rules lives in `src/src/SourceGenerator/AnalyzerReleases.Shipped.md` (every rule, under
+Release 1.0.0); `AnalyzerReleases.Unshipped.md` holds new or changed rules until the next release.
 
 ## Packaging
 
-The generator is never packed loose: `Purview.Results` ships its merged analyzer under `analyzers/dotnet/cs/`
-with no `lib/` folder and **no PDB**, because the packaged analyzer is the framework's ILRepack-merged assembly
-whose rewritten PDB carries no Roslyn compiler-flags record. The `CS0029` code fix ships beside it as a second
+The generator is never packed loose: `Purview.Results` ships the runtime library as
+`lib/<tfm>/Purview.Results.dll` with its XML documentation, and the generator's merged analyzer under
+`analyzers/dotnet/cs/` only — never under `lib/` — with **no analyzer PDB**, because the packaged analyzer is the
+framework's ILRepack-merged assembly whose rewritten PDB carries no Roslyn compiler-flags record. The `CS0029` code fix ships beside it as a second
 analyzer assembly (`Purview.Results.SourceGenerator.CodeFixes.dll`) and is never IL-merged into the generator.
 The generator is not a separate NuGet package.
 

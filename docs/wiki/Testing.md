@@ -28,6 +28,7 @@ category, which is what the filter matches. Use `--treenode-filter` for filterin
 | `src/tests/AspNetCore.UnitTests` | `DefaultResultsHttpMapper`, the endpoint filter, failure mappers and unmapped-failure behaviour |
 | `src/tests/ZodSharp.UnitTests` | `ToResult` and the validation-result integration |
 | `src/tests/ZodSharp.AspNetCore.UnitTests` | `ZodResultsFailureMapper`, registration order and the validation problem mapper |
+| `src/tests/Repository.UnitTests` | The repository itself: `SkillTests` validates every authored skill in `skills/` against the Agent Skills rules (`Purview.Skills.Testing`), and `InstalledSkillTests` keeps `.agents/skills/` and `skills-lock.json` in step. Pinned to `net10.0` |
 
 ## Conventions
 

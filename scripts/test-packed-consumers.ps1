@@ -1,9 +1,9 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-	Proves the Purview.Results packages work for real consumers - Native AOT, Blazor WebAssembly (trimmed and AOT) and
-	Blazor Server - built from the .nupkg files alone, alongside the Purview.ZodSharp and Purview.ValueObjects packages
-	they integrate with.
+	Proves the Purview.Results packages work for real consumers - a Native AOT console and web API, Blazor WebAssembly
+	(trimmed and AOT) and Blazor Server - built from the .nupkg files alone, alongside the Purview.ZodSharp and
+	Purview.ValueObjects packages they integrate with.
 
 .DESCRIPTION
 	Modelled on purview-dev/zodsharp's scripts/test-packed-consumers.ps1. Every in-repository build references the
@@ -36,6 +36,11 @@
 	       an interactive-server page is prerendered and then run over a live circuit in the browser.
 	   (d) Net10Console - a net10.0 console over the result type and the ZodSharp bridge, built and run: the packages
 	       still serve both target frameworks they ship.
+	   (e) AotWebApi - a Native AOT minimal API over every package (CreateSlimBuilder, the app's own
+	       JsonSerializerContext, handlers returning result.ToHttpResult()). Published with -warnaserror, then started
+	       twice (SuccessStatusCode 200 and 201) and called: validation problem, code rule, case mapping, success, unit
+	       204 and the uninitialized 500; then a client self-test calls the API through Purview.ZodSharp.Http and
+	       folds the local rejection, the server's validation problem and the success into results.
 	4. Scans every consumer bin and publish folder with scripts/assert-no-compiler-host-assemblies.ps1.
 
 	Every check is a hard failure, including the ones that exercise Purview.ZodSharp behaviour the consumers rely on.
@@ -435,6 +440,7 @@ try {
 		<PackageDownload Include="Purview.ZodSharp" Version="[$zodSharpVersion]" />
 		<PackageDownload Include="Purview.ZodSharp.AspNetCore" Version="[$zodSharpVersion]" />
 		<PackageDownload Include="Purview.ZodSharp.Blazor" Version="[$zodSharpVersion]" />
+		<PackageDownload Include="Purview.ZodSharp.Http" Version="[$zodSharpVersion]" />
 		<PackageDownload Include="Purview.ValueObjects" Version="[$valueObjectsVersion]" />
 	</ItemGroup>
 </Project>
@@ -522,6 +528,8 @@ try {
 	foreach ($blazor in 'BlazorWasm', 'BlazorServer') {
 		Copy-Item (Join-Path $consumerTemplates 'Shared/*') (Join-Path $consumers $blazor) -Force
 	}
+	# The Native AOT web API shares the model, the union and the service, but not the Razor self-test.
+	Copy-Item (Join-Path $consumerTemplates 'Shared/*.cs') (Join-Path $consumers 'AotWebApi') -Force
 
 	$consumerProperties = @(
 		"-p:ResultsPackageVersion=$version"
@@ -762,6 +770,75 @@ try {
 		}
 
 		Assert-NoLeaks @((Join-Path $consumers 'Net10Console/bin'))
+	}
+
+	Invoke-Step '(e) Native AOT web API: publish, start, call every endpoint' {
+		$project = Join-Path $consumers 'AotWebApi/AotWebApi.csproj'
+		$publish = Join-Path $output 'aot-web-api'
+		Invoke-Dotnet 'aot-web-api-publish' (@(
+				'publish', $project, '--configuration', 'Release', '--runtime', $RuntimeIdentifier, '--output', $publish,
+				'-warnaserror'
+			) + $consumerProperties)
+
+		function Send-Request([string] $base, [string] $method, [string] $path, [string] $json) {
+			$parameters = @{ Uri = "$base$path"; Method = $method; SkipHttpErrorCheck = $true }
+			if ($json) { $parameters.ContentType = 'application/json'; $parameters.Body = $json }
+			$response = Invoke-WebRequest @parameters
+			$body = $response.Content -is [byte[]] ? [System.Text.Encoding]::UTF8.GetString($response.Content) : [string] $response.Content
+			$contentType = [string] ($response.Headers['Content-Type'] -join ',')
+			Write-Host "  $method $path $json -> $($response.StatusCode) $contentType"
+			return [pscustomobject]@{ Status = [int] $response.StatusCode; Body = $body; ContentType = $contentType }
+		}
+
+		# Started twice: the default SuccessStatusCode writes Ok<Tenant>, and 201 takes the Json<Tenant> path.
+		foreach ($successStatus in 200, 201) {
+			$port = Get-FreePort
+			$base = "http://127.0.0.1:$port"
+			$process = Start-App (Join-Path $publish "PackedResultsAotWeb$exe") @("--SuccessStatusCode=$successStatus") $publish $port "aot-web-api-$successStatus"
+			try {
+				[void] (Wait-Http $process "$base/api/tenants/uninitialized")
+
+				$invalid = Send-Request $base 'POST' '/api/tenants' '{"tenantId":"Not Valid!","name":"x","ownerEmail":"nope"}'
+				if ($invalid.Status -ne 400 -or -not $invalid.ContentType.StartsWith('application/problem+json')) {
+					throw "An invalid registration answered $($invalid.Status) $($invalid.ContentType), not 400 application/problem+json."
+				}
+				$paths = @(($invalid.Body | ConvertFrom-Json).issues | ForEach-Object { $_.path })
+				foreach ($expectedPath in 'TenantId', 'Name', 'OwnerEmail') {
+					if ($paths -notcontains $expectedPath) {
+						throw "The validation problem's issues do not include '$expectedPath' (got: $($paths -join ', '))."
+					}
+				}
+
+				$refined = Send-Request $base 'POST' '/api/tenants' '{"tenantId":"same-name","name":"same-name","ownerEmail":"owner@example.com"}'
+				if ($refined.Status -ne 422 -or -not $refined.Body.Contains('tenant_id_matches_name')) {
+					throw "The refinement's code rule answered $($refined.Status), not 422 with tenant_id_matches_name."
+				}
+
+				$duplicate = Send-Request $base 'POST' '/api/tenants' '{"tenantId":"acme","name":"Acme","ownerEmail":"owner@example.com"}'
+				if ($duplicate.Status -ne 409) { throw "An existing tenant answered $($duplicate.Status), not the case mapping's 409." }
+
+				$created = Send-Request $base 'POST' '/api/tenants' '{"tenantId":"newco","name":"Newco","ownerEmail":"owner@example.com"}'
+				if ($created.Status -ne $successStatus -or ($created.Body | ConvertFrom-Json).tenantId -ne 'newco') {
+					throw "A valid registration answered $($created.Status) $($created.Body), not $successStatus with the tenant."
+				}
+
+				$deleted = Send-Request $base 'DELETE' '/api/tenants/newco'
+				if ($deleted.Status -ne 204 -or $deleted.Body) { throw "A unit success answered $($deleted.Status), not 204 with no body." }
+
+				$uninitialized = Send-Request $base 'GET' '/api/tenants/uninitialized'
+				if ($uninitialized.Status -ne 500 -or ($uninitialized.Body | ConvertFrom-Json).errorType -ne 'results_uninitialized') {
+					throw "An uninitialized result answered $($uninitialized.Status) $($uninitialized.Body), not 500 results_uninitialized."
+				}
+
+				# The client side: Purview.ZodSharp.Http calls the API and each outcome folds into a result.
+				$client = Send-Request $base 'GET' '/client-self-test'
+				$client.Body -split "\r?\n" | Where-Object { $_.Trim() } | ForEach-Object { Write-Host "    $_" }
+				if ($client.Status -ne 200) { throw "The Purview.ZodSharp.Http client self-test failed:`n$($client.Body)" }
+			}
+			finally { Stop-App $process }
+		}
+
+		Assert-NoLeaks @((Join-Path $consumers 'AotWebApi/bin'), $publish)
 	}
 }
 catch {

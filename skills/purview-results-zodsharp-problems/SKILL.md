@@ -70,7 +70,9 @@ if (result.Error is IValidationErrorCarrier carrier)
 ```
 
 The response is written as `application/problem+json` through `TypedResults.Json`, so it does not depend on the
-MVC problem-details writer.
+MVC problem-details writer. `ToValidationProblem` is in the `Purview.Results.ZodSharp` namespace;
+`ZodValidationProblems`, `ZodResultsHttpOptions` and `ZodResultsFailureMapper` are in
+`Purview.Results.ZodSharp.AspNetCore`.
 
 ## Status code and trace identifier
 
@@ -81,6 +83,15 @@ MVC problem-details writer.
   (`400 Bad Request`), the highest `ErrorType.HttpStatus` replaces it, `StatusCodeSelector` wins over both, and
   `StatusCodeOverride` has the last word.
 - The request trace identifier is included when `ResultsHttpOptions.IncludeTraceId` is `true` (the default).
+
+## Native AOT and the client side
+
+- The package is `IsAotCompatible`. The validation problem resolves from ASP.NET Core's and Purview.ZodSharp.AspNetCore's
+  own JSON contexts, so a Native AOT host adds nothing for it; its handlers return `result.ToHttpResult()` (see the
+  `purview-results-http-mapping` skill).
+- A client reads the problem back with Purview.ZodSharp.Http's `response.TryReadZodValidationProblemAsync()` and
+  `problem.ToValidationErrors()`, which restores each issue's code, category, origin and path - so a client can build
+  the same carrying case the server rejected with (see the `purview-results-zodsharp-validation` skill).
 
 ## Pitfalls
 

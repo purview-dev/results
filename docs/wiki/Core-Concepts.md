@@ -77,9 +77,14 @@ error types — the ASP.NET Core endpoint filter, for example.
 | `IsSuccess` | Whether the result represents success |
 | `SuccessValue` | The successful value, or `null` when the result is not a success |
 | `ErrorValue` | The error, or `null` when the result is not a failure |
+| `AcceptSuccess<TState, TReturn>(IResultValueVisitor<TState, TReturn>, TState)` | Hands the successful value to the visitor's `VisitSuccess<TValue>` with its static type intact; a failed or uninitialized value result visits `default`, and a unit result visits the `Success` marker |
 
 Its accessors **never throw**: the accessor that does not describe the current state returns `null`. That is what
-makes it safe for a framework component to inspect a result without knowing the two type arguments.
+makes it safe for a framework component to inspect a result without knowing the two type arguments. Use
+`AcceptSuccess` rather than `SuccessValue` whenever the value's type matters — serialization is the usual case:
+`SuccessValue` erases it to `object`, which under trimming or Native AOT leaves a serializer with nothing to
+resolve. Like the accessors it never throws for a state (only `ArgumentNullException` for a `null` visitor), so
+check `IsSuccess` first when the distinction matters.
 
 ## Value-less results
 

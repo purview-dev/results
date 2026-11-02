@@ -35,7 +35,7 @@ generator that makes C# 15 union error cases ergonomic), and the ZodSharp and AS
 | `src/Directory.Build.props` / `src/Directory.Build.targets` | Solution-wide SDK, package and build behaviour |
 | `global.json` | Required .NET SDK, `Purview.BuildSdk` and Microsoft.Testing.Platform selection |
 | `package.json` | Authoritative repository and package version |
-| `purview-build.json` | Shared `Purview.Build` pipeline configuration (solution, test discovery, test filter) |
+| `.config/purview-build.json` | Shared `Purview.Build` pipeline configuration (solution, test discovery, test filter, pack validation) |
 | `Justfile` | Supported local workflow commands |
 
 ## Standard workflow
@@ -81,6 +81,9 @@ generator that makes C# 15 union error cases ergonomic), and the ZodSharp and AS
   must never coerce `default`.
 - `Purview.Results` stays dependency-free. The ZodSharp and ASP.NET Core packages depend on it, never the
   reverse, and `Purview.Results.AspNetCore` deliberately knows nothing about ZodSharp.
+- `Purview.Results.ZodSharp`'s `ToResultAsync`/`ToUnitResultAsync` accept both `ValueTask<ValidationResult<T>>` (`ValidateAsync`)
+  and `Task<ValidationResult<T>>` (Purview.ZodSharp.Http's request and response validation). Keep the two overload sets
+  behaviourally identical, and keep Purview.ZodSharp.Http out of the package's dependencies: it integrates by shape.
 - Keep runtime packages free of reflection, `dynamic` and runtime type discovery. Union structure is inspected
   only by the source generator, through Roslyn symbols.
 - `src/src/Results/Extensions/Purview/Results/ResultExtensions.cs` is the home for value-style extension
@@ -93,8 +96,8 @@ including the diagnostics table, build properties and activation rules.
 
 - **One analyzer, one generator, one diagnostics library.** `Diagnostics/DiagnosticLibrary.cs`,
   `Diagnostics/ResultDiagnostic.cs` and `Diagnostics/ResultUnionDiagnostics.cs` hold the single implementation
-  of the union rules. The analyzer reports the per-target rules (`RSG1000`–`RSG1004`, `RSG1007`, `RSG1008`); the
-  generator reports the compilation-wide rules (`RSG1005`, `RSG1006`). Never report the same rule from both
+  of the union rules. The analyzer reports the per-target rules (`RSG1000`–`RSG1004`, `RSG1007`–`RSG1009`);
+  the generator reports the compilation-wide rules (`RSG1005`, `RSG1006`) and its own catch-all (`RSG9000`). Never report the same rule from both
   hosts, and keep `DiagnosticLibrary.IsBlocking` as the single blocking policy.
 - New or changed rules require an `AnalyzerReleases.Unshipped.md` entry (the compiler's RS2008 rule catalogue).
 - **One suppressor.** `Suppressors/UnionEqualityDiagnosticSuppressor.cs` is the only programmatic suppression in
@@ -153,8 +156,8 @@ including the diagnostics table, build properties and activation rules.
   `ResultUnionDiagnostics.Analyze`, so it needs no opted-in included union and no symbol in cached state.
 - Adding a code fix means adding it to `src/src/SourceGenerator.CodeFixes`, not to the generator project: the
   code fix needs `Microsoft.CodeAnalysis.*.Workspaces`, which must not enter the generator's analyzer closure.
-  The two projects stay independent (no project reference, no `InternalsVisibleTo`) so no reference cycle can
-  form, and the shared well-known names are pinned by the code-fix tests.
+  The code fix never references the generator and there is no `InternalsVisibleTo`; the generator references the
+  code fix analyzer-style only (`ReferenceOutputAssembly="false"`), so no reference cycle can form, and the shared well-known names are pinned by the code-fix tests.
 - Union-declaring test files are excluded from CSharpier through `.csharpierignore`, because the preview syntax
   is not parseable. Add any new file that declares a union to that list.
 
@@ -178,14 +181,23 @@ including the diagnostics table, build properties and activation rules.
   the request's services on first use, so an unregistered mapper must fail with an `InvalidOperationException`
   naming the registration that is missing.
 - An unmapped failure is a host mapping gap, not a domain outcome: respond with `UnmappedStatusCode` (`500`)
-  and a `ProblemDetails` carrying the `errorType` extension, and log an error. `ThrowOnUnmappedFailure` exists
-  for development and must keep throwing `InvalidOperationException`.
+  and a `ProblemDetails` carrying `UnmappedTitle`, and log an error naming the case type. The type name goes into the
+  response's `errorType` extension only when `IncludeErrorTypeInProblemDetails` is set (off by default: it discloses
+  internal namespaces). `ThrowOnUnmappedFailure` exists for development, applies to unmapped failures only, and must
+  keep throwing `InvalidOperationException`.
 - An uninitialized result (`default`) takes the same path and is logged, because an endpoint returning `default`
   is a bug.
 - `AddResultsHttp` registers problem-details services and uses `TryAddSingleton` for `IResultsHttpMapper` and
   `ResultsEndpointFilter`, so a host can register its own mapper first and replace the defaults.
 - `WithResultsHttp()` exists on both `RouteHandlerBuilder` and `RouteGroupBuilder`; keep the endpoint filter
   non-invasive, so a handler that returns something other than an `IResultValue` is left untouched.
+- `ToHttpResult()` (both result shapes) returns `ResultHttpResult<TValue, TError>` / `ResultHttpResult<TError>`, an
+  `IResult` that resolves `IResultsHttpMapper` from the request services when it executes, so its response must stay
+  identical to `WithResultsHttp()`'s. It is the supported Native AOT form: under `PublishAot` the request delegate
+  generator resolves JSON metadata for a handler's declared return type at endpoint build time, and a result (with a union
+  error, `SYSLIB1227`) has none, so a handler returning the result itself fails at startup. Keep it out of
+  `IResultValue` (the filter must pass it through), keep its OpenAPI metadata to the success response only, and keep the
+  packed-consumer `AotWebApi` step proving it.
 - `Purview.Results.ZodSharp.AspNetCore` registers its mapping as a `ResultsHttpOptions` failure mapper
   (`ZodResultsFailureMapper`), so any case- or error-type mapping the host registered for a specific error always
   wins, and so does a host failure mapper registered before `AddResultsZodSharpHttp`. It must reuse the ZodSharp
@@ -213,8 +225,8 @@ including the diagnostics table, build properties and activation rules.
   repository-root `README.md`. Update it for any user-visible change, and keep the repository-root `README.md`
   consistent with it.
 - The packed shapes that must not regress: `Purview.Results` ships the merged Roslyn component and its code fix
-  under `analyzers/dotnet/cs/` with no `lib/` folder and **no PDB**, and every library package ships
-  `lib/<tfm>/<assembly>.dll` plus the XML documentation file and a symbol package.
+  under `analyzers/dotnet/cs/` with **no analyzer PDB**, and every library package — `Purview.Results` included —
+  ships `lib/<tfm>/<assembly>.dll` plus the XML documentation file and a symbol package.
 - The generator ships **no analyzer PDB** because the packaged analyzer is the framework's merged (ILRepack)
   assembly: the merge tool's rewritten PDB carries no Roslyn compiler-flags record, and the pipeline's pack
   validation asserts `optimization=release` for every assembly that ships a PDB, with no way to scope that check
@@ -222,7 +234,7 @@ including the diagnostics table, build properties and activation rules.
   `GetPurviewMergedAnalyzerFile` target) and the code fix, so no analyzer PDB is contributed. Telemetry and the
   other component packages opt out the same way. Revisit if the framework's merge tool starts preserving the
   compiler-flags record.
-- `purview-build.json`'s `PackValidation.RequiredContent` is the exhaustive declaration of what each package
+- `.config/purview-build.json`'s `PackValidation.RequiredContent` is the exhaustive declaration of what each package
   ships (`RequireExplicitContent` defaults to `true`, so an undeclared entry fails too). Update it whenever
   package content changes — a new asset, a removed PDB, a renamed analyzer — and verify with
   `just pipeline-pack-validate`, which runs restore, build, lint, tests, pack and the validation.
@@ -275,7 +287,8 @@ including the diagnostics table, build properties and activation rules.
 document: `Examples.Basic` (the result type, the value-less `Result<TError>`, the generated `AsFailure<TValue>()`
 and `AsFailure()` helpers, and the union-receiver `Union.Failure(...)`/`Union.Success(...)` factories),
 `Examples.Zod` (`Purview.Results.ZodSharp`, including `ToUnitResult`),
-`Examples.AspNetCore` (`Purview.Results.AspNetCore`, including a unit result answering `204`),
+`Examples.AspNetCore` (`Purview.Results.AspNetCore`, including a unit result answering `204` and the filter-free
+`ToHttpResult()` form),
 `Examples.AspNetCore.Zod` (`Purview.Results.ZodSharp.AspNetCore`) and `Examples.ValueObjects.Zod`
 (`Purview.Results.ZodSharp` + `Purview.ValueObjects`, a type-level `[ZodRule]` whose code and origin flow into the
 result and the HTTP mapping).
@@ -376,7 +389,7 @@ never installed into it — that would leave two copies to drift apart. Read the
 | Skill | Answers |
 | --- | --- |
 | `skills/purview-results-core/` | the result type, its three states, the throw-on-misuse contract and the combinators |
-| `skills/purview-results-union-errors/` | modelling failures as a `[GenerateResult]` union, the generated helpers, the `RSG1000`–`RSG1008` diagnostics, and migrating ad-hoc failure signalling |
+| `skills/purview-results-union-errors/` | modelling failures as a `[GenerateResult]` union, the generated helpers, the `RSG1000`–`RSG1009` and `RSG9000` diagnostics, and migrating ad-hoc failure signalling |
 | `skills/purview-results-http-mapping/` | result-to-HTTP mapping, failure resolution order and unmapped-failure `500`s |
 | `skills/purview-results-zodsharp-validation/` | ZodSharp validation flowing through a result |
 | `skills/purview-results-zodsharp-problems/` | validation problems from result failures |
@@ -417,8 +430,8 @@ just verify-pack-rules
 
 `just smoke-packed-consumers` (`scripts/test-packed-consumers.ps1`) is the packed-consumer gate: it packs every
 package to an isolated feed and cache and publishes and runs, from the packages alone, a Native AOT console, a Blazor
-WebAssembly app (trimmed and `RunAOTCompilation`, in a headless browser), a Blazor Server app and a `net10.0`
-console, then leak-scans every output for compiler-host assemblies. It needs the Native AOT toolchain, the
+WebAssembly app (trimmed and `RunAOTCompilation`, in a headless browser), a Blazor Server app, a `net10.0` console
+and a Native AOT minimal API (handlers returning `ToHttpResult()`, plus a Purview.ZodSharp.Http client self-test), then leak-scans every output for compiler-host assemblies. It needs the Native AOT toolchain, the
 `wasm-tools` workload and Chrome or Edge; dependency versions not yet on nuget.org restore from
 `LOCAL_NUGET_FEED_PATH`. Run it when the generator, packaging or a dependency version changes. The consumers'
 union-declaring files are listed in `.csharpierignore` like every other union file.
@@ -479,7 +492,7 @@ all). Prefer a new version, as the local release flow does.
 - Never create release tags or publish packages manually unless the user explicitly requests a documented
   recovery procedure.
 - `.github/workflows/*` and `global.json` must stay in sync: the workflow's `dotnet-version` input has to match
-  `sdk.version`, and `purview-build.json` has to keep pointing at `src/Results.slnx`.
+  `sdk.version`, and `.config/purview-build.json` has to keep pointing at `src/Results.slnx`.
 
 ## Completion checklist
 

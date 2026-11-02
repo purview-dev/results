@@ -13,5 +13,5 @@ RSG1005 | Purview.Results.Usage | Error | Generated helper class name collision
 RSG1006 | Purview.Results.Usage | Warning | Union case type is shared with another union
 RSG1007 | Purview.Results.Usage | Error | Unsupported union member provider
 RSG1008 | Purview.Results.Usage | Warning | Union inclusion case is ambiguous
-RSG1009 | Purview.Results.Usage | Warning | Union case type is not a named type
+RSG1009 | Purview.Results.Usage | Warning | Unsupported union case type
 RSG9000 | Purview.Results.Usage | Error | Unhandled exception in the results source generator

@@ -19,11 +19,15 @@ src/
     Examples.Zod/
     Examples.AspNetCore/
     Examples.AspNetCore.Zod/
+    Examples.ValueObjects.Zod/
     <Project>/Sdk/          Package-only assets: the package README.md
-  tests/                    TUnit unit tests (one *.UnitTests project per package)
+  tests/                    TUnit unit tests (one *.UnitTests project per package, plus
+                            Repository.UnitTests for the skills and installed-skill checks)
 docs/wiki/                  This documentation suite
+skills/                     Authored agent skills, installed by the skills CLI
+scripts/                    Packed-consumer gate and pack-validation rule checks
 Directory.Packages.props    Centrally managed NuGet versions
-purview-build.json          Shared pipeline configuration
+.config/purview-build.json  Shared pipeline configuration
 package.json                Authoritative repository and package version
 ```
 
@@ -74,7 +78,7 @@ Commits follow [Conventional Commits](https://www.conventionalcommits.org/), enf
 - `just build` succeeds with no new warnings or errors.
 - The relevant tests pass (`just test-unit`).
 - `just lint-check` reports no formatting or `.slnx` changes.
-- Packed packages match `purview-build.json` `PackValidation` (`just pipeline-pack-validate`).
+- Packed packages match `.config/purview-build.json` `PackValidation` (`just pipeline-pack-validate`).
 - Generated code stays deterministic and reviewable.
 
 ## Documentation
@@ -107,4 +111,5 @@ Conventions:
 
 - [Testing](Testing.md) — the TUnit conventions and source-generator testing approach.
 - [Release Flow](Release-Flow.md) — versioning, workflows and pack validation.
-- [Agent Skills](Agent-Skills.md) — the guidance the packages ship to consumers.
+- [Agent Skills](Agent-Skills.md) — the agent guidance the skills CLI installs from the repository's `skills/`
+  folder (no package ships skills).

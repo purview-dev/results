@@ -8,7 +8,7 @@
 		-->
 		<IsRoslynComponent>true</IsRoslynComponent>
 		<!--
-			The repository targets net11.0 repo-wide; a Roslyn component must target netstandard2.0 so that
+			The repository's packages target net10.0 and net11.0; a Roslyn component must target netstandard2.0 so that
 			any compiler host (including older SDKs and Visual Studio) can load it, and so no dependency
 			file is required next to the analyzer assembly.
 		-->
