@@ -1,6 +1,6 @@
 ---
 name: purview-results-zodsharp-validation
-description: "Use when ZodSharp validation has to feed Purview.Results — converting ValidationResult<T> with ToResult or the value-discarding ToUnitResult, carrying ValidationError values on a union case, implementing IValidationErrorCarrier, or deciding what a rejected input becomes in the result pipeline."
+description: "Use when ZodSharp validation has to feed Purview.Results — converting ValidationResult<T> with ToResult or the value-discarding ToUnitResult (and their async forms, including over Purview.ZodSharp.Http), carrying ValidationError values on a union case, implementing IValidationErrorCarrier, or deciding what a rejected input becomes in the result pipeline."
 ---
 
 # Folding ZodSharp validation into results
@@ -82,6 +82,32 @@ async Task<Result<TenantError>> Validate(TenantInput input, CancellationToken ca
 - The error type is named explicitly for the same reason as the synchronous forms.
 - Do not block on `ValidateAsync` to reuse the synchronous methods — that reintroduces the sync-over-async the
   bridge exists to avoid.
+- With Purview.ZodSharp 3 every generated `{Type}Schema` also has a static `ValidateAsync(value, services, ct)`,
+  and CA1849 flags the synchronous `Validate` inside an async method: in async code, fold `ValidateAsync` with
+  `ToResultAsync`; keep `Validate` + `ToResult` for synchronous code.
+
+## Validation over HTTP (Purview.ZodSharp.Http)
+
+`ToResultAsync` and `ToUnitResultAsync` also accept a `Task<ValidationResult<T>>`, which is what
+Purview.ZodSharp.Http returns, so a client folds its request and response validation the same way:
+
+```csharp
+// An invalid body is never sent: its errors become the case.
+var sent = await http
+    .PostAsJsonValidatedAsync("/api/tenants", input, validator, AppJsonContext.Default.TenantInput, services)
+    .ToResultAsync<HttpResponseMessage, TenantError>(errors => new TenantInputInvalid(input, errors));
+
+// A response body that fails its schema is a failure too.
+var tenant = await response.Content
+    .ReadFromJsonAndValidateAsync(tenantValidator, AppJsonContext.Default.Tenant, services, cancellationToken)
+    .ToResultAsync<Tenant, TenantError>(errors => new TenantResponseInvalid(errors));
+```
+
+- A **server's** validation problem reads back with `await response.TryReadZodValidationProblemAsync()`; build the
+  case from `problem.ToValidationErrors()` (`AsFailure<TValue>()`), so a local and a server rejection are the same
+  case.
+- `validator` is the generated `{Type}SchemaValidator` (an `IZodSchemaValidator<T>`; create it with `new()` -
+  `AddZodSharp{Assembly}Schemas()` registers it in the `IZodSchemaFactory`, not as a service); pass the `JsonTypeInfo` from your own `JsonSerializerContext`.
 
 ## Carrying the errors
 
@@ -103,6 +129,13 @@ Guidance:
   and problem responses need.
 - **One carrier per rejection**, holding the whole `ImmutableArray<ValidationError>` for that input.
 - Implementing the interface (rather than a helper that extracts errors) lets the HTTP mapping stay generic.
+
+## Trimming, Native AOT and Blazor
+
+`Purview.Results.ZodSharp` is `IsAotCompatible` and uses no reflection. It works in a Native AOT application and in a
+Blazor WebAssembly client, trimmed or with `RunAOTCompilation=true`, including the async forms (the shipped
+assemblies do not use runtime async, which Mono does not support). Purview.ZodSharp.Http is AOT- and
+WebAssembly-safe too.
 
 ## Why there is no factory that returns a result
 

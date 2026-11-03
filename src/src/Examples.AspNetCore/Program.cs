@@ -15,6 +15,7 @@
 //   curl -i -X DELETE http://localhost:5215/tenants/hooli   -> 204 No Content          (unit result success)
 //   curl -i -X DELETE http://localhost:5215/tenants/initech -> 404 Not Found           (unit result failure)
 //   curl -i http://localhost:5215/tenants/broken            -> 500 Internal Server Error
+//   curl -i http://localhost:5215/explicit/tenants/initech  -> 404 Not Found           (ToHttpResult(), no filter)
 //
 // The billing endpoint returns Result<BillingAccount, TenantOperationError>, whose error union nests TenantError
 // and BillingError. The mapper resolves the innermost case, so the billing leaf mappings win and the mapping
@@ -75,5 +76,10 @@ app.MapPost("/tenants/{id}", (string id) => store.CreateTenant(new TenantId(id),
 app.MapDelete("/tenants/{id}", (string id) => store.DeleteTenant(new TenantId(id))).WithResultsHttp();
 
 app.MapGet("/tenants/broken", () => default(Result<Tenant, TenantError>)).WithResultsHttp();
+
+// The explicit form: ToHttpResult() returns an IResult that the same mapper maps when it executes, so no filter is
+// needed. A Native AOT host must use this form, because the request delegate generator resolves JSON metadata for a
+// handler's declared return type and a Result<...> has none.
+app.MapGet("/explicit/tenants/{id}", (string id) => store.GetTenant(new TenantId(id)).ToHttpResult());
 
 app.Run();

@@ -4,6 +4,12 @@ namespace Purview.Results.ZodSharp;
 /// Integration tests that run the real ZodSharp-generated schemas of this test project and compose their outcomes
 /// into results whose error is the local <see cref="OperationError"/> union.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage(
+	"Performance",
+	"CA1849:Call async methods when in an async method",
+	Justification = "These tests fold the synchronous schema's ValidationResult through the synchronous ToResult "
+		+ "bridge, and one compares it with the asynchronous path; Purview.ZodSharp 3 added ValidateAsync beside it."
+)]
 public class ZodValidationResultIntegrationTests
 {
 	const string InvalidOperationResultCode = "invalid_operation_result";

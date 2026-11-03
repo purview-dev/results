@@ -245,7 +245,7 @@ public sealed class ZodResultsFailureMapperTests
 		var mapper = services.GetRequiredService<IResultsHttpMapper>();
 		var context = CreateContext(services);
 
-		var validation = ValidatedTenantIdSchema.Validate(ValidatedTenantId.Hydrate(Guid.Empty));
+		var validation = await ValidatedTenantIdSchema.ValidateAsync(ValidatedTenantId.Hydrate(Guid.Empty));
 		await Assert.That(validation.IsSuccess).IsFalse();
 
 		// Act
@@ -273,9 +273,11 @@ public sealed class ZodResultsFailureMapperTests
 		var mapper = services.GetRequiredService<IResultsHttpMapper>();
 		var context = CreateContext(services);
 
-		await Assert.That(NullableTenantAliasSchema.Validate(NullableTenantAlias.Hydrate(null)).IsSuccess).IsTrue();
+		await Assert
+			.That((await NullableTenantAliasSchema.ValidateAsync(NullableTenantAlias.Hydrate(null))).IsSuccess)
+			.IsTrue();
 
-		var validation = NullableTenantAliasSchema.Validate(NullableTenantAlias.Hydrate("   "));
+		var validation = await NullableTenantAliasSchema.ValidateAsync(NullableTenantAlias.Hydrate("   "));
 		await Assert.That(validation.IsSuccess).IsFalse();
 
 		// Act
@@ -302,7 +304,7 @@ public sealed class ZodResultsFailureMapperTests
 		var mapper = services.GetRequiredService<IResultsHttpMapper>();
 		var context = CreateContext(services);
 
-		var validation = ValidatedTenantIdSchema.Validate(ValidatedTenantId.Hydrate(Guid.Empty));
+		var validation = await ValidatedTenantIdSchema.ValidateAsync(ValidatedTenantId.Hydrate(Guid.Empty));
 
 		// Act
 		var result = validation.ToUnitResult<ValidatedTenantId, ValidationTestError>(errors => new InputRejected(

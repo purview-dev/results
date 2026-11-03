@@ -36,7 +36,8 @@ change must not break.
 | `purview.results.failures.unmapped` | failures with no mapping, answered with the unmapped-failure response |
 | `purview.results.uninitialized` | endpoints that returned a `default` result, which is always a bug |
 
-Each measurement carries a `purview.results.error_type` tag with the error's type name, and the failure
+Each measurement carries a `purview.results.error_type` tag with the error's type name (`unknown` for an
+uninitialized result, which has no error), and the failure
 paths add the same tag to `Activity.Current` — enriching the request span ASP.NET Core already created
 rather than starting one. The type name is always present in telemetry, because metrics and traces stay
 inside your own infrastructure; disclosing it in the HTTP *response* is separately opt-in through
@@ -109,7 +110,10 @@ reference, so no telemetry package dependency is added.
 ## HTTP mapping philosophy
 
 - An unmapped failure is a host mapping gap, not a domain outcome. It is answered with `UnmappedStatusCode`
-  (`500`) and a `ProblemDetails` carrying the `errorType` extension, and it is logged.
+  (`500`) and a `ProblemDetails` carrying `UnmappedTitle`, and it is logged with its case type. The type name is
+  written into the response's `errorType` extension only when `IncludeErrorTypeInProblemDetails` is set (it is off by
+  default, because it discloses internal namespaces); an uninitialized result always carries
+  `errorType = "results_uninitialized"`.
 - `ThrowOnUnmappedFailure` exists for development and keeps throwing `InvalidOperationException`.
 - An uninitialized result (`default`) takes the unmapped path and is logged, because an endpoint returning
   `default` is a bug.
@@ -140,6 +144,11 @@ reference, so no telemetry package dependency is added.
   outcome you want instead: unwrap with `Match`, `TryGetValue`/`TryGetError`, or — over HTTP — let
   [`Purview.Results.AspNetCore`](AspNetCore-Integration.md) map the result to a response. `IResultValue` is the
   non-throwing view available to infrastructure that has to inspect a result generically.
+- **A Native AOT minimal API returns `result.ToHttpResult()`, not the result.** Under `PublishAot`, ASP.NET Core's
+  request delegate generator resolves JSON metadata for a handler's declared return type when it builds the
+  endpoints, and a result has none (a union error cannot be described by System.Text.Json's source generator
+  either), so a handler declared to return a result fails at startup there. `ToHttpResult()` returns an `IResult`;
+  see [ASP.NET Core Integration](AspNetCore-Integration.md#native-aot).
 
 ## Related
 

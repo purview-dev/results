@@ -5,8 +5,7 @@
 		this package.
 	-->
 	<!--
-		Trimming and Native AOT. Verified clean under both the trim and AOT analyzers. See Results.csproj for
-		why the ASP.NET Core packages are not marked compatible.
+		Trimming and Native AOT. Verified clean under both the trim and AOT analyzers. See Results.csproj.
 	-->
 	<PropertyGroup Label="Trimming and Native AOT">
 		<IsAotCompatible>true</IsAotCompatible>

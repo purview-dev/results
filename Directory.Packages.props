@@ -7,20 +7,20 @@
 			default on the newest line so a new target framework fails loudly rather than silently resolving
 			something older.
 		-->
-		<DotNetRuntimeVersion>11.0.0-rc.1.26425.128</DotNetRuntimeVersion>
-		<DotNetRuntimeVersion Condition="'$(TargetFramework)' == 'net10.0'">10.0.13</DotNetRuntimeVersion>
+		<DotNetRuntimeVersion>11.0.100-rc.3.26522.148</DotNetRuntimeVersion>
+		<DotNetRuntimeVersion Condition="'$(TargetFramework)' == 'net10.0'">10.0.14</DotNetRuntimeVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Purview Versions">
-		<PurviewZodSharpVersion>2.4.2</PurviewZodSharpVersion>
-		<PurviewValueObjectsVersion>1.2.3</PurviewValueObjectsVersion>
+		<PurviewZodSharpVersion>3.0.0-prerelease.2</PurviewZodSharpVersion>
+		<PurviewValueObjectsVersion>1.3.0-prerelease.2</PurviewValueObjectsVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Source Generator Versions">
-		<PurviewSourceGeneratorFrameworkVersion>1.2.1</PurviewSourceGeneratorFrameworkVersion>
+		<PurviewSourceGeneratorFrameworkVersion>1.2.2</PurviewSourceGeneratorFrameworkVersion>
 		<RoslynVersion>5.9.0</RoslynVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Testing Versions">
 		<TUnitVersion>1.76.0</TUnitVersion>
-		<PurviewSkillsTestingVersion>1.1.0</PurviewSkillsTestingVersion>
+		<PurviewSkillsTestingVersion>1.2.0</PurviewSkillsTestingVersion>
 	</PropertyGroup>
 	<!-- Packages -->
 	<ItemGroup Label="Purview">
@@ -42,10 +42,10 @@
 		/>
 	</ItemGroup>
 	<ItemGroup Label=".NET Runtime">
-		<PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="$(DotNetRuntimeVersion)" />
+		<PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.14" />
 	</ItemGroup>
 	<ItemGroup Label="Other">
-		<PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.402" />
+		<PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.403" />
 	</ItemGroup>
 	<ItemGroup Label="Testing">
 		<PackageVersion Include="Bogus" Version="35.6.5" />

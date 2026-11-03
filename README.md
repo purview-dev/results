@@ -11,16 +11,16 @@ Exceptional circumstances still throw; expected outcomes are values.
 
 | Package | Purpose | Targets |
 | --- | --- | --- |
-| [`Purview.Results`](src/src/Results/Sdk/README.md) | `Result<TValue, TError>` and its value-less counterpart `Result<TError>`, the `Result` factories, and the bundled source generator that emits per-case `AsFailure<TValue>()`/`AsFailure()` helpers and union-receiver `Union.Failure(...)`/`Union.Success(...)` factories for `[GenerateResult]` unions. No runtime dependencies. | `net11.0` |
-| [`Purview.Results.ZodSharp`](src/src/ZodSharp/Sdk/README.md) | Bridges ZodSharp `ValidationResult<T>` values into results. | `net11.0` |
-| [`Purview.Results.AspNetCore`](src/src/AspNetCore/Sdk/README.md) | Maps results onto ASP.NET Core responses (`IResult`, `ProblemDetails`). | `net11.0` |
-| [`Purview.Results.ZodSharp.AspNetCore`](src/src/ZodSharp.AspNetCore/Sdk/README.md) | Maps result failures that carry validation errors onto `HttpValidationProblemDetails`. | `net11.0` |
+| [`Purview.Results`](src/src/Results/Sdk/README.md) | `Result<TValue, TError>` and its value-less counterpart `Result<TError>`, the `Result` factories, and the bundled source generator that emits per-case `AsFailure<TValue>()`/`AsFailure()` helpers and union-receiver `Union.Failure(...)`/`Union.Success(...)` factories for `[GenerateResult]` unions. No runtime dependencies. | `net10.0`, `net11.0` |
+| [`Purview.Results.ZodSharp`](src/src/ZodSharp/Sdk/README.md) | Bridges ZodSharp `ValidationResult<T>` values into results. | `net10.0`, `net11.0` |
+| [`Purview.Results.AspNetCore`](src/src/AspNetCore/Sdk/README.md) | Maps results onto ASP.NET Core responses (`IResult`, `ProblemDetails`). | `net10.0`, `net11.0` |
+| [`Purview.Results.ZodSharp.AspNetCore`](src/src/ZodSharp.AspNetCore/Sdk/README.md) | Maps result failures that carry validation errors onto `HttpValidationProblemDetails`. | `net10.0`, `net11.0` |
 
 Each package README is the same file that ships inside the `.nupkg` (project `Sdk/README.md`), so this table
 links straight to the package documentation. The source generator is not a separate package: it ships inside
-`Purview.Results` under `analyzers/dotnet/cs`, together with its IDE code fix. Every package also ships agent
-skills under `.agents/` (union modelling and the result core, HTTP mapping, and the two ZodSharp bridges), which
-`Purview.BuildSdk` mirrors into a consuming repository's own `.agents/` folder on the next restore or build.
+`Purview.Results` under `analyzers/dotnet/cs`, together with its IDE code fix. Agent skills for every package (union
+modelling and the result core, HTTP mapping, and the two ZodSharp bridges) are published from this repository rather
+than any package: `npx skills add purview-dev/results`. See [Agent Skills](docs/wiki/Agent-Skills.md).
 
 ## Quick start
 
@@ -70,8 +70,11 @@ builder.Services.AddResultsHttp(options => options
     .Map<TenantError>(error => TypedResults.Problem(statusCode: StatusCodes.Status409Conflict))
 );
 
-app.MapGet("/tenants/{id:int}", (int id) => GetTenant(id)).WithResultsHttp();
+app.MapGet("/tenants/{id}", (string id) => GetTenant(new TenantId(id))).WithResultsHttp();
 ```
+
+In a Native AOT host, return `GetTenant(id).ToHttpResult()` from the handler instead: the same mapping, as an
+`IResult`, which the request delegate generator needs (see [Blazor and Native AOT](docs/wiki/Blazor-and-Native-AOT.md)).
 
 ## Examples
 
@@ -82,7 +85,7 @@ Tenancy domain the Quick start uses, so one error-union vocabulary drives every 
 | --- | --- | --- |
 | [`Examples.Basic`](src/src/Examples.Basic) | `Purview.Results` | States, `Match`/`Map`/`Bind`/`MapError`/`Ensure`, probing, the throw-on-misuse contract, the generated `AsFailure<TValue>()` and `AsFailure()` helpers and the union-receiver `Union.Failure(...)`/`Union.Success(...)` factories, cross-service error-union widening, value-less `Result<TError>` commands, and `Throw()` |
 | [`Examples.Zod`](src/src/Examples.Zod) | + `Purview.Results.ZodSharp` | A `[ZodSchema]` input validated into a result, where the rejection carries its `ValidationError`s, and a value-discarding `ToUnitResult` validation |
-| [`Examples.AspNetCore`](src/src/Examples.AspNetCore) | + `Purview.Results.AspNetCore` | `AddResultsHttp`/`Map`/`WithResultsHttp`, nested error-union leaf mapping, a successful unit result answering `204`, the mapping-gap and uninitialized-result paths |
+| [`Examples.AspNetCore`](src/src/Examples.AspNetCore) | + `Purview.Results.AspNetCore` | `AddResultsHttp`/`Map`/`WithResultsHttp`, the filter-free `ToHttpResult()` form, nested error-union leaf mapping, a successful unit result answering `204`, the mapping-gap and uninitialized-result paths |
 | [`Examples.AspNetCore.Zod`](src/src/Examples.AspNetCore.Zod) | + `Purview.Results.ZodSharp.AspNetCore` | A validation-carrying failure rendered as `HttpValidationProblemDetails`, with a case mapping winning over the fallback |
 | [`Examples.ValueObjects.Zod`](src/src/Examples.ValueObjects.Zod) | `Purview.Results.ZodSharp`, `Purview.ValueObjects` | An automatic `[Scalar<Guid>]` value object whose type-level `[ZodRule]` owns its code and origin, validated into a result failure the HTTP layer can answer by origin |
 
@@ -184,6 +187,10 @@ if (!validation.IsSuccess)
 return RegisterValidated(validation.Value);
 ```
 
+On a client, Purview.ZodSharp.Http's request and response validation returns `Task<ValidationResult<T>>`, which
+`ToResultAsync`/`ToUnitResultAsync` fold the same way, and a server's validation problem reads back into the same
+case (see [ZodSharp integration](docs/wiki/ZodSharp-Integration.md#validation-over-http)).
+
 ### ASP.NET Core
 
 The host decides what each error case looks like on the wire. A mapping registered for the most specific **case**
@@ -213,7 +220,10 @@ Running `Examples.AspNetCore` answers as follows:
 | `GET /tenants/acme/billing` | `503 Service Unavailable` — the leaf of the nested `TenantOperationError` union |
 | `GET /tenants/hooli/billing` | `402 Payment Required` — another leaf of the nested union |
 | `GET /tenants/initech/billing` | `404 Not Found` — a nested tenant failure resolves to its leaf |
-| `GET /tenants/broken` | `500` with an `errorType` extension, because an endpoint returning `default` is a host bug |
+| `GET /tenants/globex/billing` | `403 Forbidden` — a nested tenant failure resolves to the `TenantDisabled` leaf |
+| `POST /tenants/newco` | `200 OK` with the created tenant |
+| `GET /tenants/broken` | `500` with `errorType = "results_uninitialized"`, because an endpoint returning `default` is a host bug |
+| `GET /explicit/tenants/initech` | `404 Not Found` — the same mapping through `ToHttpResult()`, the form a Native AOT host uses |
 
 **Case** and **error** mappings are keyed by type. When the answer depends on the *value* a failure carries — a
 validation code, a category, a field — add an `IResultsFailureMapper` instead, in the same ordered list:
@@ -238,7 +248,6 @@ builder.Services.AddResultsHttp(options => options
 );
 builder.Services.AddResultsZodSharpHttp(options => options
     .MapCode("tenant_id_matches_name", StatusCodes.Status422UnprocessableEntity)
-    .MapOrigin("value_object", StatusCodes.Status422UnprocessableEntity)
 );
 ```
 
@@ -249,24 +258,38 @@ the host mapping it — unless a rule answers one of its codes, categories or or
 {
   "title": "One or more validation errors occurred.",
   "status": 400,
-  "errors": { "TenantId": ["Required field 'TenantId' is null"] },
-  "issues": [{ "code": "missing_field", "path": ["TenantId"], "message": "Required field 'TenantId' is null" }],
+  "errors": { "TenantId": ["TenantId is required"] },
+  "issues": [
+    {
+      "path": "TenantId",
+      "segments": ["TenantId"],
+      "code": "missing_field",
+      "category": "invalid_type",
+      "message": "TenantId is required",
+      "parameters": { "displayName": "TenantId", "declaringType": "TenantInput", "member": "TenantId" }
+    }
+  ],
   "traceId": "0HNOUQVQNF7CV:00000001"
 }
 ```
+
+(Purview.ZodSharp 3 writes `issues[].path` as the dotted key and the segments separately, and keeps parameters per
+issue; `declaringType` is the full CLR name of the validated type, shortened here.)
 
 ## Documentation
 
 The full documentation suite lives in [`docs/wiki`](docs/wiki/Getting-Started.md):
 
-- [Getting started](docs/wiki/Getting-Started.md)
+- [Home](docs/wiki/Home.md) and [getting started](docs/wiki/Getting-Started.md)
 - [Core concepts](docs/wiki/Core-Concepts.md) and [combinators](docs/wiki/Combinators.md)
 - [Union errors](docs/wiki/Union-Errors.md)
 - [Source generator](docs/wiki/Source-Generator.md) and [diagnostics](docs/wiki/Diagnostics.md)
 - [ASP.NET Core integration](docs/wiki/AspNetCore-Integration.md)
 - [ZodSharp integration](docs/wiki/ZodSharp-Integration.md) and [problem details](docs/wiki/ZodSharp-ProblemDetails.md)
 - [Value objects composition](docs/wiki/Value-Objects-Composition.md)
+- [Blazor and Native AOT](docs/wiki/Blazor-and-Native-AOT.md)
 - [Guarantees and limitations](docs/wiki/Guarantees-and-Limitations.md)
+- [Testing](docs/wiki/Testing.md), [agent skills](docs/wiki/Agent-Skills.md), [release flow](docs/wiki/Release-Flow.md) and [contributing](docs/wiki/Contributing.md)
 
 ## Requirements
 
@@ -278,6 +301,8 @@ The full documentation suite lives in [`docs/wiki`](docs/wiki/Getting-Started.md
   `net10.0`. Everything else works on both: the result types, the combinators, the ASP.NET Core mapping and
   the ZodSharp bridge. On `net10.0` an error type is simply a plain type rather than a union, which the HTTP
   mapper already handles — register a mapping for the error type itself.
+- **Purview.ZodSharp 3** for the ZodSharp integrations, on the same `net10.0`/`net11.0` set. Trimmed, Native AOT and
+  Blazor applications: see [Blazor and Native AOT](docs/wiki/Blazor-and-Native-AOT.md).
 - **C# 15 preview — only to *declare* a union.** The requirement is per-project and scoped:
   - Using `Result<TValue, TError>`, `Result<TError>` and the combinators needs **nothing special**. No
     `LangVersion`, no `EnablePreviewFeatures`.
@@ -319,7 +344,9 @@ just build                 # build the solution (Debug)
 just test-unit             # run the unit tests
 just lint-check            # CSharpier + .slnx GUID validation
 just pack                  # pack all four packages to ./artifacts
-just pipeline-pr           # the full PR pipeline (restore, build, lint, test, pack)
+just pipeline-pr           # the PR pipeline (restore, build, lint, tests)
+just pipeline-pack-validate # the same, plus pack and pack-content validation
+just smoke-packed-consumers # the packed-consumer gate (Native AOT, Blazor WebAssembly/Server, net10.0)
 ```
 
 `just pipeline-pr` restores the repository's .NET local tools, which include the pinned `Purview.Build`.

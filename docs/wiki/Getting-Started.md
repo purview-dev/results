@@ -17,6 +17,9 @@ This guide installs the packages, models an error union, returns a result, and m
 
   These packages do not set `EnablePreviewFeatures`, so they do not force preview features on your
   solution. See [Guarantees and Limitations](Guarantees-and-Limitations.md).
+- **Purview.ZodSharp 3** for the ZodSharp integrations (`Purview.Results.ZodSharp`,
+  `Purview.Results.ZodSharp.AspNetCore`), which target the same `net10.0`/`net11.0` set. Trimmed, Native AOT and
+  Blazor applications are covered in [Blazor and Native AOT](Blazor-and-Native-AOT.md).
 
 ## 1. Reference the packages
 
@@ -130,7 +133,8 @@ app.MapGet("/tenants/{id}", (string id) => GetTenant(new TenantId(id))).WithResu
 ```
 
 A mapping for the **case** type wins, the mapping for the **error** type covers the remaining cases, and an
-unmapped failure is a `500` that names the unmapped case, so a mapping gap is never silent. See
+unmapped failure is a logged `500` (and is counted in telemetry with its case type), so a mapping gap is never
+silent. See
 [ASP.NET Core Integration](AspNetCore-Integration.md).
 
 ## 6. Validate without exceptions

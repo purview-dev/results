@@ -9,6 +9,7 @@
 - [ZodSharp Integration](ZodSharp-Integration.md)
 - [ZodSharp Problem Details](ZodSharp-ProblemDetails.md)
 - [Value Objects Composition](Value-Objects-Composition.md)
+- [Blazor and Native AOT](Blazor-and-Native-AOT.md)
 - [Guarantees and Limitations](Guarantees-and-Limitations.md)
 - [Testing](Testing.md)
 - [Agent Skills](Agent-Skills.md)

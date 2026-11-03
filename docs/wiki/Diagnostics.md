@@ -3,10 +3,10 @@
 The union rules live in one shared library (`Diagnostics/DiagnosticLibrary.cs`,
 `Diagnostics/ResultUnionDiagnostics.cs`, `Diagnostics/ResultDiagnostic.cs`) that both hosts consume:
 
-- **`ResultsDiagnosticAnalyzer` reports the per-target rules** (`RSG1000`–`RSG1004`, `RSG1007`, `RSG1008`) in the
+- **`ResultsDiagnosticAnalyzer` reports the per-target rules** (`RSG1000`–`RSG1004`, `RSG1007`–`RSG1009`) in the
   IDE and in build output.
 - **The generator reports the compilation-wide rules** (`RSG1005`, `RSG1006`) that need every opted-in union in
-  the compilation.
+  the compilation, and `RSG9000` when the emitter fails unexpectedly.
 - The generator never reports a rule the analyzer reports. It still runs the same shared analysis, so
   `DiagnosticLibrary.IsBlocking` is the single blocking policy, but a finding is never surfaced twice.
 
@@ -23,13 +23,16 @@ The union rules live in one shared library (`Diagnostics/DiagnosticLibrary.cs`,
 | `RSG1006` | Warning | Generator | No (only the shared leaf case's `AsFailure` helper is skipped) | A **leaf** case type is shared with another union, so its per-case helper is generated once; the union-receiver `Failure(...)` factory is generated for every union and is the shared-case safe form. A union-typed case shared across unions is composition, not a shared leaf, and is not reported. |
 | `RSG1007` | Error | Analyzer | Yes | The union uses an `IUnionMembers` member provider, which the first implementation does not support. |
 | `RSG1008` | Warning | Analyzer | No (only the ambiguous case's inclusion factory is skipped) | A case is reachable through two different included unions, so no inclusion factory can name its construction path. List the case through the union that directly declares it instead. |
+| `RSG1009` | Warning | Analyzer | No (only the unsupported case is skipped) | A case type is not a named type (for example an array), so no helper or factory can be declared against it. Wrap it in a record or struct case instead. |
+| `RSG9000` | Error | Generator | — | The generator failed unexpectedly. The failure is reported instead of escaping, because an escaping exception surfaces as `CS8785` and discards *all* generated output for the compilation. Please report it. |
 
 Case-level findings never block the union: the remaining cases are still generated and the skipped case is
 reported. Blocking is decided per rule in `DiagnosticLibrary.IsBlocking`, not derived from severity, because a
 finding may be an error the consumer must fix while usable output can still be produced.
 
-Every rule is categorized as `Purview.Results.Usage` and tracked in
-`src/src/SourceGenerator/AnalyzerReleases.Unshipped.md`, which the compiler's RS2008 rule catalogue validates.
+Every rule is categorized as `Purview.Results.Usage` and release-tracked, which the compiler's RS2008 rule
+catalogue validates: the shipped rules are recorded in `src/src/SourceGenerator/AnalyzerReleases.Shipped.md` under
+Release 1.0.0, and a new or changed rule goes into `AnalyzerReleases.Unshipped.md` until the next release.
 
 ## Diagnostic suppressions
 
@@ -48,7 +51,8 @@ The suppression is narrow on purpose:
 - The union's **case types** keep the warning, as does every other value type. A case declared as a plain `struct`
   still gets `CA1815`; a `record struct` case never gets it, because records synthesise equality.
 - Nothing is hidden: a suppressor can only suppress non-error, configurable diagnostics, and `RSG2000` is a
-  suppression id rather than a rule, so `RSG1000`–`RSG1008` remain the only diagnostics the package reports.
+  suppression id rather than a rule, so `RSG1000`–`RSG1009` and `RSG9000` remain the only diagnostics the
+  package reports.
 
 Every suppression is logged as an `Info` diagnostic against `RSG2000`, in the verbose build log and in an MSBuild
 binlog (and as a suppressed diagnostic in an `/errorlog` SARIF file), so a build can always be audited for what it

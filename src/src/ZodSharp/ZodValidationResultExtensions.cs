@@ -139,6 +139,7 @@ public static class ZodValidationResultExtensions
 	/// The asynchronous counterpart of <see cref="ToResult{TValue, TError}"/>, for a schema whose validation
 	/// awaits — a <c>[ZodSchema(CustomValidationMethodName = ...)]</c> rule, or the DI adapter's
 	/// <c>ValidateAsync</c>. The validated value is carried on success exactly as the synchronous form carries it.
+	/// An overload accepts a <see cref="Task{TResult}"/>, for APIs such as Purview.ZodSharp.Http that return one.
 	/// </para>
 	/// <para>
 	/// Because the method is asynchronous, the <see cref="ArgumentNullException"/> for a null
@@ -193,7 +194,9 @@ public static class ZodValidationResultExtensions
 	/// <para>
 	/// The asynchronous counterpart of <see cref="ToUnitResult{TValue, TError}"/>: the method reports only why an
 	/// input was rejected, and the validated value is deliberately dropped, which is why the value type still has
-	/// to be named. Use <see cref="ToResultAsync{TValue, TError}"/> when the success has to carry it.
+	/// to be named. Use
+	/// <see cref="ToResultAsync{TValue, TError}(ValueTask{ValidationResult{TValue}}, Func{ImmutableArray{ValidationError}, TError})"/>
+	/// when the success has to carry it.
 	/// </para>
 	/// <para>
 	/// Because the method is asynchronous, the <see cref="ArgumentNullException"/> for a null
@@ -208,6 +211,111 @@ public static class ZodValidationResultExtensions
 		Func<ImmutableArray<ValidationError>, TError> onFailure
 	)
 	{
+		ArgumentNullException.ThrowIfNull(onFailure);
+
+		var validated = await validation.ConfigureAwait(false);
+
+		return validated.IsSuccess ? Result<TError>.Success() : Result<TError>.Failure(onFailure(validated.Errors));
+	}
+
+	/// <summary>
+	/// Converts a task-based validation result into a result whose failure carries the error produced by
+	/// <paramref name="onFailure"/>.
+	/// </summary>
+	/// <typeparam name="TValue">The type of the validated value.</typeparam>
+	/// <typeparam name="TError">
+	/// The error type of the result. A union type must be named explicitly, as in
+	/// <c>ToResultAsync&lt;Tenant, TenantError&gt;(...)</c>, because a union case does not carry the union type that
+	/// contains it.
+	/// </typeparam>
+	/// <param name="validation">
+	/// The validation result to convert, such as the one Purview.ZodSharp.Http's
+	/// <c>HttpContent.ReadFromJsonAndValidateAsync</c> or <c>HttpClient.PostAsJsonValidatedAsync</c> returns.
+	/// </param>
+	/// <param name="onFailure">
+	/// Creates the error from the validation errors. Only invoked when validation failed, so a successful
+	/// validation allocates no error.
+	/// </param>
+	/// <returns>
+	/// A successful result carrying the validated value, or a failed result carrying the created error.
+	/// </returns>
+	/// <remarks>
+	/// <para>
+	/// The <see cref="Task{TResult}"/> form of
+	/// <see cref="ToResultAsync{TValue, TError}(ValueTask{ValidationResult{TValue}}, Func{ImmutableArray{ValidationError}, TError})"/>,
+	/// for APIs that return a task rather than a value task — Purview.ZodSharp.Http's request and response
+	/// validation in particular — so a response body that fails its schema, or a request that was never sent
+	/// because its body did not validate, folds into the result pipeline exactly as a local <c>Validate</c> does.
+	/// </para>
+	/// <para>
+	/// Because the method is asynchronous, the <see cref="ArgumentNullException"/> for a null
+	/// <paramref name="validation"/> or <paramref name="onFailure"/> surfaces when the returned task is awaited
+	/// rather than at the call site.
+	/// </para>
+	/// </remarks>
+	/// <example>
+	/// <code>
+	/// using var response = await http.GetAsync($"/api/tenants/{tenantId}", cancellationToken);
+	///
+	/// return await response.Content
+	///     .ReadFromJsonAndValidateAsync(TenantSchema.Instance, AppJsonContext.Default.Tenant, cancellationToken)
+	///     .ToResultAsync&lt;Tenant, TenantError&gt;(errors =&gt; new TenantResponseInvalid(errors));
+	/// </code>
+	/// </example>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="validation"/> or <paramref name="onFailure"/> is null, when the returned task is
+	/// awaited.
+	/// </exception>
+	public static async ValueTask<Result<TValue, TError>> ToResultAsync<TValue, TError>(
+		this Task<ValidationResult<TValue>> validation,
+		Func<ImmutableArray<ValidationError>, TError> onFailure
+	)
+	{
+		ArgumentNullException.ThrowIfNull(validation);
+		ArgumentNullException.ThrowIfNull(onFailure);
+
+		var validated = await validation.ConfigureAwait(false);
+
+		return validated.IsSuccess
+			? Result<TValue, TError>.Success(validated.Value)
+			: Result<TValue, TError>.Failure(onFailure(validated.Errors));
+	}
+
+	/// <summary>
+	/// Converts a task-based validation result into a unit result whose failure carries the error produced by
+	/// <paramref name="onFailure"/>, discarding the validated value.
+	/// </summary>
+	/// <typeparam name="TValue">The type of the validated value.</typeparam>
+	/// <typeparam name="TError">
+	/// The error type of the result. A union type must be named explicitly, as in
+	/// <c>ToUnitResultAsync&lt;TenantRegistration, TenantError&gt;(...)</c>, because a union case does not carry the
+	/// union type that contains it.
+	/// </typeparam>
+	/// <param name="validation">The validation result to convert, such as one Purview.ZodSharp.Http returns.</param>
+	/// <param name="onFailure">
+	/// Creates the error from the validation errors. Only invoked when validation failed, so a successful
+	/// validation allocates no error.
+	/// </param>
+	/// <returns>
+	/// A successful unit result, or a failed unit result carrying the created error.
+	/// </returns>
+	/// <remarks>
+	/// The <see cref="Task{TResult}"/> form of
+	/// <see cref="ToUnitResultAsync{TValue, TError}(ValueTask{ValidationResult{TValue}}, Func{ImmutableArray{ValidationError}, TError})"/>.
+	/// Because the method is asynchronous, the <see cref="ArgumentNullException"/> for a null
+	/// <paramref name="validation"/> or <paramref name="onFailure"/> surfaces when the returned task is awaited
+	/// rather than at the call site.
+	/// </remarks>
+	/// <exception cref="ArgumentNullException">
+	/// Thrown when <paramref name="validation"/> or <paramref name="onFailure"/> is null, when the returned task is
+	/// awaited.
+	/// </exception>
+	public static async ValueTask<Result<TError>> ToUnitResultAsync<TValue, TError>(
+		this Task<ValidationResult<TValue>> validation,
+		Func<ImmutableArray<ValidationError>, TError> onFailure
+	)
+	{
+		ArgumentNullException.ThrowIfNull(validation);
 		ArgumentNullException.ThrowIfNull(onFailure);
 
 		var validated = await validation.ConfigureAwait(false);

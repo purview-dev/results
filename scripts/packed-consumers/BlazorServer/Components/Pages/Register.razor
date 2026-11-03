@@ -1,0 +1,50 @@
+@page "/register"
+@inject TenantRegistrationService Service
+
+@* Statically rendered: the gate posts this form and reads the response. <ZodValidator> rejects an invalid form; a
+   valid one is registered through the result pipeline, whose outcome is rendered. *@
+
+<h1>Register a tenant (static server rendering)</h1>
+
+<EditForm Model="Model" FormName="register" OnValidSubmit="Submit">
+	<ZodValidator />
+
+	<InputText id="tenant-id" @bind-Value="Model!.TenantId" />
+	<ZodValidationMessage For="() => Model!.TenantId" ShowCode="true" />
+
+	<InputText id="name" @bind-Value="Model!.Name" />
+	<ZodValidationMessage For="() => Model!.Name" ShowCode="true" />
+
+	<InputText id="owner-email" @bind-Value="Model!.OwnerEmail" />
+	<ZodValidationMessage For="() => Model!.OwnerEmail" ShowCode="true" />
+
+	<button type="submit">Register</button>
+</EditForm>
+
+@if (_outcome is not null)
+{
+	<p id="outcome" role="status">@_outcome</p>
+}
+
+@code {
+	[SupplyParameterFromForm]
+	TenantRegistration? Model { get; set; }
+
+	string? _outcome;
+
+	protected override void OnInitialized() => Model ??= new();
+
+	void Submit() =>
+		_outcome = Service
+			.Register(Model!)
+			.Match(
+				tenant => $"Registered {tenant.TenantId}.",
+				error =>
+					error switch
+					{
+						TenantAlreadyExists exists => $"Tenant {exists.TenantId} already exists.",
+						TenantInputInvalid invalid => $"Rejected with {invalid.Errors.Length} error(s).",
+						_ => "Failed.",
+					}
+			);
+}

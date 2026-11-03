@@ -80,6 +80,17 @@ A factory receives the failure's **full error set**, so a rule never hides the o
 fix, and the `int statusCode` overloads still render every error as an `HttpValidationProblemDetails`. A code,
 category or origin registered twice with different behaviour is rejected at configuration time.
 
+A failure whose case does not carry validation errors (is not an `IValidationErrorCarrier`) is declined (`null`),
+so other mappers and fallbacks still apply — this mapper never answers a failure it does not understand.
+
+## .NET 11 request validation
+
+On .NET 11, Purview.ZodSharp 3's `AddZodSharpValidation()` validates a `[ZodSchema]` endpoint parameter **before
+the handler runs** and answers an invalid request with ZodSharp's own validation problem, so the handler never
+returns its result and the rules above never see the failure. A host whose handlers validate and return results
+either does not call `AddZodSharpValidation()` or registers it for type validation only (`validateParameters:
+false`). `AddZodSharpBlazor()` validates form models only and does not turn parameter validation on.
+
 ## API
 
 | Member | Purpose |
@@ -91,9 +102,13 @@ category or origin registered twice with different behaviour is rejected at conf
 | `ImmutableArray<ValidationError>.ToValidationProblem(HttpContext, int statusCode = 400)` | Creates the validation problem for a set of errors |
 | `ZodValidationProblems.ToProblem(errors, options, defaultStatusCode = 400, traceId = null)` | The underlying mapper, for hosts that resolve the options themselves |
 
-The status code resolved by `ZodProblemDetailsOptions.StatusCodeSelector` wins; `statusCode` (or
-`defaultStatusCode`, or a rule's `statusCode`) is only used when the resolved error type does not define one. The
-trace identifier is included when `ResultsHttpOptions.IncludeTraceId` is `true` (the default).
+The response is written by Purview.ZodSharp's `ZodProblemDetailsWriter` with the host's `ZodProblemDetailsOptions`,
+so every option applies exactly as it does to a thrown `ZodException` - path naming, `ErrorType` message formatting,
+the `issues` extension, `MergeParametersIntoExtensions` and the error type resolver. The status code follows
+Purview.ZodSharp 3's precedence: `statusCode` (or `defaultStatusCode`, or a rule's `statusCode`) is the default, the
+highest `ErrorType.HttpStatus` replaces it, `ZodProblemDetailsOptions.StatusCodeSelector` wins over both, and
+`StatusCodeOverride` has the last word. The trace identifier is included when `ResultsHttpOptions.IncludeTraceId` is
+`true` (the default).
 
 ## Examples
 
@@ -108,7 +123,8 @@ dotnet run --project src/src/Examples.AspNetCore.Zod --urls http://localhost:521
 The [repository README](https://github.com/purview-dev/results#examples) lists the Basic, ZodSharp and
 ASP.NET Core examples too. The
 [value-objects composition example](https://github.com/purview-dev/results/tree/main/src/src/Examples.ValueObjects.Zod)
-shows a type-level `[ZodRule]` whose `Origin = "value_object"` is answered by `MapOrigin`.
+is a console app with no HTTP layer: it shows a type-level `[ZodRule]` reporting `Origin = "value_object"` into a
+result failure — the identity a `MapOrigin("value_object", …)` rule in this package keys on.
 
 ## Related packages
 
@@ -119,9 +135,11 @@ shows a type-level `[ZodRule]` whose `Origin = "value_object"` is answered by `M
 
 ## Agent skills
 
-This package ships the `purview-results-zodsharp-problems` agent skill under `.agents/`. Repositories that import
-`Purview.BuildSdk` get it mirrored into their own `.agents/` folder on the next restore or build, so AI agents
-working there receive the guidance automatically.
+The `purview-results-zodsharp-problems` agent skill covers this package. No package ships skills: install them, with every other Purview.Results skill, from the git repository with the skills CLI:
+
+```bash
+npx skills add purview-dev/results
+```
 
 ## License
 

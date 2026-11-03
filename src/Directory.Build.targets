@@ -2,6 +2,25 @@
 	<Import Sdk="Purview.BuildSdk" Project="Sdk.targets" />
 
 	<!--
+		Runtime async is a .NET 11 experiment, so it is scoped to that target framework: on net10.0 it lowers await
+		to System.Runtime.CompilerServices.AsyncHelpers, which is evaluation-only and fails the build with SYSLIB5007.
+
+		It is also kept out of every shipped assembly. A library compiled with it carries runtime-async methods that
+		only a runtime implementing the feature can execute, and the Mono runtime behind Blazor WebAssembly does not:
+		every async member of a net11.0 package (ToResultAsync, the async combinators) threw
+		PlatformNotSupportedException ("Runtime Async is not supported on this platform") in the browser. The
+		packed-consumer gate (`just smoke-packed-consumers`) found it. Tests, examples and other non-packable projects
+		keep the experiment; the libraries they reference are compiled with the stable lowering, so the tests exercise
+		exactly what ships.
+
+		Evaluated here rather than in Directory.Build.props because IsPackable is declared in each project file, which
+		is read after the props.
+	-->
+	<PropertyGroup Condition="'$(TargetFramework)' == 'net11.0' AND '$(IsPackable)' != 'true'">
+		<Features>$(Features);runtime-async=on</Features>
+	</PropertyGroup>
+
+	<!--
 		NuGet package validation. Enabled for every packable project so an unintended change to the public API
 		fails `dotnet pack` instead of shipping. The baseline is the previous stable release; bump it when a new
 		version ships. This lives in the repo because the baseline is package-specific; Purview.BuildSdk has no
@@ -13,6 +32,10 @@
 		intended removal or signature change from here needs a CompatibilitySuppressions.xml next to the project
 		that owns it (generate one with `dotnet pack /p:GenerateCompatibilitySuppressionFile=true`), and that file
 		is then the evidence behind the matching upgrade note — a change not listed in both is a defect.
+
+		1.1.0 carries the first ones: Purview.ZodSharp 3 no longer emits its hidden [Embedded] ZodSchemaAttribute and
+		ErrorTypeAttribute copies into the assemblies it generates for, so CP0001 reports them gone from
+		Purview.Results.ZodSharp and Purview.Results.ZodSharp.AspNetCore (see the 1.1.0-prerelease.1 upgrade notes).
 	-->
 	<PropertyGroup Label="NuGet package validation" Condition="'$(IsPackable)' == 'true'">
 		<EnablePackageValidation>true</EnablePackageValidation>

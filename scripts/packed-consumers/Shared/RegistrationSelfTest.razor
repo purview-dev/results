@@ -1,0 +1,119 @@
+@* Shared by the Blazor consumers (copied in by scripts/test-packed-consumers.ps1). A <ZodValidator> form over the
+   registration model, and a self-test that runs once the component is interactive: it validates the form, then sends
+   the same input through the result pipeline - ToResult, Bind, the generated AsFailure helpers and the union-receiver
+   factory - and reports in #self-test. The gate loads the page in a headless browser and reads that element. *@
+@namespace PackedResultsBlazor
+@using System.Text
+@using Microsoft.AspNetCore.Components.Forms
+@using Purview.Results
+@using ZodSharp.Blazor
+
+<EditForm EditContext="_context">
+	<ZodValidator />
+
+	<label for="tenant-id">Tenant id</label>
+	<InputText id="tenant-id" @bind-Value="_model.TenantId" />
+	<ZodValidationMessage For="() => _model.TenantId" ShowCode="true" />
+
+	<label for="name">Name</label>
+	<InputText id="name" @bind-Value="_model.Name" />
+	<ZodValidationMessage For="() => _model.Name" ShowCode="true" />
+
+	<label for="owner-email">Owner email</label>
+	<InputText id="owner-email" @bind-Value="_model.OwnerEmail" />
+	<ZodValidationMessage For="() => _model.OwnerEmail" ShowCode="true" />
+
+	<ZodValidationSummary />
+	<button type="submit">Register</button>
+</EditForm>
+
+<pre id="self-test" data-result="@_result">@_report</pre>
+
+@code {
+	readonly TenantRegistration _model = new();
+	EditContext _context = default!;
+	string _result = "running";
+	string _report = string.Empty;
+
+	protected override void OnInitialized() => _context = new(_model);
+
+	protected override async Task OnAfterRenderAsync(bool firstRender)
+	{
+		if (!firstRender)
+			return;
+
+		StringBuilder report = new();
+		var failures = 0;
+		void Check(bool condition, string description)
+		{
+			report.AppendLine($"{(condition ? "pass" : "FAIL")} {description}");
+			if (!condition)
+				failures++;
+		}
+
+		string[] Messages(string field) => [.. _context.GetValidationMessages(new FieldIdentifier(_model, field))];
+
+		try
+		{
+			// The form: every rule placed on its field.
+			_model.TenantId = "Not Valid!";
+			_model.Name = "x";
+			_model.OwnerEmail = "not-an-email";
+			var invalid = await _context.ValidateAsync();
+			foreach (var message in _context.GetValidationMessages())
+				report.AppendLine($"    * {message}");
+			Check(!invalid, "<ZodValidator> rejects an invalid registration");
+			Check(Messages("TenantId").Length == 1, "the tenant id pattern is placed on TenantId");
+			Check(Messages("Name").Length == 1, "the name length is placed on Name");
+			Check(Messages("OwnerEmail").Length == 1, "the email rule is placed on OwnerEmail");
+
+			_model.TenantId = "same-name";
+			_model.Name = "same-name";
+			_model.OwnerEmail = "owner@example.com";
+			var refined = await _context.ValidateAsync();
+			Check(!refined && Messages("TenantId").Length == 1, "the OnZodValidate refinement is placed on TenantId");
+
+			// The result pipeline over the same input.
+			TenantRegistrationService service = new();
+			var rejected = service.Register(_model);
+			Check(
+				rejected.TryGetError(out var error)
+					&& error is TenantInputInvalid { Errors: [{ Code: TenantRegistration.TenantIdMatchesNameCode }] },
+				"a rejected input is a TenantInputInvalid failure carrying the refinement's code"
+			);
+
+			_model.TenantId = TenantRegistrationService.ExistingTenantId;
+			_model.Name = "Acme Again";
+			var duplicate = await service.RegisterAsync(_model);
+			Check(
+				duplicate.TryGetError(out var duplicateError) && duplicateError is TenantAlreadyExists,
+				"an existing tenant is a TenantAlreadyExists failure, through ValidateAsync and ToResultAsync"
+			);
+
+			_model.TenantId = "newco";
+			_model.Name = "Newco";
+			var valid = await _context.ValidateAsync();
+			var registered = service.Register(_model);
+			Check(valid && _context.GetValidationMessages().Count() == 0, "a valid registration passes the form");
+			Check(
+				registered.Match(tenant => tenant.TenantId == "newco", _ => false),
+				"and registers through the result pipeline"
+			);
+
+			var viaFactory = TenantError.Failure<Tenant>(new TenantAlreadyExists("x"));
+			Check(
+				viaFactory.IsFailure && viaFactory.ToString().StartsWith("Failure(", StringComparison.Ordinal),
+				"the generated union-receiver factory builds a failure"
+			);
+		}
+		catch (Exception ex)
+		{
+			failures++;
+			report.AppendLine($"FAIL the self-test threw {ex.GetType().Name}: {ex.Message}");
+		}
+
+		_result = failures == 0 ? "passed" : "failed";
+		_report = report.ToString();
+		StateHasChanged();
+	}
+}

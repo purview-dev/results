@@ -2,7 +2,6 @@ using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
-using ZodSharp;
 using ZodSharp.AspNetCore;
 using ZodSharp.Core;
 
@@ -39,18 +38,53 @@ public static class ZodValidationProblems
 	{
 		ArgumentNullException.ThrowIfNull(options);
 
-		var statusCode = options.StatusCodeSelector?.Invoke(errors) ?? defaultStatusCode;
-
-		// ZodSharp maps ProblemDetails through validation results, thrown exceptions and its exception handler, and
-		// every one of them shares one mapper. The exception view is the public shape that accepts raw errors, so it
-		// is reused here rather than duplicating the mapping rules.
-		var problem = new ZodException(errors).ToHttpValidationProblemDetails(options.Registry, statusCode);
+		// ZodSharp writes every ProblemDetails - its exception handler, endpoint filter and typed results - through
+		// one ZodProblemDetailsWriter configured by ZodProblemDetailsOptions, so the same writer is used here rather
+		// than duplicating the mapping rules. Handing it the whole options object (instead of only the registry, as
+		// Purview.ZodSharp 2 required) keeps every option the host set - path naming, message formatting, issues,
+		// parameter merging and the status-code precedence: default, then the highest ErrorType.HttpStatus, then
+		// StatusCodeSelector, then StatusCodeOverride - identical to a thrown ZodException's response. The only
+		// difference is the default status, which a ZodResultsHttpOptions rule may supply.
+		ZodProblemDetailsWriter writer = new(WithDefaultStatusCode(options, defaultStatusCode));
+		var problem = writer.Create(errors.IsDefault ? [] : errors.AsSpan());
 
 		if (!string.IsNullOrEmpty(traceId))
 			problem.Extensions["traceId"] = traceId;
 
 		return WriteProblem(problem, defaultStatusCode);
 	}
+
+	/// <summary>
+	/// The options with <paramref name="defaultStatusCode"/> as their default status, copied rather than mutated
+	/// because the instance is the host's shared, configured options.
+	/// </summary>
+	/// <remarks>
+	/// Every settable member of <see cref="ZodProblemDetailsOptions"/> is copied, which
+	/// <c>ZodValidationProblemsTests.WithDefaultStatusCode_GivenADifferentStatus_CopiesEverySettableOption</c> pins,
+	/// so an option a later ZodSharp version adds cannot be dropped silently.
+	/// </remarks>
+	/// <param name="options">The host's options.</param>
+	/// <param name="defaultStatusCode">The default status to apply.</param>
+	/// <returns><paramref name="options"/> itself when its default already matches; otherwise a copy.</returns>
+	internal static ZodProblemDetailsOptions WithDefaultStatusCode(
+		ZodProblemDetailsOptions options,
+		int defaultStatusCode
+	) =>
+		options.DefaultStatusCode == defaultStatusCode
+			? options
+			: new()
+			{
+				Registry = options.Registry,
+				ErrorTypeResolver = options.ErrorTypeResolver,
+				FormatMessages = options.FormatMessages,
+				PathNaming = options.PathNaming,
+				IncludeIssues = options.IncludeIssues,
+				MergeParametersIntoExtensions = options.MergeParametersIntoExtensions,
+				ProjectDataAnnotationsIssues = options.ProjectDataAnnotationsIssues,
+				DefaultStatusCode = defaultStatusCode,
+				StatusCodeSelector = options.StatusCodeSelector,
+				StatusCodeOverride = options.StatusCodeOverride,
+			};
 
 	[UnconditionalSuppressMessage(
 		"Trimming",

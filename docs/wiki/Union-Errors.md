@@ -178,6 +178,7 @@ mapping for the leaf (`Map<BillingServiceUnavailable>`) wins, and a mapping for 
 | A generic union | No — `RSG1002` |
 | A case type that itself contains type parameters | No — `RSG1002` (the remaining cases still generate) |
 | `IUnionMembers` member providers | No — `RSG1007` |
+| A case type that is not a named type (for example an array) | No — `RSG1009` warning (the remaining cases still generate; wrap it in a record or struct case) |
 
 See [Diagnostics](Diagnostics.md) for the full rules table and the blocking policy.
 

@@ -52,10 +52,12 @@ This wiki is the project documentation hub. Packages are published under the `Pu
 - **Union error types** — a C# 15 union keeps every error case strongly typed while the result stays a single
   value, and the generator supplies the per-case `AsFailure<TValue>()` and `AsFailure()` helpers plus the
   union-receiver `Union.Failure(...)`/`Union.Success(...)` factories the language cannot express itself.
-- **Compile-time diagnostics** — `RSG1000`–`RSG1008` report unsupported union shapes at build time, and the one
-  suppression (`RSG2000`) answers `CA1815` only for opted-in unions.
-- **Host-controlled HTTP** — the ASP.NET Core package resolves an error **case**, then the **error type**, then
-  ordered fallbacks, and answers an unmapped failure with a logged `500` so mapping gaps stay visible.
+- **Compile-time diagnostics** — `RSG1000`–`RSG1009` report unsupported union shapes at build time, `RSG9000`
+  reports an unexpected generator failure instead of discarding all generated output, and the one suppression
+  (`RSG2000`) answers `CA1815` only for opted-in unions.
+- **Host-controlled HTTP** — the ASP.NET Core package resolves an error **case**, then each enclosing **union**
+  from the inside out, then the **error type**, then ordered fallbacks, and answers an unmapped failure with a
+  logged `500` so mapping gaps stay visible.
 - **Validation without exceptions** — ZodSharp `ValidationResult<T>` values become ordinary results, and a
   failure that carries validation errors becomes a standard ProblemDetails payload.
 - **No reflection at runtime** — dependency-free runtime packages; union structure is inspected only by the

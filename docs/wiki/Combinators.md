@@ -1,8 +1,10 @@
 # Combinators
 
 The combinators fold a result into a value or chain another operation, without ever inspecting a state that is
-not there. All of them throw `InvalidOperationException` (`"The result is uninitialized."`) for `default`; the
-throwing input check for a `null` delegate is `ArgumentNullException`.
+not there. Every operation that depends on the state — the combinators, fallbacks, side effects, `MapAsync`/
+`BindAsync` and `Throw()` — throws `InvalidOperationException` (`"The result is uninitialized."`) for `default`;
+only the `TryGetValue`/`TryGetError` probes never throw. The input check for a `null` delegate is
+`ArgumentNullException`.
 
 ## Transforming
 
@@ -63,7 +65,7 @@ failure and its error pass through unchanged.
 `TryGetValue` and `TryGetError` never throw — not even for `default`:
 
 ```csharp
-if (result.TryGetValue(out Tenant? tenant))
+if (result.TryGetValue(out Tenant tenant))
     Console.WriteLine(tenant.Name);
 
 if (result.TryGetError(out TenantError error))
@@ -96,16 +98,17 @@ failure. Use them after a state has been established (or after probing).
 ## Asynchronous composition
 
 ```csharp
-Task<Result<TenantDto, TenantError>> dto = GetTenantAsync(tenantId)
-    .MapAsync(tenant => _mapper.MapAsync(tenant));
+Result<Tenant, TenantError> tenant = await GetTenantAsync(tenantId);
 
-Task<Result<Tenant, TenantError>> saved = GetTenantAsync(tenantId)
-    .BindAsync(tenant => _store.SaveAsync(tenant));
+Result<TenantDto, TenantError> dto = await tenant.MapAsync(value => _mapper.MapAsync(value));
+
+Result<Tenant, TenantError> saved = await tenant.BindAsync(value => _store.SaveAsync(value));
 ```
 
 `MapAsync`, `BindAsync` and the widening `BindAsync(bind, mapError)` behave exactly like their synchronous
 counterparts, and all throw for `default`. They are extension methods in `ResultExtensions`, not members on the
-result type.
+result type, and their receiver is a result value rather than a `Task<Result<...>>`, so await the producing call
+first.
 
 ## Unwrapping with `Throw`
 
@@ -131,7 +134,7 @@ value to pass. `Match`, `Switch`, `Tap` and `Ensure` therefore use a no-argument
 Result<TenantError> deleted = DeleteTenant(tenantId);
 
 deleted.Match(() => "deleted", error => $"could not delete: {error}");
-deleted.Ensure(() => _tenants.Count > 0, () => new TenantError());
+deleted.Ensure(() => _tenants.Count > 0, () => new TenantNotFound(tenantId));
 ```
 
 `Map(() => value)` attaches a value to a success, producing a `Result<TResult, TError>`, and `Bind` continues with

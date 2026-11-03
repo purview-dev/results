@@ -8,12 +8,133 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 Released versions correspond to `v<version>` GitHub releases.
 
+## 1.1.0-prerelease.2
+
+A minor prerelease built against Purview.ZodSharp 3.0.0-prerelease.2 and Purview.ValueObjects 1.3.0-prerelease.2. It
+makes the ASP.NET Core packages usable from a Native AOT host and folds Purview.ZodSharp.Http's client-side
+validation into results. Every change is additive.
+
+### Upgrade notes
+
+- **A Native AOT minimal API must return `result.ToHttpResult()`, not the result.**
+  - *Previously:* the packages were marked `IsAotCompatible`, but a `PublishAot` host whose handlers returned
+    `Result<TValue, TError>` or `Result<TError>` failed every request at startup with a `NotSupportedException`.
+    ASP.NET Core's request delegate generator resolves JSON metadata for a handler's declared return type when it
+    builds the endpoints; a result has none, and System.Text.Json's source generator cannot describe a union error
+    (`SYSLIB1227`), so `WithResultsHttp()` never ran. Adding the result type to a `JsonSerializerContext` does not help.
+  - *Now:* `ToHttpResult()` returns a `ResultHttpResult`, an `IResult` that the registered mapper maps when it
+    executes.
+  - *To upgrade:* in a Native AOT host, end each handler with `.ToHttpResult()` and list the successful value types in
+    your `JsonSerializerContext`. JIT hosts (including Blazor Server) need no change; `WithResultsHttp()` keeps
+    working there.
+
+### Added
+
+- **`ToHttpResult()` and `ResultHttpResult<TValue, TError>` / `ResultHttpResult<TError>`** in
+  `Purview.Results.AspNetCore`. The response is exactly the one `WithResultsHttp()` produces (same success handling,
+  failure resolution order and unmapped-failure response), no endpoint filter is needed, and the type describes the
+  success response to OpenAPI (`TValue` with `SuccessStatusCode`, or `204` for a unit result). Executing one without
+  `AddResultsHttp()` throws an `InvalidOperationException` naming the missing registration.
+- **`ToHttpResult(HttpContext)` and `ToHttpResult(IResultsHttpMapper, HttpContext)` for the unit `Result<TError>`**,
+  which previously existed for `Result<TValue, TError>` only.
+- **`Task<ValidationResult<T>>` overloads of `ToResultAsync` and `ToUnitResultAsync`** in `Purview.Results.ZodSharp`.
+  Purview.ZodSharp.Http's `PostAsJsonValidatedAsync`/`PutAsJsonValidatedAsync`/`PatchAsJsonValidatedAsync` and
+  `HttpContent.ReadFromJsonAndValidateAsync` return a `Task`, so a client's request and response validation now folds
+  into a result the same way a local `ValidateAsync` does. A server's validation problem reads back with
+  `TryReadZodValidationProblemAsync()` and `ToValidationErrors()` into the same union case. No package dependency is
+  added.
+- **A Native AOT web API in the packed-consumer gate** (`scripts/packed-consumers/AotWebApi`, step (e)). It is published
+  with `PublishAot` and warnings as errors, then started with `SuccessStatusCode` 200 and 201 and called (validation
+  problem, code rule, case mapping, success, unit `204`, uninitialized `500`). A client self-test then goes through
+  Purview.ZodSharp.Http. This is the check that found the startup failure above.
+
+### Documentation
+
+- Corrected the claim that the ASP.NET Core packages are not AOT-compatible (`docs/wiki/Blazor-and-Native-AOT.md`, the
+  project comments). Documented the Native AOT host shape, telemetry and log event ids in the ASP.NET Core README.
+- The unmapped-failure response names the error type only when `IncludeErrorTypeInProblemDetails` is set; several
+  pages said it always did. `ThrowOnUnmappedFailure` does not apply to an uninitialized result.
+- `RSG1009` and `RSG9000` were missing from the diagnostics tables, and all rules are tracked in
+  `AnalyzerReleases.Shipped.md`. `Purview.Results` ships `lib/` (only the generator is analyzer-only), and the
+  pipeline configuration lives in `.config/purview-build.json`.
+- Snippets that did not compile were fixed in the READMEs and in Combinators and Value Objects Composition. The
+  skills gained the Native AOT, `ToHttpResult()` and Purview.ZodSharp.Http guidance.
+
+### Changed
+
+- Built and tested against Purview.ZodSharp 3.0.0-prerelease.2 and Purview.ValueObjects 1.3.0-prerelease.2.
+
+## 1.1.0-prerelease.1
+
+A minor prerelease built against Purview.ZodSharp 3.0.0-prerelease.1. No package loses a target framework (every
+package still ships `net10.0` and `net11.0`), and no public member of a Purview.Results package changed; the
+integration packages now require Purview.ZodSharp 3, whose own upgrade notes apply to your code.
+
+> **Upgrading?** Start with [Upgrade notes](#upgrade-notes-1).
+
+### Upgrade notes
+
+- **`Purview.Results.ZodSharp` and `Purview.Results.ZodSharp.AspNetCore` depend on Purview.ZodSharp 3.**
+  - *Previously:* Purview.ZodSharp 2.4.x.
+  - *Now:* Purview.ZodSharp 3.0.0-prerelease.1, which ships `net10.0` and `net11.0` (the same set as these packages)
+    and is binary compatible with 2.4 for them.
+  - *To upgrade:* reference Purview.ZodSharp 3 and read its upgrade notes. The changes a result user meets first:
+    built-in rules report a structured `Origin` and `Category`; generated paths render as `Items[0].Name`
+    (`FullPath.ToDottedString()`); default messages changed (`"{displayName} is required"`); ProblemDetails write
+    `issues[].path` as a dotted key with `segments` beside it and no longer copy parameters to the root unless
+    `MergeParametersIntoExtensions` is set; generated schemas gain `ValidateAsync`, so CA1849 flags a synchronous
+    `Validate` in async code - `ToResultAsync` folds it.
+- **Result-carried validation problems honour every `ZodProblemDetailsOptions` setting.**
+  - *Previously:* `ZodValidationProblems.ToProblem` (and so `AddResultsZodSharpHttp`, `ToValidationProblem` and every
+    rule) wrote the problem from the options' `Registry` alone: no `ErrorType` message formatting, and with
+    Purview.ZodSharp 3 none of its new options (path naming, `IncludeIssues`, `MergeParametersIntoExtensions`, the
+    error type resolver, `StatusCodeOverride`). `StatusCodeSelector` ran first and an `ErrorType` status overrode it.
+  - *Now:* the problem is written by `ZodProblemDetailsWriter` with the host's options, as a thrown `ZodException`'s
+    is, and the status follows Purview.ZodSharp 3's precedence: the default (or a rule's status), then the highest
+    `ErrorType.HttpStatus`, then `StatusCodeSelector`, then `StatusCodeOverride`.
+  - *To upgrade:* nothing, unless a test asserted the old message text for an error code that has a registered
+    `ErrorType` with a `MessageFormat` (the message is now formatted), or relied on an `ErrorType` status overriding
+    `StatusCodeSelector` (the selector now wins, as documented).
+- **The hidden `[Embedded]` attribute copies are gone from `Purview.Results.ZodSharp.dll` and
+  `Purview.Results.ZodSharp.AspNetCore.dll`.** Purview.ZodSharp 2's generator emitted `ZodSharp.ZodSchemaAttribute`
+  and `ZodSharp.Core.ErrorTypeAttribute` into every assembly it ran on; Purview.ZodSharp 3 defines them once, in
+  `Purview.ZodSharp`. Package validation reports their removal (CP0001), which `CompatibilitySuppressions.xml` in each
+  project records: `[Embedded]` types are invisible to the compiler, so no compiled consumer could bind to them.
+  - *To upgrade:* nothing.
+
+### Fixed
+
+- **The `net11.0` packages work in Blazor WebAssembly.** They were compiled with the runtime-async experiment
+  (`Features=runtime-async=on`), so every async member - `ToResultAsync`, `ToUnitResultAsync` and the async
+  combinators - threw `PlatformNotSupportedException` ("Runtime Async is not supported on this platform") on the Mono
+  runtime behind Blazor WebAssembly. Shipped assemblies now use the stable async lowering on every target framework;
+  tests, examples and other non-packable projects keep the experiment. Found by the new packed-consumer gate.
+
+### Added
+
+- **A packed-consumer gate** (`just smoke-packed-consumers`, `scripts/test-packed-consumers.ps1`, PR job
+  `packed-consumers`). It packs every package to an isolated feed and cache, then publishes and runs, from the
+  packages alone: a Native AOT console over a `[GenerateResult]` union, the generated helpers, the ZodSharp bridge and
+  a value object's type-level rule; a Blazor WebAssembly app with a `<ZodValidator>` form whose input then flows
+  through the result pipeline, published trimmed and with `RunAOTCompilation=true` and run in a headless browser; a
+  Blazor Server app whose minimal API maps the result onto HTTP, whose static form is posted and whose interactive
+  page runs over a live circuit; and a `net10.0` console. Every publish uses `-warnaserror`, and every output is
+  scanned for compiler-host assemblies (`scripts/assert-no-compiler-host-assemblies.ps1`).
+- **Pack-validation `ForbiddenContent` rules** keep Purview.SourceGeneratorFramework, Roslyn and the generator out of
+  every folder an application loads from; `just verify-pack-rules` proves each rule rejects a package.
+
+### Changed
+
+- Built and tested against Purview.ZodSharp 3.0.0-prerelease.1, Purview.ValueObjects 1.3.0-prerelease.1,
+  Purview.SourceGeneratorFramework 1.2.2, Purview.BuildSdk 1.2.0 and Purview.Skills.Testing 1.2.0, on the .NET 11 rc.3
+  SDK.
+
 ## 1.0.2
 
 Consolidates the `1.0.0` and `1.0.0.1` releases that followed `1.0.0-prerelease.2`: upgrading from the
 prerelease goes straight to `1.0.2`, and the notes below cover that whole arc.
 
-> **Upgrading?** Start with [Upgrade notes](#upgrade-notes). Two APIs moved or changed shape along the way;
+> **Upgrading?** Start with [Upgrade notes](#upgrade-notes-2). Two APIs moved or changed shape along the way;
 > each note names the old form, the new form, and the edit to make.
 
 ### Upgrade notes
@@ -91,7 +212,7 @@ prerelease goes straight to `1.0.2`, and the notes below cover that whole arc.
   Both paths are verified against the packed package, the first with `TreatWarningsAsErrors=true`.
 - The generated `[GenerateResult]` opt-in attribute moved from `Purview.Results.SourceGenerator` to
   `Purview.Results`, so it sits alongside the types it opts into. Listed under
-  [Upgrade notes](#upgrade-notes).
+  [Upgrade notes](#upgrade-notes-2).
 - **All four packages are now marked `IsAotCompatible`**, enabling `IsTrimmable` and both the trim and AOT
   analyzers, and all four are verified clean. For `Purview.Results` and `Purview.Results.ZodSharp` this
   independently confirms the "no reflection, no dynamic, no runtime type discovery" guarantee.
@@ -161,9 +282,9 @@ prerelease goes straight to `1.0.2`, and the notes below cover that whole arc.
   shape for inspection; use `AcceptSuccess` whenever the type matters, such as serialization.
 - The two result types implement `IResultValue` in-box, so this reaches a consumer only through a
   hand-written implementation, which is not an expected shape. Listed under
-  [Upgrade notes](#upgrade-notes).
+  [Upgrade notes](#upgrade-notes-2).
 - Async combinators now await with `ConfigureAwait(false)`, so they no longer resume on a captured
-  synchronization context. Listed under [Upgrade notes](#upgrade-notes).
+  synchronization context. Listed under [Upgrade notes](#upgrade-notes-2).
 
 ### Fixed
 

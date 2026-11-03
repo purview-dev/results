@@ -5,9 +5,10 @@
 		plus both analyzers, so a regression becomes a build warning here rather than a runtime failure in a
 		consumer's published application.
 
-		Note the ASP.NET Core packages are NOT marked compatible: DefaultResultsHttpMapper serializes through
-		IResultValue.SuccessValue, which is typed `object?`, so TypedResults.Json binds Json<object?> and has
-		no resolvable JsonTypeInfo under AOT. That needs a generic entry point, not an annotation.
+		All four packages carry the same marking. The ASP.NET Core ones can because IResultValue.AcceptSuccess
+		hands the successful value to the mapper with its static type, so it binds Ok<TValue> rather than
+		Ok<object> and resolves from the host's own JsonSerializerContext. The packed-consumer gate
+		(scripts/test-packed-consumers.ps1) proves it by publishing and running a Native AOT web API.
 	-->
 	<PropertyGroup Label="Trimming and Native AOT">
 		<IsAotCompatible>true</IsAotCompatible>

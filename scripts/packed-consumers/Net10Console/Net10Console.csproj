@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+	<!--
+		Packed-consumer gate (scripts/test-packed-consumers.ps1), consumer (d): a net10.0 console over Purview.Results and
+		Purview.Results.ZodSharp. The packages multi-target net10.0 and net11.0; on net10.0 an error type is an ordinary
+		type rather than a union, and the trim and AOT analyzers run (IsAotCompatible) for that target too.
+	-->
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net10.0</TargetFramework>
+		<AssemblyName>PackedResultsNet10</AssemblyName>
+		<RootNamespace>PackedResultsNet10</RootNamespace>
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<IsAotCompatible>true</IsAotCompatible>
+		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Purview.Results" Version="$(ResultsPackageVersion)" />
+		<PackageReference Include="Purview.Results.ZodSharp" Version="$(ResultsPackageVersion)" />
+		<PackageReference Include="Purview.ZodSharp" Version="$(ZodSharpPackageVersion)" />
+	</ItemGroup>
+
+	<Target Name="RequirePackageVersions" BeforeTargets="CollectPackageReferences;Restore">
+		<Error
+			Condition="'$(ResultsPackageVersion)' == '' or '$(ZodSharpPackageVersion)' == ''"
+			Text="ResultsPackageVersion and ZodSharpPackageVersion must be set. Run this consumer through scripts/test-packed-consumers.ps1."
+		/>
+	</Target>
+</Project>

@@ -293,4 +293,120 @@ public class ZodValidationResultExtensionsTests
 			.That(async () => await validation.ToUnitResultAsync<int, string>(null!))
 			.Throws<ArgumentNullException>();
 	}
+
+	[Test]
+	public async Task ToResultAsync_GivenSuccessfulTaskValidation_ReturnsTheValidatedValueWithoutInvokingTheFactory()
+	{
+		// Arrange
+		var validation = Task.FromResult(ValidationResult<int>.Success(42));
+		var factoryInvocations = 0;
+
+		// Act
+		var result = await validation.ToResultAsync(errors =>
+		{
+			factoryInvocations++;
+			return errors.Length;
+		});
+
+		// Assert
+		await Assert.That(result.IsSuccess).IsTrue();
+		await Assert.That(result.Value).IsEqualTo(42);
+		await Assert.That(factoryInvocations).IsEqualTo(0);
+	}
+
+	[Test]
+	public async Task ToResultAsync_GivenFailedTaskValidation_KeepsEveryError()
+	{
+		// Arrange
+		var validation = Task.FromResult(
+			ValidationResult<int>.Failure([
+				ValidationError.Create("first", "The first failure.", []),
+				ValidationError.Create("second", "The second failure.", []),
+			])
+		);
+
+		// Act
+		var result = await validation.ToResultAsync<int, OperationError>(errors => new OperationRejected(
+			new Operation(),
+			errors
+		));
+
+		// Assert
+		await Assert.That(result.IsFailure).IsTrue();
+		await Assert.That(result.Error is OperationRejected { Errors.Length: 2 }).IsTrue();
+	}
+
+	[Test]
+	public async Task ToResultAsync_GivenNullTask_ThrowsArgumentNullException()
+	{
+		// Arrange
+		Task<ValidationResult<int>> validation = null!;
+
+		// Act & Assert
+		await Assert
+			.That(async () => await validation.ToResultAsync(errors => errors.Length))
+			.Throws<ArgumentNullException>();
+	}
+
+	[Test]
+	public async Task ToResultAsync_GivenNullFailureFactoryForTask_ThrowsArgumentNullException()
+	{
+		// Arrange
+		var validation = Task.FromResult(ValidationResult<int>.Success(1));
+
+		// Act & Assert
+		await Assert
+			.That(async () => await validation.ToResultAsync<int, string>(null!))
+			.Throws<ArgumentNullException>();
+	}
+
+	[Test]
+	public async Task ToUnitResultAsync_GivenSuccessfulTaskValidation_ReturnsAUnitSuccessWithoutInvokingTheFactory()
+	{
+		// Arrange
+		var validation = Task.FromResult(ValidationResult<int>.Success(42));
+		var factoryInvocations = 0;
+
+		// Act
+		var result = await validation.ToUnitResultAsync<int, OperationError>(errors =>
+		{
+			factoryInvocations++;
+			return new OperationRejected(new Operation(), errors);
+		});
+
+		// Assert
+		await Assert.That(result.IsSuccess).IsTrue();
+		await Assert.That(factoryInvocations).IsEqualTo(0);
+	}
+
+	[Test]
+	public async Task ToUnitResultAsync_GivenFailedTaskValidation_ReturnsAUnitFailureCarryingTheCreatedError()
+	{
+		// Arrange
+		var validation = Task.FromResult(
+			ValidationResult<string>.Failure(ValidationError.Create("too_small", "Value is too short.", ["Value"]))
+		);
+
+		// Act
+		var result = await validation.ToUnitResultAsync<string, OperationError>(errors => new OperationRejected(
+			new Operation(),
+			errors
+		));
+
+		// Assert
+		await Assert.That(result.IsFailure).IsTrue();
+		await Assert.That(result.Error is OperationRejected).IsTrue();
+	}
+
+	[Test]
+	public async Task ToUnitResultAsync_GivenNullTask_ThrowsArgumentNullException()
+	{
+		// Arrange
+		Task<ValidationResult<int>> validation = null!;
+
+		// Act & Assert
+		await Assert
+			.That(async () => await validation.ToUnitResultAsync<int, string>(errors => "rejected"))
+			.Throws<ArgumentNullException>();
+	}
 }

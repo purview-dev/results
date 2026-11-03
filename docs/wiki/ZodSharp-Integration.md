@@ -79,6 +79,26 @@ async Task<Result<TenantError>> Validate(TenantInput input, CancellationToken ca
 The error type is named explicitly for the same reason as the synchronous forms, and the failure factory runs only
 when validation failed.
 
+## Validation over HTTP
+
+`ToResultAsync` and `ToUnitResultAsync` also accept a `Task<ValidationResult<T>>`, the shape
+[Purview.ZodSharp.Http](https://www.nuget.org/packages/Purview.ZodSharp.Http) returns. A client's request and response
+validation therefore folds into a result like a local `Validate`, and a server's validation problem reads back into
+the same case:
+
+```csharp
+// Validated before it is sent: an invalid body is never sent, and its errors become the case.
+var sent = await http
+    .PostAsJsonValidatedAsync("/api/tenants", input, validator, AppJsonContext.Default.TenantInput, services)
+    .ToResultAsync<HttpResponseMessage, TenantError>(errors => new TenantInputInvalid(input, errors));
+
+// Rejected by the server: the problem Purview.ZodSharp.AspNetCore wrote reads back into ZodSharp errors.
+if (sent.TryGetValue(out var response) && await response.TryReadZodValidationProblemAsync() is { } problem)
+    return new TenantInputInvalid(input, problem.ToValidationErrors()).AsFailure<Tenant>();
+```
+
+`validator` is the generated `{Type}SchemaValidator`. This package takes no dependency on Purview.ZodSharp.Http;
+reference it in the client. Both are trim-, Native AOT- and Blazor WebAssembly-safe.
 ## Carrying validation errors in the error value
 
 `IValidationErrorCarrier` is implemented by an error value that carries ZodSharp validation errors, so an HTTP
@@ -108,6 +128,7 @@ map every validation-carrying error individually.
 | `ValidationResult<TValue>.ToUnitResult<TValue, TError>(Func<ImmutableArray<ValidationError>, TError> onFailure)` | The value-discarding counterpart: success is a unit `Result<TError>`, failure carries the created error |
 | `ValueTask<ValidationResult<TValue>>.ToResultAsync<TValue, TError>(Func<ImmutableArray<ValidationError>, TError> onFailure)` | The asynchronous counterpart, for a schema whose validation awaits |
 | `ValueTask<ValidationResult<TValue>>.ToUnitResultAsync<TValue, TError>(Func<ImmutableArray<ValidationError>, TError> onFailure)` | The value-discarding asynchronous counterpart |
+| `Task<ValidationResult<TValue>>.ToResultAsync<TValue, TError>(...)` / `.ToUnitResultAsync<TValue, TError>(...)` | The same, for APIs that return a `Task` - Purview.ZodSharp.Http's request and response validation |
 | `IValidationErrorCarrier` | Implemented by an error value that carries ZodSharp validation errors |
 
 A factory returning a **result** rather than an error is deliberately not offered: for a lambda returning

@@ -71,6 +71,10 @@ convert to the result in one hop, which is why the source generator exists (see 
 | `BindAsync(bind, mapError)` | Asynchronous widening `Bind` |
 | `Throw()` | Return the value, or throw `ResultException<TError>` carrying the error (escape hatch) |
 
+`ResultException<TError>` exposes the error with its type through `Error`; its non-generic `ResultException` base
+carries it as `object?` for a catch-all. `Throw()` on `default` throws `InvalidOperationException`, never
+`ResultException`.
+
 Prefer `Match`/`Map`/`Bind` over `if (result.IsSuccess)` when a value has to come out of the result: they keep
 the failure path explicit and cannot silently leak a `default`.
 
@@ -92,7 +96,7 @@ Result<TenantError> DeleteTenant(TenantId tenantId) =>
 deleted.Match(() => "deleted", error => $"could not delete: {error}");
 deleted.Map(() => 1);                                  // attach a value: Result<int, TenantError>
 deleted.Bind(() => GetTenant(tenantId));               // continue with another operation
-deleted.Ensure(() => _tenants.Count > 0, () => new TenantError());
+deleted.Ensure(() => _tenants.Count > 0, () => new TenantNotFound(tenantId));
 ```
 
 - `Result<TError>.Success()` / `.Failure(error)`, `Result.Success<TError>()` / `Result.Failure<TError>(error)`,
@@ -114,6 +118,18 @@ for code that cannot be generic over the value and error types — an endpoint f
 example. Its accessors never throw: the one that does not describe the current state returns `null`, and a
 successful unit `Result<TError>` reports the `Success` marker as its `SuccessValue`. Use it in infrastructure, and
 the generic type in domain code.
+
+When the value's type matters — serialization, above all — use
+`AcceptSuccess(IResultValueVisitor<TState, TReturn>, state)` instead of `SuccessValue`: it calls the visitor's
+`VisitSuccess<TValue>` with the static type intact, so a serializer resolves `TValue` rather than `object` under
+trimming and Native AOT. It never throws for a state — a failed or uninitialized value result visits `default`, a
+unit result visits the `Success` marker — so check `IsSuccess` first.
+
+## Trimming, Native AOT and Blazor
+
+The package is `IsAotCompatible`: no reflection, no `dynamic` and no runtime code generation, so it is safe in
+trimmed and Native AOT applications. The `net11.0` async combinators are compiled without runtime async, so they
+also run on Blazor WebAssembly.
 
 ## When to use a result
 

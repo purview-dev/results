@@ -2,7 +2,7 @@
 
 Releases are driven by the shared [purview-dev/build](https://github.com/purview-dev/build) pipeline through the
 GitHub Actions workflows in `.github/workflows/`. Consuming repositories own configuration through
-`purview-build.json`, not pipeline source code.
+`.config/purview-build.json`, not pipeline source code.
 
 ## Versioning
 
@@ -27,13 +27,15 @@ A push to `main` publishes, so everything below has to be true *before* the merg
    intended one needs a `CompatibilitySuppressions.xml` beside the owning project
    (`dotnet pack /p:GenerateCompatibilitySuppressionFile=true`) *and* a matching upgrade note — the two are each
    other's evidence.
-4. **Run `just pipeline-pr`**, which covers restore, build, lint, tests, pack and pack validation in one pass.
+4. **Run `just pipeline-pack-validate`**, which covers restore, build, lint, tests, pack and pack validation in
+   one pass (`just pipeline-pr` stops after the tests), and `just smoke-packed-consumers` when the generator,
+   packaging or a dependency version changed.
 
 ## Workflows
 
 | Workflow | Trigger | Pipeline |
 | --- | --- | --- |
-| `.github/workflows/pr.yml` | pull requests against `main` (opened, synchronize, reopened, ready_for_review) | shared `purview-build.yml`, with `run-pack: true` and `validate-pack: true` |
+| `.github/workflows/pr.yml` | pull requests against `main` (opened, synchronize, reopened, ready_for_review) | `build`: shared `purview-build.yml`, with the `[Category=Unit]` test filter, `run-pack: true` and `validate-pack: true`; `packed-consumers`: packs to an isolated feed, publishes and runs the Native AOT, Blazor WebAssembly and Blazor Server consumers, leak-scans their output and proves every `ForbiddenContent` rule rejects a package |
 | `.github/workflows/release.yml` | push to `main` | shared `purview-release.yml` with `release-mode: NuGet` |
 
 Both workflows pin `dotnet-version` to the SDK in `global.json` — the shared workflow defaults to the 10.0.x SDK,
@@ -50,10 +52,12 @@ not already exist. Do not create release tags or publish packages manually.
 | `Build:Solution` | `src/Results.slnx` |
 | `Build:TestRoot` | `src/tests` |
 | `Build:TestPatterns` | `*Tests.csproj` |
-| `Build:TestProjects` | `*UnitTests*` |
-| `Build:TestFilter` | `/*/*/*/*[Category=Unit]` |
+| `Build:TestProjects` | `*Tests*` |
+| `Build:TestFilter` | `/*/*/*/*` (the PR workflow narrows it to `[Category=Unit]` through its `test-filter` input) |
+| `PackValidation:RequiredCompilerFlags` | `optimization=release`, asserted for every assembly that ships a PDB |
 | `PackValidation:RequireSymbolPackage` | `false` |
 | `PackValidation:RequiredContent` | The exhaustive per-package content declaration |
+| `PackValidation:ForbiddenContent` | Paths no package may ship (`*`): compiler-host assemblies anywhere, and the generator outside `analyzers/` |
 | `Release:Mode` | `None` (publishing is enabled only by the release workflow) |
 
 `RequireExplicitContent` defaults to `true`, so `RequiredContent` is exhaustive: a package with no rule, or an
@@ -62,8 +66,9 @@ removed PDB, a renamed analyzer.
 
 ## Packed shapes that must not regress
 
-- `Purview.Results` ships the merged source generator under `analyzers/dotnet/cs/` with **no `lib/` folder**
-  and **no PDB**, because the packaged analyzer is the framework's ILRepack-merged assembly whose rewritten PDB
+- `Purview.Results` ships the runtime library as `lib/<tfm>/Purview.Results.dll` plus its XML documentation, and
+  the merged source generator under `analyzers/dotnet/cs/` only — never under `lib/` — with **no analyzer PDB**,
+  because the packaged analyzer is the framework's ILRepack-merged assembly whose rewritten PDB
   carries no Roslyn compiler-flags record. The `CS0029` code fix ships beside it as
   `Purview.Results.SourceGenerator.CodeFixes.dll` and is never IL-merged into the generator. The generator is
   not published as a separate package.
@@ -86,7 +91,7 @@ the build, and move into a `## Release <version>` block in `AnalyzerReleases.Shi
 ## Commands
 
 ```bash
-just pipeline-pr              # restore, build, lint, tests, pack, validate pack
+just pipeline-pr              # restore, build, lint, tests
 just pipeline-build           # restore, build, lint (no tests, no release)
 just pipeline-pack-validate   # restore, build, lint, tests, pack, validate contents
 just pipeline-release         # pack, publish, GitHub release (NuGet mode)

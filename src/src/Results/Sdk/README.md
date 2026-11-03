@@ -57,16 +57,32 @@ Result<int, string> failed = "not a number";
 | `Bind(bind, mapError)` | Chain another operation that fails with a different error type, widening the existing error |
 | `MapError(map)` | Transform the error, preserving the value |
 | `Throw()` | Return the successful value, or throw `ResultException<TError>` carrying the error |
+| `TryGetValue(out value)` / `TryGetError(out error)` | Probe without throwing, even for `default` |
+| `GetValueOrDefault()` / `GetValueOrDefault(fallback)` / `GetValueOrDefault(fallbackFactory)` | The successful value, or `default`, a fallback or a lazily produced fallback |
+| `GetErrorOrDefault(fallback)` | The error, or `fallback` |
+| `OrElse(fallback)` | This result when successful, otherwise `fallback` |
+| `Switch(success, failure)` | Invoke the matching action and discard the value |
+| `Tap(success)` / `TapError(failure)` | Observe a success or a failure and return the result unchanged |
+| `Ensure(predicate, errorFactory)` | Turn a successful value that fails the predicate into a failure |
+| `MapAsync(map)` / `BindAsync(bind)` / `BindAsync(bind, mapError)` | Asynchronous `Map`, `Bind` and widening `Bind` |
+| `DiscardValue()` | Turn a value result into a unit `Result<TError>`, preserving the error |
 | `ToString()` | `Success(value)`, `Failure(error)` or `Uninitialized` |
 
+The members from `TryGetValue` down are extension methods in `ResultExtensions` (`Bind(bind, mapError)` and
+`Throw()` live there too), not members on the result type.
+
 `Result<TValue, TError>` is a `readonly record struct`. `default` is *uninitialized*: `IsInitialized`,
-`IsSuccess` and `IsFailure` are all `false`, and `Value`, `Error`, `Match`, `Map`, `Bind` and `MapError` throw
-`InvalidOperationException` rather than silently treating the result as a failure or a success.
+`IsSuccess` and `IsFailure` are all `false`, and `Value`, `Error`, `Match`, `Map`, `Bind`, `MapError` and every
+state-dependent extension throw `InvalidOperationException` rather than silently treating the result as a failure
+or a success. Only `TryGetValue` and `TryGetError` never throw.
 
 `IResultValue` exposes a non-generic, read-only view (`IsInitialized`, `IsSuccess`, `SuccessValue`,
 `ErrorValue`) for infrastructure that cannot be generic over the value and error types — an ASP.NET Core
 endpoint filter, for example. Its accessors never throw: the one that does not describe the current state
-returns `null`.
+returns `null`. `AcceptSuccess(IResultValueVisitor<TState, TReturn>, state)` hands the successful value to the
+visitor's `VisitSuccess<TValue>` with its static type intact, which is what keeps serialization trimming- and
+Native AOT-safe where `SuccessValue` would erase the type to `object`. It never throws for a state: a failed or
+uninitialized value result visits `default`, and a unit result visits the `Success` marker.
 
 `Throw()` is the deliberate escape hatch: it returns the successful value and throws a `ResultException<TError>`
 carrying the error on failure, so a boundary that must throw does not have to branch. The exception exposes the
@@ -91,7 +107,7 @@ var deleted = DeleteTenant(tenantId);
 deleted.Match(() => "deleted", error => $"could not delete: {error}");   // success takes no value
 deleted.Map(() => 1);                                                    // attach a value to a success
 deleted.Bind(() => GetTenant(tenantId));                                 // continue with another operation
-deleted.Ensure(() => _tenants.Count > 0, () => new TenantError());       // turn a success into a failure
+deleted.Ensure(() => _tenants.Count > 0, () => new TenantNotFound(tenantId)); // turn a success into a failure
 ```
 
 | Member | Purpose |
@@ -180,10 +196,11 @@ ASP.NET Core + Zod and value-objects composition examples too.
 
 ## Agent skills
 
-This package ships the `purview-results-core` and `purview-results-union-errors` agent skills, the
-`purview-results-union-author` agent and the `migrate-error-returns-to-result-unions` prompt under `.agents/`.
-Repositories that import `Purview.BuildSdk` get them mirrored into their own `.agents/` folder on the next
-restore or build, so AI agents working there receive the guidance automatically.
+The `purview-results-core` and `purview-results-union-errors` agent skills cover this package. No package ships skills: install them, with every other Purview.Results skill, from the git repository with the skills CLI:
+
+```bash
+npx skills add purview-dev/results
+```
 
 ## License
 
