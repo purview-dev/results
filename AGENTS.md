@@ -417,7 +417,7 @@ rather than about the runtime's reach.
 Prefer the `Justfile` recipes or their equivalent commands:
 
 ```text
-dotnet tool restore
+./scripts/restore-dotnet-tools.ps1
 just restore
 just build
 just test-unit
