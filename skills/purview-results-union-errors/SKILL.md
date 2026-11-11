@@ -72,8 +72,9 @@ independent C# rules block it:
 | Make it generic over the result's value type | `CS0246` — operators **cannot declare type parameters** |
 | Rely on `case → union → result` composing | `CS0029` — **one user-defined conversion per sequence** |
 
-The only shape the language accepts is a *generic case type* carrying the value type parameter, which the
-generator rejects as `RSG1002` — so `AsFailure<TValue>()` is the ergonomics the language allows.
+The only shape the language accepts is a *generic case type* carrying the value type parameter, which is the
+shape a generic union's helper declares. `AsFailure<TValue>()` (or `AsFailure<TUnion..., TValue>()` for a generic
+union) is therefore the ergonomics the language allows.
 
 A helper-free form exists when a cast reads better, because the cast closes the first conversion:
 
@@ -133,12 +134,12 @@ The package ships an analyzer and a generator that share one diagnostics library
 | --- | --- | --- |
 | `RSG1000` | Error | `[GenerateResult]` was applied to a type that is not a union |
 | `RSG1001` | Error | The union declares no union cases |
-| `RSG1002` | Error | Generic union, or a case type that contains type parameters |
+| `RSG1002` | Error | A case type names a type parameter the union does not declare, or the union is nested in a generic type (a generic union itself is supported) |
 | `RSG1003` | Error | A type generated code must reference is not accessible (for example a `file` type) |
 | `RSG1004` | Error | The same union is configured more than once; the helpers are generated once |
 | `RSG1005` | Error | Two unions produce the same generated class name in one namespace |
 | `RSG1006` | Warning | A **leaf** case type is shared with another union, so its per-case `AsFailure` helper is generated once; the union-receiver `Failure(...)` factory is generated for every union. A union-typed case shared across unions is composition and is not reported |
-| `RSG1007` | Error | The union uses an `IUnionMembers` member provider, which is not supported |
+| `RSG1007` | Error | The union's `IUnionMembers` provider declares no public static single-parameter `Create` method |
 | `RSG1008` | Warning | A case is reachable through two different included unions, so no inclusion factory can name its construction path; that case's inclusion factory is skipped |
 | `RSG1009` | Warning | A case type is not a named type (an array, for example), so no helper or factory can be declared against it; wrap it in a record or struct case |
 | `RSG9000` | Error | The generator failed unexpectedly; reported instead of letting `CS8785` discard every union's output. Please report it |
@@ -147,7 +148,12 @@ Not every finding stops generation. `RSG1004` is generated once; `RSG1006`, `RSG
 affected case's helper or factory; `RSG1002` and `RSG1003` skip only the offending case when it is a case type
 rather than the union itself. The other rules skip the union.
 
-Unsupported by design: `IUnionMembers` member providers (`RSG1007`) and generic unions (`RSG1002`).
+A generic union is supported: the generator repeats its type parameters and constraints on the helpers and on the
+generic extension block. A custom union may place its creation members on a nested `IUnionMembers` provider with a
+public static single-parameter `Create` per case; the generator reads the case list from it and constructs through
+`IUnionMembers.Create`. A bare union type parameter case gets the union-receiver factory only. The remaining
+unsupported shape is a case that names a type parameter the union does not declare (`RSG1002`) and a non-named
+case such as an array (`RSG1009`).
 
 ## Trimming, Native AOT and Blazor
 

@@ -156,6 +156,51 @@ stores its error in a typed field, so nothing in the generated path boxes the ca
 `union` declaration always stores its contents as `object?`; reach for a custom union when an error type is on a
 hot path. `NonBoxingUnionTests` proves the match allocates nothing.
 
+## Generic and member-provider unions
+
+A generic union's own type parameters and constraints are repeated on the generated helpers and on a generic
+extension block that carries the union-receiver factory:
+
+```csharp
+public readonly record struct None;
+public readonly record struct Some<T>(T Value);
+
+[GenerateResult]
+public readonly union Maybe<T>(None, Some<T>);
+
+// Static extension-member type arguments are the extension block's parameters first, then the method's.
+Result<int, Maybe<string>> failure = Maybe<string>.Failure<string, int>(new Some<string>("present"));
+Result<int, Maybe<string>> helper = new Some<string>("present").AsFailure<string, int>();
+```
+
+A custom union may place its creation members on a nested `IUnionMembers` provider. The generator reads the case
+list from the provider's public static single-parameter `Create` methods and constructs values through
+`IUnionMembers.Create`, so a union with a private constructor works:
+
+```csharp
+[Union]
+[GenerateResult]
+public readonly struct ProvidedError : IUnion, ProvidedError.IUnionMembers
+{
+    private readonly object? _value;
+    private ProvidedError(object? value) => _value = value;
+
+    public interface IUnionMembers
+    {
+        static ProvidedError Create(ProvidedCase value) => new(value);
+        object? Value { get; }
+    }
+
+    object? IUnionMembers.Value => _value;
+    public object? Value => _value;
+}
+```
+
+A provider that declares no usable `Create` method is reported as `RSG1007` and blocks generation. A case that
+names a type parameter the union does not declare is reported as `RSG1002` and skipped. A bare union type
+parameter case is supported by the union-receiver factory (but not by a per-case `AsFailure` helper); a non-named
+case such as an array is reported as `RSG1009`.
+
 ## Why the generator exists
 
 C# composes a union *case* into its union and `Result<TValue, TError>` composes the *union* into a result,
@@ -189,7 +234,8 @@ experiment in `src/tests/SourceGenerator.UnitTests/UnionCompilerBehaviourTests.c
 | **Only one user-defined conversion** may participate in a conversion sequence, so `case → union → Result<…>` can never compose | `Result_GivenCaseValue_DirectAssignmentDoesNotCompile` | `CS0029` |
 
 The only shape the language accepts is a *generic case type* carrying the value type parameter
-(`ConversionOperator_OnGenericCaseType_Compiles`) — precisely the shape the generator rejects as `RSG1002`.
+(`ConversionOperator_OnGenericCaseType_Compiles`) — the shape a generic union's helper declares instead of a
+generated conversion.
 One helper per case type is therefore the best ergonomics the language allows, and the package's code fix
 offers the rewrite in the IDE when a case value is returned where a result is expected.
 
@@ -247,12 +293,12 @@ The diagnostics live in one shared library (`Diagnostics/DiagnosticLibrary.cs` +
 | --- | --- | --- | --- | --- |
 | `RSG1000` | Error | Analyzer | Yes | `[GenerateResult]` was applied to a type that is not a union. |
 | `RSG1001` | Error | Analyzer | Yes | The union declares no union cases. |
-| `RSG1002` | Error | Analyzer | Union: yes / case: no | Generic union, or a case type that contains type parameters. |
+| `RSG1002` | Error | Analyzer | No (only the offending case is skipped) | A case type names a type parameter the union does not declare, or the union is nested in a generic type. A generic union itself is supported. |
 | `RSG1003` | Error | Analyzer | Union: yes / case: no | A type that generated code must reference is not accessible (for example a `file` type). |
 | `RSG1004` | Error | Analyzer | No | The same union is configured more than once (for example on two partial declarations); the helpers are generated once. |
 | `RSG1005` | Error | Generator | Yes (the colliding union is skipped) | Two unions produce the same generated class name in one namespace. |
 | `RSG1006` | Warning | Generator | No (only the shared leaf case's `AsFailure` helper is skipped) | A **leaf** case type is shared with another union, so its per-case helper is generated once; the union-receiver `Failure(...)` factory is generated for every union and is the shared-case safe form. A union-typed case shared across unions is composition, not a shared leaf, and is not reported. |
-| `RSG1007` | Error | Analyzer | Yes | The union uses an `IUnionMembers` member provider, which the first implementation does not support. |
+| `RSG1007` | Error | Analyzer | Yes | The union's `IUnionMembers` provider declares no public static single-parameter `Create` method, so it does not declare any cases. |
 | `RSG1008` | Warning | Analyzer | No (only the ambiguous case's inclusion factory is skipped) | A case is reachable through two different included unions, so no inclusion factory can name its construction path. List the case through the union that directly declares it instead. |
 | `RSG1009` | Warning | Analyzer | No (only the unsupported case is skipped) | A case type is not a named type (for example an array), so no helper or factory can be declared against it. Wrap it in a record or struct case instead. |
 | `RSG9000` | Error | Generator | — | The generator failed unexpectedly. The failure is reported instead of escaping, because an escaping exception surfaces as `CS8785` and discards *all* generated output for the compilation. Please report it. |
@@ -325,14 +371,15 @@ companion `SourceGenerator.CodeFixes` component (`src/src/SourceGenerator.CodeFi
 It answers the compiler's `CS0029` ("cannot implicitly convert") and rewrites a returned case value into the
 union-receiver factory, so `return new TenantNotFound(id);` becomes
 `return TenantError.Failure<Tenant>(new TenantNotFound(id));` from the lightbulb, or
-`TenantError.Failure(new TenantNotFound(id))` when the method returns a unit `Result<TenantError>`. Naming the union
-keeps the rewrite correct even when the case type is shared with another union (`RSG1006`).
+`TenantError.Failure(new TenantNotFound(id))` when the method returns a unit `Result<TenantError>`. A generic
+union repeats its type arguments first: `Maybe<string>.Failure<string, Tenant>(new Some<string>("x"))`. Naming the
+union keeps the rewrite correct even when the case type is shared with another union (`RSG1006`).
 
 A fix is only offered when the rewrite will bind:
 
 | Guard | Why |
 | --- | --- |
-| The converted type is `Purview.Results.Result<TValue, TError>` or the unit `Purview.Results.Result<TError>` | Only results have generated factories; a value result gets `Failure<TValue>(case)` and a unit result `Failure(case)` |
+| The converted type is `Purview.Results.Result<TValue, TError>` or the unit `Purview.Results.Result<TError>` | Only results have generated factories; a value result gets `Failure<TValue>(case)` (or `Failure<T, TValue>(case)` for a generic union) and a unit result `Failure(case)` |
 | `TError` is a union **and** opted in with `[GenerateResult]` | The factory is only generated for opted-in unions |
 | The expression's type is one of `TError`'s case types | The factory exists once per case |
 | The union is reachable by its simple name at the call site | The factory extension block is generated into the union's own namespace |

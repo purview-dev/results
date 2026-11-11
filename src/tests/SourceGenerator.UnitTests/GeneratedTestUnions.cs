@@ -61,8 +61,7 @@ public readonly union BillingError(BillingAccountMissing, BillingServiceUnavaila
 [GenerateResult]
 public readonly union RegisterTenantError(TenantError, BillingError);
 
-/// <summary>A count, stored unboxed by <see cref="CountOrLabel"/>.</summary>
-/// <param name="Value">The count value.</param>
+/// <summary>A count, stored unboxed by <see cref="CountOrLabel"/>.</summary>/// <param name="Value">The count value.</param>
 public readonly record struct Count(int Value);
 
 /// <summary>A label, stored unboxed by <see cref="CountOrLabel"/>.</summary>
@@ -138,4 +137,161 @@ public readonly struct CountOrLabel : IUnion
 
 		return _tag == 2;
 	}
+}
+
+/// <summary>The empty case of a generic union.</summary>
+public readonly record struct None;
+
+/// <summary>A present value of a generic union.</summary>
+/// <typeparam name="T">The value type.</typeparam>
+/// <param name="Value">The value.</param>
+public readonly record struct Some<T>(T Value);
+
+/// <summary>
+/// A generic C# 15 union. The generator emits the union-receiver factory in a generic extension block and
+/// declares the union's own type parameter on every per-case helper.
+/// </summary>
+[GenerateResult]
+public readonly union Maybe<T>(None, Some<T>);
+
+/// <summary>The empty case of a constrained generic union.</summary>
+public readonly record struct ConstrainedNone;
+
+/// <summary>A present value of a constrained generic union.</summary>
+/// <typeparam name="T">The reference-type value.</typeparam>
+/// <param name="Value">The value.</param>
+public readonly record struct ConstrainedSome<T>(T Value);
+
+/// <summary>A generic union with a bare type-parameter case, which is factory-only.</summary>
+/// <typeparam name="T">The value or text.</typeparam>
+[GenerateResult]
+public readonly union TypedOrText<T>(T, string);
+
+/// <summary>A union with a nullable value-type case and a nullable reference-type case.</summary>
+[GenerateResult]
+public readonly union NullableValue(int?, string?);
+
+/// <summary>The empty case of an included generic union.</summary>
+public readonly record struct InnerNone;
+
+/// <summary>A present value of an included generic union.</summary>
+/// <typeparam name="T">The value type.</typeparam>
+/// <param name="Value">The value.</param>
+public readonly record struct InnerSome<T>(T Value);
+
+/// <summary>A generic union used as a case of another generic union.</summary>
+/// <typeparam name="T">The value type.</typeparam>
+[GenerateResult]
+public readonly union InnerError<T>(InnerNone, InnerSome<T>);
+
+/// <summary>A text case distinct to the outer union.</summary>
+/// <param name="Value">The text.</param>
+public readonly record struct OuterText(string Value);
+
+/// <summary>A generic union that includes another generic union as one case.</summary>
+/// <typeparam name="T">The value type.</typeparam>
+[GenerateResult]
+public readonly union OuterError<T>(InnerError<T>, OuterText);
+
+/// <summary>A case of a class-based union.</summary>
+/// <param name="Id">The identifier.</param>
+public sealed record ClassCase(int Id);
+
+/// <summary>A class-based custom union, which uses reference semantics and a public constructor.</summary>
+[Union]
+[GenerateResult]
+public class ClassUnion : IUnion
+{
+	/// <summary>Creates the union from its case.</summary>
+	/// <param name="value">The case value.</param>
+	public ClassUnion(ClassCase value) => Value = value;
+
+	/// <inheritdoc />
+	public object? Value { get; }
+}
+
+/// <summary>A generic union with a constraint that the generated extension block must repeat.</summary>
+/// <typeparam name="T">The reference-type value.</typeparam>
+[GenerateResult]
+public readonly union ConstrainedMaybe<T>(ConstrainedNone, ConstrainedSome<T>)
+	where T : class;
+
+/// <summary>A named case of a member-provider union.</summary>
+/// <param name="Id">The identifier.</param>
+public readonly record struct ProvidedCase(int Id);
+
+/// <summary>
+/// A custom union whose creation members live on a nested <c>IUnionMembers</c> provider, which is the shape
+/// the compiler uses when a union needs a private constructor.
+/// </summary>
+/// <remarks>
+/// The provider is public and declares a single-parameter static <c>Create</c> method per case, so the
+/// generator reads the case list from the provider rather than from constructors and constructs values
+/// through <c>IUnionMembers.Create</c>.
+/// </remarks>
+[Union]
+[GenerateResult]
+public readonly struct ProvidedError : IUnion, ProvidedError.IUnionMembers
+{
+	readonly object? _value;
+
+	ProvidedError(object? value) => _value = value;
+
+	/// <summary>Provides the union's creation and access members.</summary>
+	public interface IUnionMembers
+	{
+		/// <summary>Creates the union from its case.</summary>
+		/// <param name="value">The case value.</param>
+		/// <returns>The union holding the case.</returns>
+		static ProvidedError Create(ProvidedCase value) => new(value);
+
+		/// <summary>Gets the boxed case value.</summary>
+		object? Value { get; }
+	}
+
+	object? IUnionMembers.Value => _value;
+
+	/// <inheritdoc />
+	public object? Value => _value;
+}
+
+/// <summary>A named case of a generic member-provider union.</summary>
+/// <typeparam name="T">The value type.</typeparam>
+/// <param name="Value">The value.</param>
+public readonly record struct ProvidedSome<T>(T Value);
+
+/// <summary>The empty case of a generic member-provider union.</summary>
+public readonly record struct ProvidedNone;
+
+/// <summary>A generic custom union whose creation members live on an <c>IUnionMembers</c> provider.</summary>
+/// <typeparam name="T">The value type.</typeparam>
+[Union]
+[GenerateResult]
+public readonly struct ProvidedOption<T> : IUnion, ProvidedOption<T>.IUnionMembers
+{
+	readonly object? _value;
+
+	ProvidedOption(object? value) => _value = value;
+
+	/// <summary>Provides the union's creation and access members.</summary>
+	public interface IUnionMembers
+	{
+		/// <summary>Creates the union from a present value.</summary>
+		/// <param name="value">The present value.</param>
+		/// <returns>The union holding the value.</returns>
+		static ProvidedOption<T> Create(ProvidedSome<T> value) => new(value);
+
+		/// <summary>Creates the union from its empty case.</summary>
+		/// <param name="value">The empty case.</param>
+		/// <returns>The empty union.</returns>
+		static ProvidedOption<T> Create(ProvidedNone value) => new(value);
+
+		/// <summary>Gets the boxed case value.</summary>
+		object? Value { get; }
+	}
+
+	object? IUnionMembers.Value => _value;
+
+	/// <inheritdoc />
+	public object? Value => _value;
 }

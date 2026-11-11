@@ -16,12 +16,12 @@ The union rules live in one shared library (`Diagnostics/DiagnosticLibrary.cs`,
 | --- | --- | --- | --- | --- |
 | `RSG1000` | Error | Analyzer | Yes | `[GenerateResult]` was applied to a type that is not a union. |
 | `RSG1001` | Error | Analyzer | Yes | The union declares no union cases. |
-| `RSG1002` | Error | Analyzer | Union: yes / case: no | A generic union, or a case type that contains type parameters. |
+| `RSG1002` | Error | Analyzer | No (only the offending case is skipped) | A case type names a type parameter the union does not declare, or the union is nested in a generic type. A generic union itself is supported. |
 | `RSG1003` | Error | Analyzer | Union: yes / case: no | A type that generated code must reference is not accessible (for example a `file` type). |
 | `RSG1004` | Error | Analyzer | No | The same union is configured more than once (for example on two partial declarations); the helpers are generated once. |
 | `RSG1005` | Error | Generator | Yes (the colliding union is skipped) | Two unions produce the same generated class name in one namespace. |
 | `RSG1006` | Warning | Generator | No (only the shared leaf case's `AsFailure` helper is skipped) | A **leaf** case type is shared with another union, so its per-case helper is generated once; the union-receiver `Failure(...)` factory is generated for every union and is the shared-case safe form. A union-typed case shared across unions is composition, not a shared leaf, and is not reported. |
-| `RSG1007` | Error | Analyzer | Yes | The union uses an `IUnionMembers` member provider, which the first implementation does not support. |
+| `RSG1007` | Error | Analyzer | Yes | The union's `IUnionMembers` provider declares no public static single-parameter `Create` method. |
 | `RSG1008` | Warning | Analyzer | No (only the ambiguous case's inclusion factory is skipped) | A case is reachable through two different included unions, so no inclusion factory can name its construction path. List the case through the union that directly declares it instead. |
 | `RSG1009` | Warning | Analyzer | No (only the unsupported case is skipped) | A case type is not a named type (for example an array), so no helper or factory can be declared against it. Wrap it in a record or struct case instead. |
 | `RSG9000` | Error | Generator | — | The generator failed unexpectedly. The failure is reported instead of escaping, because an escaping exception surfaces as `CS8785` and discards *all* generated output for the compilation. Please report it. |

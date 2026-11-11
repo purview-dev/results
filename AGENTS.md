@@ -136,8 +136,13 @@ including the diagnostics table, build properties and activation rules.
   framework's PSGF0003 validation fails the build when a declared generator-read property is neither
   compiler-visible nor declared by a package's own `Sdk/build*` assets, which is what keeps the packaged switch
   honest.
-- `[GenerateResult]` is supported on union declarations only. Generic unions and `IUnionMembers` member
-  providers are deliberately unsupported and reported as `RSG1002`/`RSG1007`.
+- `[GenerateResult]` is supported on `union` declarations and on custom `[Union]` types. Generic unions are
+  supported: the generated extension block and per-case helpers repeat the union's type parameters and constraints.
+  A case may use the union's own type parameters; a bare type parameter case gets the union-receiver factory only
+  (no per-case `AsFailure`), and one that names a type parameter the union does not declare is reported as
+  `RSG1002` and skipped. An `IUnionMembers` provider is supported when it declares a public static
+  single-parameter `Create` method per case (the generator constructs through `IUnionMembers.Create`); a provider
+  without one is reported as `RSG1007` and blocks the union.
 - **Do not attempt to generate implicit conversions.** C# blocks every route: an operator is illegal in a static
   class (`CS0715`), a conversion operator must be declared by the source or target type (`CS0556`), extension
   members cannot declare conversions (`CS9282`), an operator cannot declare its own type parameters so `TValue`

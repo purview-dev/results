@@ -35,10 +35,15 @@
 		analyzers/dotnet/cs. The merged generator is produced by the framework's GetPurviewMergedAnalyzerFile
 		target, so the loose Purview.SourceGeneratorFramework.dll never ships; the code fix stays a separate
 		analyzer assembly because it needs the Workspaces layer only the IDE host provides.
+
+		The target runs once, for the default target framework, for the same reason the SDK's own
+		TfmSpecificPackageFile targets do: analyzers are not TFM-specific, so adding them in every inner
+		build makes NuGet report NU5118 ("already contains file") for the second target framework.
 	-->
 	<Target
 		Name="PackResultsSourceGenerator"
 		Label="Packs the Purview.Results source generator and code fix under analyzers/dotnet/cs."
+		Condition="'$(DefaultTargetFramework)' == '' OR '$(TargetFramework)' == '$(DefaultTargetFramework)'"
 	>
 		<MSBuild
 			Projects="..\SourceGenerator\SourceGenerator.csproj"

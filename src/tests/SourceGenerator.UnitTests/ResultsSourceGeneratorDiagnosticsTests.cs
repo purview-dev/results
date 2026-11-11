@@ -42,25 +42,27 @@ public class ResultsSourceGeneratorDiagnosticsTests
 	}
 
 	[Test]
-	public async Task GenerateAsync_GivenGenericUnion_EmitsNoHelpersAndReportsNothing(
-		CancellationToken cancellationToken
-	)
+	public async Task GenerateAsync_GivenGenericUnion_EmitsHelpersForItsNamedCases(CancellationToken cancellationToken)
 	{
 		// Arrange
 		const string source = """
 			namespace Test
 			{
+				public readonly record struct None;
+
+				public readonly record struct Some<T>(T Value);
+
 				[GenerateResult]
-				public readonly union BoxError<T>(T, string);
+				public readonly union BoxError<T>(None, Some<T>);
 			}
 			""";
 
 		// Act
 		using var result = await GenerateAsync(source, cancellationToken);
 
-		// Assert
+		// Assert — the bare type-parameter case is absent, so every remaining case is named and usable.
 		await Assert.That(result).HasNoDiagnostics();
-		await Assert.That(result.PrimarySyntaxTrees).IsEmpty();
+		await Assert.That(result).HasGeneratedClass("BoxErrorResultExtensions");
 	}
 
 	[Test]

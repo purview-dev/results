@@ -98,8 +98,11 @@ reference, so no telemetry package dependency is added.
 
 ## Union support limits
 
-- `[GenerateResult]` is supported on union declarations only. Generic unions are unsupported (`RSG1002`), and so
-  are `IUnionMembers` member providers (`RSG1007`).
+- `[GenerateResult]` is supported on `union` declarations and custom `[Union]` types, including class-based
+  unions, nullable cases and generic unions. Generic unions are supported, as are `IUnionMembers` member providers
+  that declare a public static single-parameter `Create` per case. A bare union type parameter case gets the
+  union-receiver factory only. A case that names a type parameter the union does not declare is `RSG1002`; an
+  array case is `RSG1009`; a provider with no usable `Create` is `RSG1007`.
 - Generated implicit conversions are not possible — see [Union Errors](Union-Errors.md) for the five compiler
   rules. The per-case `AsFailure<TValue>()` and `AsFailure()` helpers, the union-receiver
   `Union.Failure(...)`/`Union.Success(...)` factories and the IDE code fix are the ergonomics the language allows;

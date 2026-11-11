@@ -308,4 +308,86 @@ public sealed class UnionCaseResultCodeFixProviderTests
 		await Assert.That(result.FixedCode).Contains("RegisterTenantError.Failure<Tenant>(");
 		await Assert.That(result.RewriteCompiles).IsTrue();
 	}
+
+	[Test]
+	public async Task UnionCaseResultCodeFixProvider_GivenGenericUnionCase_ShouldRepeatTheUnionTypeArguments(
+		CancellationToken cancellationToken
+	)
+	{
+		const string source = """
+			using Purview.Results;
+
+			namespace Test
+			{
+				public readonly record struct Tenant(int Id);
+
+				public readonly record struct None;
+
+				public readonly record struct Some<T>(T Value);
+
+				[GenerateResult]
+				public readonly union Maybe<T>(None, Some<T>);
+
+				public static class Usage
+				{
+					public static Result<Tenant, Maybe<string>> Get() => new Some<string>("present");
+				}
+			}
+			""";
+
+		var result = await UnionCodeFixTestHarness.ApplyAsync(source, cancellationToken);
+
+		await Assert.That(result.FixOffered).IsTrue();
+		await Assert.That(result.FixedCode).Contains("Maybe<string>.Failure<string, Tenant>(");
+		await Assert.That(result.RewriteCompiles).IsTrue();
+	}
+
+	[Test]
+	public async Task UnionCaseResultCodeFixProvider_GivenMemberProviderUnionCase_ShouldOfferTheFix(
+		CancellationToken cancellationToken
+	)
+	{
+		const string source = """
+			using System.Runtime.CompilerServices;
+			using Purview.Results;
+
+			namespace Test
+			{
+				public readonly record struct Tenant(int Id);
+
+				public readonly record struct ProvidedCase(int Id);
+
+				[Union]
+				[GenerateResult]
+				public readonly struct ProvidedError : IUnion, ProvidedError.IUnionMembers
+				{
+					private readonly object? _value;
+
+					private ProvidedError(object? value) => _value = value;
+
+					public interface IUnionMembers
+					{
+						static ProvidedError Create(ProvidedCase value) => new(value);
+
+						object? Value { get; }
+					}
+
+					object? IUnionMembers.Value => _value;
+
+					public object? Value => _value;
+				}
+
+				public static class Usage
+				{
+					public static Result<Tenant, ProvidedError> Get() => new ProvidedCase(1);
+				}
+			}
+			""";
+
+		var result = await UnionCodeFixTestHarness.ApplyAsync(source, cancellationToken);
+
+		await Assert.That(result.FixOffered).IsTrue();
+		await Assert.That(result.FixedCode).Contains("ProvidedError.Failure<Tenant>(");
+		await Assert.That(result.RewriteCompiles).IsTrue();
+	}
 }

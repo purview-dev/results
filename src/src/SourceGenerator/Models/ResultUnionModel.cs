@@ -39,11 +39,46 @@ readonly record struct ResultSourceLocation(string FilePath, TextSpan TextSpan, 
 }
 
 /// <summary>
+/// Describes one type parameter of a generic union, including the constraint clauses the generated
+/// extension block and helpers must repeat.
+/// </summary>
+/// <param name="Name">The type parameter name.</param>
+/// <param name="Constraints">
+/// The constraint expressions written after <c>where {Name} :</c>, in source order (for example
+/// <c>class</c>, <c>notnull</c>, a base type, an interface or <c>new()</c>).
+/// </param>
+readonly record struct ResultUnionTypeParameterModel(string Name, EquatableArray<string> Constraints)
+{
+	/// <summary>
+	/// Gets an empty type-parameter model.
+	/// </summary>
+	public static readonly ResultUnionTypeParameterModel Empty;
+}
+
+/// <summary>
+/// Describes one step in an included union's construction path: the union type to construct and whether
+/// its creation members live on an <c>IUnionMembers</c> provider.
+/// </summary>
+/// <param name="UnionType">The literal reference to the union type, including any generic arguments.</param>
+/// <param name="MemberProviderLiteral">
+/// The fully-qualified literal reference to the union's <c>IUnionMembers</c> provider when its creation
+/// members live there; otherwise <see langword="null"/>, meaning a public constructor is used.
+/// </param>
+readonly record struct IncludedUnionStepModel(TypeReference UnionType, string? MemberProviderLiteral)
+{
+	/// <summary>
+	/// Gets an empty path step.
+	/// </summary>
+	public static readonly IncludedUnionStepModel Empty;
+}
+
+/// <summary>
 /// Describes one discovered union case: the type a union value may hold, plus its display name.
 /// </summary>
 /// <param name="CaseType">
 /// The reference to the case type as it is spelled at the generated use site, preserving any nullable
-/// annotation and generic construction.
+/// annotation and generic construction. A case that names one of the union's own type parameters keeps that
+/// parameter in the reference.
 /// </param>
 /// <param name="FullyQualifiedName">
 /// The fully-qualified display name of the case type, used for diagnostics and deterministic ordering.
@@ -52,7 +87,17 @@ readonly record struct ResultSourceLocation(string FilePath, TextSpan TextSpan, 
 /// Whether the case type is itself a union. A union-typed case is an <em>included</em> union: its own
 /// cases are reachable through it, and sharing it across unions is the intended composition pattern.
 /// </param>
-readonly record struct ResultUnionCaseModel(TypeReference CaseType, string FullyQualifiedName, bool IsUnionCase)
+/// <param name="IsTypeParameterCase">
+/// Whether the case is one of the union's own bare type parameters. Such a case has a union-receiver factory
+/// but no per-case <c>AsFailure</c> helper, because an extension method on a bare <c>T</c> would apply to
+/// every value.
+/// </param>
+readonly record struct ResultUnionCaseModel(
+	TypeReference CaseType,
+	string FullyQualifiedName,
+	bool IsUnionCase,
+	bool IsTypeParameterCase
+)
 {
 	/// <summary>
 	/// Gets an empty case model.
@@ -76,7 +121,7 @@ readonly record struct ResultUnionCaseModel(TypeReference CaseType, string Fully
 readonly record struct IncludedUnionCaseModel(
 	TypeReference CaseType,
 	string FullyQualifiedName,
-	EquatableArray<TypeIdentity> UnionPath
+	EquatableArray<IncludedUnionStepModel> UnionPath
 )
 {
 	/// <summary>
@@ -91,7 +136,25 @@ readonly record struct IncludedUnionCaseModel(
 /// </summary>
 /// <param name="Namespace">The union's containing namespace, or an empty string for the global namespace.</param>
 /// <param name="IsGlobalNamespace">Whether the union is declared in the global namespace.</param>
-/// <param name="UnionType">The identity of the union type itself.</param>
+/// <param name="UnionType">The identity of the union type itself, used for equality and ordering.</param>
+/// <param name="UnionTypeLiteral">
+/// The fully-qualified literal reference to the union, including any generic arguments (for example
+/// <c>global::Test.Option&lt;T&gt;</c>). The generated signatures use it verbatim, which is what lets a
+/// generic union's own type parameters appear in a top-level extension class.
+/// </param>
+/// <param name="IsGeneric">Whether the union declares type parameters.</param>
+/// <param name="TypeParameters">
+/// The union's type parameters and constraints, in declaration order. The generated extension block and
+/// per-case helpers repeat them.
+/// </param>
+/// <param name="UsesMemberProvider">
+/// Whether the union's creation members live on a nested <c>IUnionMembers</c> provider instead of public
+/// constructors.
+/// </param>
+/// <param name="MemberProviderLiteral">
+/// The fully-qualified literal reference to the <c>IUnionMembers</c> provider when
+/// <paramref name="UsesMemberProvider"/> is true; otherwise <see langword="null"/>.
+/// </param>
 /// <param name="FullyQualifiedName">The union's display name, used for diagnostics.</param>
 /// <param name="Accessibility">
 /// The accessibility of the generated helper class: never more accessible than the union and every case
@@ -121,6 +184,11 @@ readonly record struct ResultUnionModel(
 	string Namespace,
 	bool IsGlobalNamespace,
 	TypeIdentity UnionType,
+	string UnionTypeLiteral,
+	bool IsGeneric,
+	EquatableArray<ResultUnionTypeParameterModel> TypeParameters,
+	bool UsesMemberProvider,
+	string? MemberProviderLiteral,
 	string FullyQualifiedName,
 	TypeDeclarationAccessibility Accessibility,
 	string ExtensionClassName,

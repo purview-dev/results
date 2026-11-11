@@ -24,6 +24,18 @@ Released versions correspond to `v<version>` GitHub releases.
 
 ### Added
 
+- **Generic unions.** A `union Option<T>(...)` now generates a generic extension block and per-case helpers that
+  repeat the union's type parameters and constraints. A static extension member's explicit type arguments are the
+  extension block's parameters first, so the value factory is `Option<string>.Failure<string, TValue>(case)`. A
+  bare type parameter case gets the union-receiver factory only.
+- **`IUnionMembers` member providers.** A custom union whose creation members live on a nested `IUnionMembers`
+  provider is supported: cases are read from the provider's public static single-parameter `Create` methods and
+  values are constructed through `IUnionMembers.Create`, so a private constructor works. `RSG1007` now reports only
+  a provider with no usable `Create` method.
+- **Class-based and nullable union shapes.** Reference-type `[Union]` declarations and nullable reference/value
+  case types are generated for and executed by the test suite.
+- **The code fix follows the new shapes.** A generic union's rewrite repeats the union's type arguments before the
+  value type, and a provider union's case is recognised from its `Create` methods.
 - **Non-boxing union coverage.** A custom `[Union]` type with typed storage and the non-boxing access pattern
   (`HasValue` + `TryGetValue`) is generated for and executed by the test suite, including an assertion that a
   value-type case does not allocate when matched. A compiler `union` declaration always boxes its cases; the
@@ -33,6 +45,9 @@ Released versions correspond to `v<version>` GitHub releases.
 
 ### Fixed
 
+- **`NU5118` on `dotnet pack`.** The analyzer pack target ran in every inner build and added the same
+  TFM-independent generator and code-fix files once per target framework. It now runs once, for the default target
+  framework, matching the SDK's own TFM-specific pack targets; a Release pack completes with no warnings.
 - The unmapped-failure telemetry test no longer reads the first measurement from the process-static meter; it
   filters by error-type tag like its sibling, so concurrent tests cannot make it flaky.
 

@@ -91,7 +91,7 @@ public class ResultsDiagnosticAnalyzerTests
 	}
 
 	[Test]
-	public async Task AnalyzeAsync_GivenGenericUnion_ReportsUnsupportedGenericConfiguration(
+	public async Task AnalyzeAsync_GivenGenericUnion_SupportsTheNamedCasesAndReportsTheBareTypeParameterCase(
 		CancellationToken cancellationToken
 	)
 	{
@@ -107,8 +107,52 @@ public class ResultsDiagnosticAnalyzerTests
 		// Act
 		var result = await AnalyzeAsync([TestSources.GenerateResultAttributeDeclaration, source], cancellationToken);
 
-		// Assert
-		await Assert.That(result).HasDiagnostic("RSG1002");
+		// Assert — a generic union is supported, including its bare type-parameter case.
+		await Assert.That(result).HasNoDiagnostics();
+	}
+
+	[Test]
+	public async Task AnalyzeAsync_GivenCaseWithAnExternalTypeParameter_ReportsUnsupportedGenericConfiguration(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		const string source = """
+			namespace Test
+			{
+				public readonly record struct External<T>(T Value);
+
+				[GenerateResult]
+				public readonly union InnerError<T>(string, External<T>);
+			}
+			""";
+
+		// Act
+		var result = await AnalyzeAsync([TestSources.GenerateResultAttributeDeclaration, source], cancellationToken);
+
+		// Assert — External<T> names the union's own T, so it is supported.
+		await Assert.That(result).DoesNotHaveDiagnostic("RSG1002");
+
+		const string nestedSource = """
+			namespace Test
+			{
+				public readonly record struct External<T>(T Value);
+
+				public class Outer<T>
+				{
+					[GenerateResult]
+					public readonly union InnerError(External<T>, string);
+				}
+			}
+			""";
+
+		var nested = await AnalyzeAsync(
+			[TestSources.GenerateResultAttributeDeclaration, nestedSource],
+			cancellationToken
+		);
+
+		// Assert — T belongs to Outer<T>, not to the union, so the helper cannot declare it.
+		await Assert.That(nested).HasDiagnostic("RSG1002");
 	}
 
 	[Test]
@@ -173,7 +217,7 @@ public class ResultsDiagnosticAnalyzerTests
 	}
 
 	[Test]
-	public async Task AnalyzeAsync_GivenUnionMemberProvider_ReportsUnsupportedMemberProvider(
+	public async Task AnalyzeAsync_GivenMemberProviderWithoutCreateMethods_ReportsInvalidMemberProvider(
 		CancellationToken cancellationToken
 	)
 	{
