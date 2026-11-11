@@ -45,6 +45,14 @@ Released versions correspond to `v<version>` GitHub releases.
 
 ### Fixed
 
+- **`[GenerateResult]` discovery for `Purview.Unions` unions.** A union opted into `Purview.Unions` generation
+  carries its `[Union]` attribute and constructors in *that* generator's output, which this generator never sees.
+  `[GenerateResult]` now recognises a source-visible `Purview.Unions.GenerateUnionAttribute` by metadata identity
+  (the shipped generator still has no dependency on `Purview.Unions`) and reads the first non-empty source-visible
+  case list in the union generator's order: the `typeof` list, partial static factory signatures, a nested
+  `IUnionMembers` provider, then any source-visible constructors. A `[GenerateUnion]` union with no source-visible
+  case list is reported as `RSG1001`; `RSG1000` now describes the full set of recognised union shapes. Case types
+  are normalised as the union generator exposes them (`int?` → `int`, nullable reference annotations stripped).
 - **`NU5118` on `dotnet pack`.** The analyzer pack target ran in every inner build and added the same
   TFM-independent generator and code-fix files once per target framework. It now runs once, for the default target
   framework, matching the SDK's own TFM-specific pack targets; a Release pack completes with no warnings.

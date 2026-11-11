@@ -35,8 +35,8 @@ public sealed partial class ZodResultsFailureMapper(
 	ILogger<ZodResultsFailureMapper> logger
 ) : IResultsFailureMapper
 {
-	readonly ZodProblemDetailsOptions _problemOptions =
-		problemOptions?.Value ?? throw new ArgumentNullException(nameof(problemOptions));
+	readonly ZodProblemDetailsOptions _problemOptions = problemOptions?.Value
+		?? throw new ArgumentNullException(nameof(problemOptions));
 	readonly ZodResultsHttpOptions _rules = rules?.Value ?? throw new ArgumentNullException(nameof(rules));
 	readonly ResultsHttpOptions _results = results?.Value ?? throw new ArgumentNullException(nameof(results));
 

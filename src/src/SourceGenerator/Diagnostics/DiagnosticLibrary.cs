@@ -51,11 +51,11 @@ static class DiagnosticLibrary
 	public static readonly DiagnosticDescriptor TargetIsNotUnion = new(
 		id: "RSG1000",
 		title: "GenerateResult target is not a union",
-		messageFormat: "'{0}' is not a union type; [GenerateResult] can only be applied to a union declaration or a type marked with [Union]",
+		messageFormat: "'{0}' is not a union type; [GenerateResult] can only be applied to a union declaration, a type marked with [Union], or a type opted into union generation with [GenerateUnion]",
 		category: Category,
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true,
-		description: "The results source generator only generates helpers for C# 15 union types."
+		description: "The results source generator only generates helpers for union types: a C# 15 union declaration, a type marked with [Union], or a source-visible Purview.Unions [GenerateUnion] target."
 	);
 
 	/// <summary>
@@ -68,7 +68,7 @@ static class DiagnosticLibrary
 		category: Category,
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true,
-		description: "A union declares its case types through public single-parameter constructors, or through an IUnionMembers member provider."
+		description: "A union declares its case types through its source-visible case list: the [GenerateUnion] typeof list, partial static factory signatures, an IUnionMembers member provider, or public single-parameter constructors."
 	);
 
 	/// <summary>

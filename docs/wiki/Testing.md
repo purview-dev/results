@@ -55,6 +55,13 @@ code with the framework's `CodeQuery` and terminal assertion extensions (`result
 it drives `GenerateIncrementalAsync`, asserts `New` on the first run, `Cached`/`Unchanged` on an identical rerun,
 and `Modified` only for the stages whose inputs changed.
 
+**Cross-generator discovery is covered by a source-visible stand-in.** `GenerateUnionDiscoveryTests` declares a
+stand-in `Purview.Unions.GenerateUnionAttribute` (and source-visible conversions where the generated helpers need
+them), because `Purview.Unions` is not on a CI-safe package feed yet. It exercises the `typeof` list, partial
+factory signatures, an included `[GenerateUnion]` case and the `RSG1001` gap; `GenerateUnionDiscoveryRuntimeTests`
+executes the helpers against the real result types. Referencing `Purview.Unions` so both generators run in one
+compilation is recorded as a follow-up for when that package is on the feed the CI can restore from.
+
 ## Compiler experiments
 
 Behaviour that motivates a design decision is recorded as a compiler experiment rather than an assumption.

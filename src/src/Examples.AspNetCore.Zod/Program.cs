@@ -46,9 +46,8 @@ var app = builder.Build();
 
 TenantRegistrationService service = new();
 
-app.MapPost(
-		"/tenants",
-		(TenantRegistrationRequest request) => service.Register(TenantInput.Create(request.TenantId, request.Name))
+app.MapPost("/tenants", (TenantRegistrationRequest request) =>
+		service.Register(TenantInput.Create(request.TenantId, request.Name))
 	)
 	.WithResultsHttp();
 

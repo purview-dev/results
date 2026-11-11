@@ -28,10 +28,16 @@ default language version for `net11.0` in the .NET 11 SDK, so no `LangVersion` i
   generator shares the same analysis to decide whether generation can continue. No rule is reported twice.
 - **One suppressor, with one narrow job.** `UnionEqualityDiagnosticSuppressor` answers `CA1815` for opted-in
   unions only and reports no diagnostics of its own.
-- **Union membership is decided by the language** (`ITypeSymbol.IsUnion`), never by type names, source text,
-  reflection or the union's runtime value.
-- **Case types come from the language's own rule**: a union's public single-parameter constructors define its
-  case types, and a `union` declaration synthesises one per declared case.
+- **Union membership is decided by the language or by a metadata identity**, never by type names, source text,
+  reflection or the union's runtime value. A target is a union when `ITypeSymbol.IsUnion` is true, or when it
+  carries `Purview.Unions.GenerateUnionAttribute` (matched by metadata name only; this package does not depend
+  on `Purview.Unions`).
+- **Case types come from the source-visible list.** A language union uses its public single-parameter
+  constructors (with an `IUnionMembers` provider taking precedence when one exists); a `union` declaration
+  synthesises one per declared case. A `[GenerateUnion]` union uses the first non-empty source list in the union
+  generator's order — the attribute's `typeof` list, partial static factory signatures, a nested
+  `IUnionMembers` provider, then source-visible constructors — because the `[Union]` attribute and constructors
+  another generator emits are never visible here.
 
 ## The incremental pipeline
 

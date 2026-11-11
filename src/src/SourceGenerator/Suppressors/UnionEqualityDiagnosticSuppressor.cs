@@ -4,10 +4,6 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Purview.Results.SourceGenerator.Diagnostics;
 
-// ITypeSymbol.IsUnion is still marked [Experimental] in Roslyn 5.9, and this suppression deliberately
-// targets it.
-#pragma warning disable RSEXPERIMENTAL006
-
 namespace Purview.Results.SourceGenerator.Suppressors;
 
 /// <summary>
@@ -23,11 +19,12 @@ namespace Purview.Results.SourceGenerator.Suppressors;
 /// <c>[SuppressMessage]</c>) beside the declaration to keep the build clean.
 /// </para>
 /// <para>
-/// The suppression is deliberately narrow: it applies only where the reported declaration is a union
-/// (<see cref="ITypeSymbol.IsUnion"/>, the language's own answer, exactly as the shared diagnostics library
-/// uses) <em>and</em> is opted in with <c>[GenerateResult]</c>. A union without the attribute, and every
-/// non-union value type, keeps the warning. A consumer who wants union equality declared adds the suppression
-/// id to the build's warning suppressions (<c>NoWarn</c>), which brings <c>CA1815</c> back for every union.
+/// The suppression is deliberately narrow: it applies only where the reported declaration is a union as the
+/// shared diagnostics library recognises one (a language union or a source-visible
+/// <c>Purview.Unions.GenerateUnionAttribute</c> target) <em>and</em> is opted in with
+/// <c>[GenerateResult]</c>. A union without the attribute, and every non-union value type, keeps the
+/// warning. A consumer who wants union equality declared adds the suppression id to the build's warning
+/// suppressions (<c>NoWarn</c>), which brings <c>CA1815</c> back for every union.
 /// </para>
 /// <para>
 /// A suppressor can only suppress non-error, configurable diagnostics, and it never reports a diagnostic of
@@ -95,7 +92,8 @@ public sealed class UnionEqualityDiagnosticSuppressor : DiagnosticSuppressor
 				continue;
 
 			return context.GetSemanticModel(tree).GetDeclaredSymbol(declaration, context.CancellationToken)
-					is INamedTypeSymbol { IsUnion: true } union
+					is INamedTypeSymbol union
+				&& ResultUnionDiagnostics.IsUnionType(union)
 				&& ResultUnionDiagnostics.HasGenerateResultAttribute(union);
 		}
 

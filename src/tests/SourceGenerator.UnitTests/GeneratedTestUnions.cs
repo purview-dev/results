@@ -198,16 +198,14 @@ public readonly union OuterError<T>(InnerError<T>, OuterText);
 public sealed record ClassCase(int Id);
 
 /// <summary>A class-based custom union, which uses reference semantics and a public constructor.</summary>
+/// <remarks>Creates the union from its case.</remarks>
+/// <param name="value">The case value.</param>
 [Union]
 [GenerateResult]
-public class ClassUnion : IUnion
+public class ClassUnion(ClassCase value) : IUnion
 {
-	/// <summary>Creates the union from its case.</summary>
-	/// <param name="value">The case value.</param>
-	public ClassUnion(ClassCase value) => Value = value;
-
 	/// <inheritdoc />
-	public object? Value { get; }
+	public object? Value { get; } = value;
 }
 
 /// <summary>A generic union with a constraint that the generated extension block must repeat.</summary>
@@ -233,9 +231,7 @@ public readonly record struct ProvidedCase(int Id);
 [GenerateResult]
 public readonly struct ProvidedError : IUnion, ProvidedError.IUnionMembers
 {
-	readonly object? _value;
-
-	ProvidedError(object? value) => _value = value;
+	ProvidedError(object? value) => Value = value;
 
 	/// <summary>Provides the union's creation and access members.</summary>
 	public interface IUnionMembers
@@ -249,10 +245,10 @@ public readonly struct ProvidedError : IUnion, ProvidedError.IUnionMembers
 		object? Value { get; }
 	}
 
-	object? IUnionMembers.Value => _value;
+	object? IUnionMembers.Value => Value;
 
 	/// <inheritdoc />
-	public object? Value => _value;
+	public object? Value { get; }
 }
 
 /// <summary>A named case of a generic member-provider union.</summary>
@@ -269,9 +265,7 @@ public readonly record struct ProvidedNone;
 [GenerateResult]
 public readonly struct ProvidedOption<T> : IUnion, ProvidedOption<T>.IUnionMembers
 {
-	readonly object? _value;
-
-	ProvidedOption(object? value) => _value = value;
+	ProvidedOption(object? value) => Value = value;
 
 	/// <summary>Provides the union's creation and access members.</summary>
 	public interface IUnionMembers
@@ -290,8 +284,8 @@ public readonly struct ProvidedOption<T> : IUnion, ProvidedOption<T>.IUnionMembe
 		object? Value { get; }
 	}
 
-	object? IUnionMembers.Value => _value;
+	object? IUnionMembers.Value => Value;
 
 	/// <inheritdoc />
-	public object? Value => _value;
+	public object? Value { get; }
 }

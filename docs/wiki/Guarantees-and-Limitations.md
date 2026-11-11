@@ -98,9 +98,13 @@ reference, so no telemetry package dependency is added.
 
 ## Union support limits
 
-- `[GenerateResult]` is supported on `union` declarations and custom `[Union]` types, including class-based
-  unions, nullable cases and generic unions. Generic unions are supported, as are `IUnionMembers` member providers
-  that declare a public static single-parameter `Create` per case. A bare union type parameter case gets the
+- `[GenerateResult]` is supported on `union` declarations, custom `[Union]` types and source-visible
+  `Purview.Unions` `[GenerateUnion]` targets, including class-based unions, nullable cases and generic unions.
+  A `[GenerateUnion]` target's cases are read from its `typeof` list, partial static factory signatures,
+  `IUnionMembers` provider or source-visible constructors — never from another generator's output — and a
+  target with no source-visible case list is `RSG1001`. Generic unions are supported, as are `IUnionMembers`
+  member providers that declare a public static single-parameter `Create` per case. A bare union type parameter
+  case gets the
   union-receiver factory only. A case that names a type parameter the union does not declare is `RSG1002`; an
   array case is `RSG1009`; a provider with no usable `Create` is `RSG1007`.
 - Generated implicit conversions are not possible — see [Union Errors](Union-Errors.md) for the five compiler

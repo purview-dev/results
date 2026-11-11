@@ -212,11 +212,24 @@ no boxing of their own — each is a plain `Result<...>.Failure(...)` call, and 
 error in a typed field.
 
 [`Purview.Unions`](https://github.com/purview-dev/unions) can generate this custom-union shape from a
-`[GenerateUnion]` declaration. A source generator cannot see another generator's output during analysis, so
-`[GenerateResult]` must be applied to a union whose shape is declared in source (a `union` declaration or a
-hand-written `[Union]` type). If you let `Purview.Unions` generate the type, call
-`Result<TValue, TUnion>.Failure(case)` directly; the case-to-union conversion applies as a single argument
-conversion, so the result is still non-boxing.
+`[GenerateUnion]` declaration, and `[GenerateResult]` works on it directly:
+
+```csharp
+using Purview.Unions;
+
+[GenerateUnion(typeof(TenantNotFound), typeof(TenantDisabled))]
+[GenerateResult]
+public partial struct TenantError;
+```
+
+A source generator never sees another generator's output, so the `[Union]` attribute and the constructors
+`Purview.Unions` emits are invisible while the results generator runs. `[GenerateResult]` therefore reads the
+union's **source-visible** case list instead, in the union generator's order: the `[GenerateUnion]` `typeof`
+list, the union's partial static factory signatures, a nested `IUnionMembers` provider, then any source-visible
+public single-parameter constructors. It uses the first non-empty list. A generic `[GenerateUnion]` union must
+use one of the last three surfaces, because `typeof(T)` is not a legal attribute argument; a `[GenerateUnion]`
+union with no source-visible case list is reported as `RSG1001`.
+
 
 ## Generic unions
 
@@ -308,8 +321,10 @@ base type alone is not consulted for a derived instance.
 | --- | --- |
 | A union declaration whose cases are public single-parameter constructors | Yes |
 | A type marked `[Union]` with public single-parameter constructors | Yes |
+| A `[GenerateUnion]` union with a source-visible case list (`typeof` list, partial static factory signatures, or an `IUnionMembers` provider) | Yes — cases are read from the source list, not from another generator's output |
+| A `[GenerateUnion]` union with no source-visible case list | No — `RSG1001` blocks the union |
 | A class-based `[Union]` type with reference semantics | Yes — construction and helpers are identical; the null union is a null reference |
-| Nullable reference-type and nullable value-type cases | Yes — the nullable annotation is preserved on the factory and helper parameter |
+| Nullable value-type and nullable reference-type cases | Yes — a nullable value type is exposed as its underlying type (`int?` → `int`), and a nullable reference annotation is stripped because it is not part of the case's identity |
 | A custom `[Union]` type with `HasValue`/`TryGetValue` (non-boxing access pattern) | Yes — the generator is unchanged, and value-type cases stay unboxed |
 | A `closed` hierarchy used as `TError` (not a union) | Yes — no `[GenerateResult]` helpers, but the result and HTTP mapper accept it |
 | A **leaf** case type shared by two unions | Yes — `RSG1006` warning; the per-case `AsFailure` helper is generated once, and the union-receiver `Failure(...)` factory is generated for both |

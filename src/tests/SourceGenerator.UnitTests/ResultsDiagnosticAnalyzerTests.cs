@@ -72,6 +72,65 @@ public class ResultsDiagnosticAnalyzerTests
 	}
 
 	[Test]
+	public async Task AnalyzeAsync_GivenGenerateUnionWithNoSourceVisibleCases_ReportsUnionHasNoCases(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		// The target is a union because of [GenerateUnion], even though no [Union] attribute is visible;
+		// it has no source-visible case list, so RSG1001 rather than RSG1000 is the one finding.
+		const string source = """
+			using Purview.Unions;
+
+			namespace Test
+			{
+				[GenerateUnion]
+				[GenerateResult]
+				public readonly partial struct EmptyError;
+			}
+			""";
+
+		// Act
+		var result = await AnalyzeAsync(
+			[TestSources.GenerateResultAttributeDeclaration, TestSources.GenerateUnionAttributeDeclaration, source],
+			cancellationToken
+		);
+
+		// Assert
+		await Assert.That(result).HasDiagnostic("RSG1001");
+		await Assert.That(result).DoesNotHaveDiagnostic("RSG1000");
+	}
+
+	[Test]
+	public async Task AnalyzeAsync_GivenGenerateUnionWithSourceVisibleCases_ReportsNothing(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		const string source = """
+			using Purview.Unions;
+
+			namespace Test
+			{
+				public readonly record struct SourceCase(int Id);
+
+				[GenerateUnion(typeof(SourceCase))]
+				[GenerateResult]
+				public readonly partial struct GeneratedError;
+			}
+			""";
+
+		// Act
+		var result = await AnalyzeAsync(
+			[TestSources.GenerateResultAttributeDeclaration, TestSources.GenerateUnionAttributeDeclaration, source],
+			cancellationToken
+		);
+
+		// Assert
+		await Assert.That(result).HasNoDiagnostics();
+	}
+
+	[Test]
 	public async Task AnalyzeAsync_GivenUnionWithNoCases_ReportsUnionHasNoCases(CancellationToken cancellationToken)
 	{
 		// Arrange

@@ -112,12 +112,21 @@ including the diagnostics table, build properties and activation rules.
   hosts, and keep `DiagnosticLibrary.IsBlocking` as the single blocking policy.
 - New or changed rules require an `AnalyzerReleases.Unshipped.md` entry (the compiler's RS2008 rule catalogue).
 - **One suppressor.** `Suppressors/UnionEqualityDiagnosticSuppressor.cs` is the only programmatic suppression in
-  this repository: it suppresses `CA1815` and only `CA1815`, and only on a declaration that is both a union
-  (`ITypeSymbol.IsUnion`) and opted in with `[GenerateResult]`. Keep it that narrow — a union without the
+  this repository: it suppresses `CA1815` and only `CA1815`, and only on a declaration that is both a union as
+  `ResultUnionDiagnostics.IsUnionType` recognises one (a language union or a source-visible
+  `Purview.Unions.GenerateUnionAttribute` target) and opted in with `[GenerateResult]`. Keep it that narrow — a union without the
   attribute, a union's case types and every other value type must keep the warning — and never let it report
   diagnostics, because a suppressor is not a rule host. Suppression descriptors are not release-tracked, so
   `RSG2000` (the suppression id a consumer adds to `NoWarn` to turn the suppression off) must not appear in
   `AnalyzerReleases.Unshipped.md`, which lists reported rules only.
+- **Union recognition never depends on another generator's output.** A target is a union when
+  `ITypeSymbol.IsUnion` is true or when it carries `Purview.Unions.GenerateUnionAttribute`, matched by metadata
+  identity only — never add a project or package reference from the shipped generator to `Purview.Unions`. A
+  `[GenerateUnion]` target resolves the first non-empty source-visible case list in the union generator's order:
+  the attribute's `typeof` list, partial static factory signatures, a nested `IUnionMembers` provider, then
+  source-visible public single-parameter constructors. Normalise a case exactly as the union generator exposes it
+  (nullable value type → underlying type, nullable reference annotation stripped, constructed generics and arrays
+  preserved). A `[GenerateUnion]` target with no source-visible case list is `RSG1001`, not `RSG1000`.
 - **Keep the pipeline value-equatable.** Do not let `ISymbol`, `Compilation`, `SemanticModel`, `IOperation`,
   `SyntaxNode`, `SyntaxTree` or `Location` reach cached models; convert them during discovery
   (`ResultUnionModel`, `ResultUnionCaseModel`, `ResultSourceLocation`) and use `EquatableArray<T>`.

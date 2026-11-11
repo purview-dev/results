@@ -1,5 +1,5 @@
-using Purview.Results.ZodSharp;
 using System.Collections.Immutable;
+using Purview.Results.ZodSharp;
 using ZodSharp.Core;
 
 namespace Purview.Results.Examples.AspNetCore.Zod;

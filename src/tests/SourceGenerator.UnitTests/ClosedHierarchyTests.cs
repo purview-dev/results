@@ -43,6 +43,7 @@ public class ClosedHierarchyTests
 
 	// No discard arm: adding a new direct descendant of SyncOutcome breaks this switch at compile time, which
 	// is the exhaustiveness guarantee 'closed' provides.
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0072:Add missing cases")]
 	static string Describe(SyncOutcome outcome) =>
 		outcome switch
 		{

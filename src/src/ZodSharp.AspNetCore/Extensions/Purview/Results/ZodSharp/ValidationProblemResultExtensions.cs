@@ -50,12 +50,13 @@ public static class ValidationProblemResultExtensions
 		{
 			ArgumentNullException.ThrowIfNull(context);
 
-			var options =
-				context.RequestServices?.GetService<IOptions<ZodProblemDetailsOptions>>()?.Value
+			var options = context.RequestServices?.GetService<IOptions<ZodProblemDetailsOptions>>()?.Value
 				?? new ZodProblemDetailsOptions();
 
-			var includeTraceId =
-				context.RequestServices?.GetService<IOptions<ResultsHttpOptions>>()?.Value.IncludeTraceId ?? true;
+			var includeTraceId = context
+				.RequestServices?.GetService<IOptions<ResultsHttpOptions>>()
+				?.Value.IncludeTraceId
+				?? true;
 
 			return ZodValidationProblems.ToProblem(
 				errors,

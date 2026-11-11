@@ -5,10 +5,6 @@ using Purview.Results.SourceGenerator.Diagnostics;
 using Purview.Results.SourceGenerator.Helpers;
 using Purview.Results.SourceGenerator.Models;
 
-// ITypeSymbol.IsUnion is still marked [Experimental] in Roslyn 5.9, and this discovery deliberately targets
-// it.
-#pragma warning disable RSEXPERIMENTAL006
-
 namespace Purview.Results.SourceGenerator.Discovery;
 
 /// <summary>
@@ -168,7 +164,7 @@ static class ResultUnionDiscovery
 				new ResultUnionCaseModel(
 					ToLiteral(caseType),
 					caseType.ToDisplayString(ResultUnionDiagnostics.DisplayFormat),
-					caseType.IsUnion,
+					caseType is INamedTypeSymbol namedCaseType && ResultUnionDiagnostics.IsUnionType(namedCaseType),
 					caseType is ITypeParameterSymbol
 				)
 			);

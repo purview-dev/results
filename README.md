@@ -62,6 +62,19 @@ a diagnostic suppressor that answers `CA1815` for opted-in unions, so a `[Genera
 (`(TenantError)new TenantNotFound(id)`) is the only helper-free form; see
 the [source generator README](src/src/SourceGenerator/README.md) for the compiler evidence.
 
+[`Purview.Unions`](https://github.com/purview-dev/unions) can generate the union type itself, and
+`[GenerateResult]` works on a `[GenerateUnion]` declaration. Roslyn generators never see each other's output, so
+the results generator reads the union's **source-visible** case list — the `[GenerateUnion]` `typeof` list,
+partial static factory signatures, or a nested `IUnionMembers` provider — rather than the generated constructors:
+
+```csharp
+using Purview.Unions;
+
+[GenerateUnion(typeof(TenantNotFound), typeof(TenantDisabled))]
+[GenerateResult]
+public partial struct TenantError;
+```
+
 Expose the result over HTTP with the ASP.NET Core package, which maps each error case to a response:
 
 ```csharp

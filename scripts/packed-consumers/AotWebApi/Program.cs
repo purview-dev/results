@@ -47,10 +47,8 @@ var app = builder.Build();
 var tenants = app.MapGroup("/api/tenants");
 
 // A value result: the validation problem, the code rule's 422, the case mapping's 409, or the tenant.
-tenants.MapPost(
-	"/",
-	(TenantRegistration registration, TenantRegistrationService service) =>
-		service.Register(registration).ToHttpResult()
+tenants.MapPost("/", (TenantRegistration registration, TenantRegistrationService service) =>
+	service.Register(registration).ToHttpResult()
 );
 
 // A unit result: a success carries no payload, so it answers 204 No Content.

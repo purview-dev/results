@@ -211,21 +211,21 @@ public sealed class ZodValidationProblemsTests
 	{
 		// Arrange - every settable option set to a non-default value, so a member the copy misses shows up here.
 		ErrorTypeRegistry registry = new();
-		Func<string, ErrorType?> resolver = _ => null;
-		Func<ImmutableArray<ValidationError>, int> selector = _ => 418;
-		Func<ImmutableArray<ValidationError>, int, int> statusOverride = (_, status) => status;
+		static ErrorType? Resolver(string _) => null;
+		static int Selector(ImmutableArray<ValidationError> _) => 418;
+		static int StatusOverride(ImmutableArray<ValidationError> _, int status) => status;
 		ZodProblemDetailsOptions options = new()
 		{
 			Registry = registry,
-			ErrorTypeResolver = resolver,
+			ErrorTypeResolver = Resolver,
 			FormatMessages = false,
 			PathNaming = ZodPathNaming.Json,
 			IncludeIssues = false,
 			MergeParametersIntoExtensions = true,
 			ProjectDataAnnotationsIssues = false,
 			DefaultStatusCode = StatusCodes.Status400BadRequest,
-			StatusCodeSelector = selector,
-			StatusCodeOverride = statusOverride,
+			StatusCodeSelector = Selector,
+			StatusCodeOverride = StatusOverride,
 		};
 
 		// Act

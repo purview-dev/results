@@ -29,9 +29,8 @@ app.MapStaticAssets();
 // The service validates and returns a result, which WithResultsHttp maps. AddZodSharpBlazor validates form models only
 // and does not turn on minimal-API parameter validation, so the handler always runs and the result rules above answer:
 // the refinement's 422, the existing tenant's 409, and the standard validation problem for everything else.
-app.MapPost(
-		"/api/tenants",
-		(TenantRegistration registration, TenantRegistrationService service) => service.Register(registration)
+app.MapPost("/api/tenants", (TenantRegistration registration, TenantRegistrationService service) =>
+		service.Register(registration)
 	)
 	.WithResultsHttp()
 	.DisableAntiforgery();

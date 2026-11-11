@@ -19,7 +19,4 @@ public readonly record struct OperationRejected(Operation Operation, ImmutableAr
 /// </summary>
 /// <param name="Result">The inconsistent aggregate.</param>
 /// <param name="Errors">The validation errors reported by <c>OperationResultSchema</c>.</param>
-public readonly record struct OperationResultInvalid(
-	OperationResult Result,
-	ImmutableArray<ValidationError> Errors
-);
+public readonly record struct OperationResultInvalid(OperationResult Result, ImmutableArray<ValidationError> Errors);

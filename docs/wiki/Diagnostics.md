@@ -14,8 +14,8 @@ The union rules live in one shared library (`Diagnostics/DiagnosticLibrary.cs`,
 
 | ID | Severity | Reported by | Blocking | Description |
 | --- | --- | --- | --- | --- |
-| `RSG1000` | Error | Analyzer | Yes | `[GenerateResult]` was applied to a type that is not a union. |
-| `RSG1001` | Error | Analyzer | Yes | The union declares no union cases. |
+| `RSG1000` | Error | Analyzer | Yes | `[GenerateResult]` was applied to a type that is not a union. A union is a C# 15 `union` declaration, a `[Union]` type, or a source-visible `Purview.Unions` `[GenerateUnion]` type. |
+| `RSG1001` | Error | Analyzer | Yes | The union declares no source-visible cases: no `[GenerateUnion]` `typeof` list, partial static factory signatures, `IUnionMembers` provider or public single-parameter constructors. |
 | `RSG1002` | Error | Analyzer | No (only the offending case is skipped) | A case type names a type parameter the union does not declare, or the union is nested in a generic type. A generic union itself is supported. |
 | `RSG1003` | Error | Analyzer | Union: yes / case: no | A type that generated code must reference is not accessible (for example a `file` type). |
 | `RSG1004` | Error | Analyzer | No | The same union is configured more than once (for example on two partial declarations); the helpers are generated once. |
