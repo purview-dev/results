@@ -166,12 +166,87 @@ Nesting also works with the HTTP layer: the ASP.NET Core mapper resolves a union
 mapping for the leaf (`Map<BillingServiceUnavailable>`) wins, and a mapping for the enclosing union
 (`Map<BillingError>` or `Map<RegisterTenantError>`) still applies when the leaf has none.
 
+## Non-boxing custom unions
+
+A `union` declaration always stores its contents in an `object?`, so a value-type case boxes. When the error
+union is on a hot path, declare a custom `[Union]` type with typed storage and the **non-boxing access
+pattern** — a `HasValue` property plus one `TryGetValue` overload per case. The compiler calls `HasValue` for a
+`null` pattern and `TryGetValue` for a type pattern, so matching a value-type case keeps it unboxed:
+
+```csharp
+using System.Runtime.CompilerServices;
+
+public readonly record struct Count(int Value);
+public readonly record struct Label(string Value);
+
+[Union]
+public readonly struct CountOrLabel : IUnion
+{
+    private readonly Count _count;
+    private readonly Label? _label;
+    private readonly byte _tag;
+
+    public CountOrLabel(Count value) { _count = value; _label = null; _tag = 1; }
+    public CountOrLabel(Label value) { _count = default; _label = value; _tag = 2; }
+
+    public object? Value => _tag switch { 1 => _count, 2 => _label, _ => null };
+    public bool HasValue => _tag != 0;
+
+    public bool TryGetValue(out Count value) { value = _count; return _tag == 1; }
+    public bool TryGetValue(out Label value) { value = _label.GetValueOrDefault(); return _tag == 2; }
+}
+
+// The Count arm calls TryGetValue(out Count): no box.
+static int Describe(CountOrLabel value) => value switch
+{
+    Count count => count.Value,
+    Label label => label.Value.Length,
+    null => -1,
+};
+```
+
+The generator does not change or re-emit the union, so `[GenerateResult]` works on a custom union exactly as
+on a `union` declaration: the per-case `AsFailure` helpers and the union-receiver factory are emitted. They add
+no boxing of their own — each is a plain `Result<...>.Failure(...)` call, and `Result<TValue, TError>` stores its
+error in a typed field.
+
+## Closed hierarchies as an error type
+
+C# 15's `closed` modifier is the alternative when the cases are classes with shared behaviour or inheritance. It
+fixes the direct descendants at compile time, so a switch over them is exhaustive without a discard arm, and the
+hierarchy works as `TError`:
+
+```csharp
+public closed record class SyncOutcome;
+public record class Synced(int Count) : SyncOutcome;
+public record class Skipped(string Reason) : SyncOutcome;
+
+Result<int, SyncOutcome> result = new Skipped("offline");
+
+var text = result.Match(
+    value => $"synced {value}",
+    error => error switch
+    {
+        Synced synced => $"synced {synced.Count}",
+        Skipped skipped => $"skipped: {skipped.Reason}",
+    }
+);
+```
+
+`closed` needs the .NET 11 runtime (`IsClosedTypeAttribute`), just as a union needs `IUnion`/`UnionAttribute`.
+Prefer a union for data-only cases, where every alternative is declared in one place; prefer a closed hierarchy
+when the cases need members or inheritance. The HTTP mapper keys a non-union error by its runtime type, so register
+a mapping for each descendant (or handle the base type with a fallback/`IResultsFailureMapper`); a mapping for the
+base type alone is not consulted for a derived instance.
+
 ## Union shapes that are supported
 
 | Shape | Supported |
 | --- | --- |
 | A union declaration whose cases are public single-parameter constructors | Yes |
 | A type marked `[Union]` with public single-parameter constructors | Yes |
+| A custom `[Union]` type with `HasValue`/`TryGetValue` (non-boxing access pattern) | Yes — the generator is unchanged, and value-type cases stay unboxed |
+| A `closed` hierarchy used as `TError` (not a union) | Yes — no `[GenerateResult]` helpers, but the result and HTTP mapper accept it |
 | A **leaf** case type shared by two unions | Yes — `RSG1006` warning; the per-case `AsFailure` helper is generated once, and the union-receiver `Failure(...)` factory is generated for both |
 | A **union-typed** case shared by two unions (composition) | Yes — no warning; the including union's factory covers the included union's cases, and no ambiguous per-case helper is generated |
 | A case reachable through two different included unions | Yes — `RSG1008` warning; that case's inclusion factory is skipped |

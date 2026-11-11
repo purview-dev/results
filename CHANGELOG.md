@@ -8,6 +8,40 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 Released versions correspond to `v<version>` GitHub releases.
 
+## Unreleased
+
+### Changed
+
+- **.NET 11 GA.** The repository now builds against the .NET 11 GA SDK (`11.0.100`) rather than a release
+  candidate. CI pins match `global.json`.
+- **C# 15 is no longer preview.** `LangVersion` moved from `preview` to `latest`; a `net11.0` project gets C# 15 by
+  default, so declaring a union needs no language-version switch. The packed consumers no longer set
+  `LangVersion=preview`, which proves a consumer needs nothing special.
+- **.NET 8 and .NET 9 are out of support** and remain deliberately untargeted; only `net10.0` and `net11.0` ship.
+- **Lowest common runtime bits.** `Microsoft.AspNetCore.TestHost` and the `net10.0` runtime-adjacent version are
+  pinned to `10.0.15`, the oldest servicing band the packages claim to support, rather than the newer `net11.0`
+  band.
+
+### Added
+
+- **Non-boxing union coverage.** A custom `[Union]` type with typed storage and the non-boxing access pattern
+  (`HasValue` + `TryGetValue`) is generated for and executed by the test suite, including an assertion that a
+  value-type case does not allocate when matched. A compiler `union` declaration always boxes its cases; the
+  custom shape is the supported way to avoid that on a hot error path.
+- **Closed-hierarchy coverage.** A C# 15 `closed` hierarchy used as `TError`, switched exhaustively without a
+  discard arm, is compiled and executed by the test suite.
+
+### Fixed
+
+- The unmapped-failure telemetry test no longer reads the first measurement from the process-static meter; it
+  filters by error-type tag like its sibling, so concurrent tests cannot make it flaky.
+
+### Documentation
+
+- README, wiki, package READMEs, `AGENTS.md` and the union skill now state that C# 15 unions are GA, need a
+  `net11.0` target rather than `LangVersion=preview`, and explain the non-boxing custom-union option and closed
+  hierarchies.
+
 ## 1.1.0-prerelease.2
 
 A minor prerelease built against Purview.ZodSharp 3.0.0-prerelease.2 and Purview.ValueObjects 1.3.0-prerelease.2. It

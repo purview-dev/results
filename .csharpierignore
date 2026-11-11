@@ -1,10 +1,13 @@
-# C# 15 union declarations are a preview language feature that is not yet parseable by CSharpier, so files
+# C# 15 syntax is not yet parseable by CSharpier 1.3.0, so files that use it are excluded rather than
 
-# that declare unions are excluded rather than reported as formatting failures. CSharpier reports
+# reported as formatting failures. CSharpier reports "was not formatted due to syntax errors" for these
 
-# "was not formatted due to syntax errors" for these files; every other file is formatted normally
+# files; every other file is formatted normally. Two features are affected: union declarations and the
+
+# 'closed' hierarchy modifier.
 
 src/tests/AspNetCore.UnitTests/ResultsHttpTestUnions.cs
+src/tests/SourceGenerator.UnitTests/ClosedHierarchyTests.cs
 src/tests/SourceGenerator.UnitTests/GeneratedTestUnions.cs
 src/tests/ZodSharp.AspNetCore.UnitTests/ValidationTestUnions.cs
 src/tests/ZodSharp.UnitTests/ValidationTestUnions.cs

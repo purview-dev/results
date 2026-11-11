@@ -15,7 +15,8 @@ dotnet add package Purview.Results
 
 The component targets `netstandard2.0` (with the SDK's Roslyn defaults) so any compiler host can load it, and it
 is applied to the compilation automatically from the package's `analyzers/dotnet/cs` folder. Requirements: a
-C# 15 compiler with union declaration support (the .NET 11 SDK or later) and `LangVersion=preview`.
+C# 15 compiler with union declaration support (the .NET 11 SDK or later) and a `net11.0` target. C# 15 is the
+default language version for `net11.0` in the .NET 11 SDK, so no `LangVersion` is needed.
 
 ## Activation and design
 

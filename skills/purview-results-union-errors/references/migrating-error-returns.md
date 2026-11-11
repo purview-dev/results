@@ -11,9 +11,9 @@ error-code enums with a C# 15 `union` of case types returned as `Result<TValue, 
 - The failure modes to model as cases, or the decision to infer them from the current code.
 - Whether genuinely exceptional exits stay throwing. They normally should: a lost connection or a
   violated invariant is not a domain outcome.
-- Whether the project that declares the union can target `net11.0` with `LangVersion=preview`. Union
-  declarations need the .NET 11 compiler support, so they cannot compile for `net10.0`; a
-  multi-targeted project keeps the union in a `net11.0`-only project.
+- Whether the project that declares the union can target `net11.0`. Union declarations need the .NET 11 runtime
+  types (`IUnion`/`UnionAttribute`), and C# 15 is the default language version for that target, so they cannot
+  compile for `net10.0`; a multi-targeted project keeps the union in a `net11.0`-only project.
 
 ## Requirements
 

@@ -19,12 +19,17 @@ dotnet test src/Results.slnx --no-build --treenode-filter "/*/*/*/*[Category=Uni
 The `*.UnitTests` project naming is what the SDK uses to derive `TestingType=Unit` and apply the matching test
 category, which is what the filter matches. Use `--treenode-filter` for filtering — not `dotnet test --filter`.
 
+The non-packable `net11.0` projects (tests and examples) compile with runtime async
+(`Features=runtime-async=on`), which is still a preview feature in .NET 11 but gives cleaner live call stacks
+and lower async overhead while debugging. The shipped libraries deliberately do not: Blazor WebAssembly's Mono
+runtime does not implement it. The tests therefore call the same stable lowering a consumer runs.
+
 ## Test projects
 
 | Project | Covers |
 | --- | --- |
 | `src/tests/Results.UnitTests` | `Result<TValue, TError>` and `Result<TError>` states, the throw-on-misuse contract, and the extension operations (`ResultsTests`, `ResultTErrorTests`, `ResultExtensionsTests`) |
-| `src/tests/SourceGenerator.UnitTests` | Generation, diagnostics, incremental caching, the compiler experiments, the code fix, and the suppressor |
+| `src/tests/SourceGenerator.UnitTests` | Generation, diagnostics, incremental caching, the compiler experiments (including the C# 15 `closed` hierarchy and the non-boxing custom union), the code fix, and the suppressor |
 | `src/tests/AspNetCore.UnitTests` | `DefaultResultsHttpMapper`, the endpoint filter, failure mappers and unmapped-failure behaviour |
 | `src/tests/ZodSharp.UnitTests` | `ToResult` and the validation-result integration |
 | `src/tests/ZodSharp.AspNetCore.UnitTests` | `ZodResultsFailureMapper`, registration order and the validation problem mapper |

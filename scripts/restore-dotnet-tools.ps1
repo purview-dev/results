@@ -4,8 +4,9 @@
 	Restores the repository's .NET local tools (.config/dotnet-tools.json), retrying a failed attempt.
 
 .DESCRIPTION
-	`dotnet tool restore` can fail on a cold package cache, exit 1, and still leave every tool installed. The
-	.NET 11 SDK (rc.3) mis-attributes the command of a RID-specific tool to the entry beside it in the manifest:
+	`dotnet tool restore` can fail on a cold package cache, exit 1, and still leave every tool installed. A
+	.NET 11 SDK release candidate (observed on rc.3) mis-attributes the command of a RID-specific tool to the
+	entry beside it in the manifest:
 	dotnet-inspect 0.26.0 declares DotNetCliTool version 2 with RuntimeIdentifierPackages, and the purview.build
 	entry after it is then rejected with
 

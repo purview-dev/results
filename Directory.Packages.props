@@ -2,7 +2,12 @@
 	<!-- Version Definitions -->
 	<PropertyGroup Label=".NET Versions">
 		<DotNetRuntimeVersion>11.0.100</DotNetRuntimeVersion>
-		<DotNetRuntimeVersion Condition="'$(TargetFramework)' == 'net10.0'">10.0.14</DotNetRuntimeVersion>
+		<!--
+			The lowest supported patch line shared by net10.0 and net11.0 consumers. Runtime-adjacent
+			packages are pinned to the net10.0 servicing band (10.0.15), never the newer net11.0 band, so
+			the build exercises the oldest runtime these packages promise to support.
+		-->
+		<DotNetRuntimeVersion Condition="'$(TargetFramework)' == 'net10.0'">10.0.15</DotNetRuntimeVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Purview Versions">
 		<PurviewZodSharpVersion>3.0.0-prerelease.5</PurviewZodSharpVersion>
@@ -36,10 +41,11 @@
 		/>
 	</ItemGroup>
 	<ItemGroup Label=".NET Runtime">
-		<PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.14" />
+		<!-- Pinned to the net10.0 servicing band: the lowest common runtime these packages support. -->
+		<PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.15" />
 	</ItemGroup>
 	<ItemGroup Label="Other">
-		<PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.403" />
+		<PackageVersion Include="Microsoft.SourceLink.GitHub" Version="11.0.100" />
 	</ItemGroup>
 	<ItemGroup Label="Testing">
 		<PackageVersion Include="Bogus" Version="35.6.5" />

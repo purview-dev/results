@@ -27,7 +27,7 @@ warnings as errors, runs each one, and scans every output for compiler-host asse
 | `Purview.ZodSharp.Blazor` 3.x (optional) | `net11.0` |
 | `Purview.ZodSharp.Http` 3.x (optional) | `net10.0`, `net11.0` |
 
-A `[GenerateResult]` union needs `net11.0` and `LangVersion=preview` in the project that declares it, in a Blazor
+A `[GenerateResult]` union needs `net11.0` in the project that declares it, in a Blazor
 client as anywhere else.
 
 ## A Blazor form whose input flows through a result

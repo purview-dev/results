@@ -171,14 +171,17 @@ compared by value.
 
 ## Requirements and switches
 
-- **.NET 11 SDK or later**, a `net11.0` target and `LangVersion=preview` in the project that declares the union —
-  union declarations are a preview language feature, and `IUnion`/`UnionAttribute` do not exist before .NET 11.
+- **.NET 11 SDK or later and a `net11.0` target** in the project that declares the union: `IUnion`/`UnionAttribute`
+  do not exist before .NET 11. C# 15 is the default language version for `net11.0`, so no `LangVersion` is needed.
   Projects that only *use* the result types can target `net10.0`.
 - A reference to `Purview.Results`, which provides both result shapes (`Result<TValue, TError>` and
   `Result<TError>`) and this generator.
 - `-p:DisableResultsSourceGenerator=true` (or a `Directory.Build.props` setting) disables the helpers while
   the opt-in attribute is still emitted, which is useful when the generated code has to be inspected in
   isolation.
+- **Performance:** a compiler `union` declaration boxes a value-type case. If the error union is on a hot path,
+  declare a custom `[Union]` type with typed storage and the non-boxing access pattern (`HasValue` plus
+  `TryGetValue` per case); `[GenerateResult]` works on it unchanged, and pattern matching then stays unboxed.
 
 ## Checklist
 

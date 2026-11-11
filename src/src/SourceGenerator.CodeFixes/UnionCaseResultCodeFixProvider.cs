@@ -9,7 +9,8 @@ using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.Simplification;
 using Microsoft.CodeAnalysis.Text;
 
-// ITypeSymbol.IsUnion is [Experimental] until C# 15 union support ships, and this provider targets it.
+// ITypeSymbol.IsUnion is still marked [Experimental] in Roslyn 5.9 (the .NET 11 GA compiler), so accessing it
+// is deliberate here and the diagnostic is suppressed for the whole file.
 #pragma warning disable RSEXPERIMENTAL006
 
 namespace Purview.Results.SourceGenerator.CodeFixes;

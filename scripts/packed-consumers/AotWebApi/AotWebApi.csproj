@@ -16,7 +16,6 @@
 	-->
 	<PropertyGroup>
 		<TargetFramework>net11.0</TargetFramework>
-		<LangVersion>preview</LangVersion>
 		<AssemblyName>PackedResultsAotWeb</AssemblyName>
 		<RootNamespace>PackedResultsAotWeb</RootNamespace>
 		<Nullable>enable</Nullable>

@@ -50,6 +50,17 @@ generator that makes C# 15 union error cases ergonomic), and the ZodSharp and AS
 
 ## Runtime invariants
 
+- The runtime packages target `net10.0` and `net11.0` only (Purview.BuildSdk's `Supported` set). .NET 8 and .NET 9
+  are out of support and must not be reintroduced. Runtime-adjacent packages are pinned to the lowest shared
+  servicing band (`10.0.15`), never the newer `net11.0` band.
+- Compile with `LangVersion=latest`, never `preview`. C# 15 is the default for `net11.0`, and nothing here needs a
+  preview language feature. Union declarations and `closed` hierarchies need the .NET 11 runtime types
+  (`IUnion`/`UnionAttribute`, `IsClosedTypeAttribute`), so they belong in net11-only projects (examples, tests,
+  packed consumers), never in shared or multi-targeted shipped code.
+- A compiler `union` declaration boxes a value-type case. For a hot error union, a custom `[Union]` type with typed
+  storage and the non-boxing access pattern (`HasValue` plus `TryGetValue` per case) is supported by
+  `[GenerateResult]` unchanged. `Result<TValue, TError>.TryGetValue`/`TryGetError` are the result-side equivalents:
+  keep them non-boxing and keep generated helpers as pure `Result<...>.Failure(...)` calls.
 - `Result<TValue, TError>` is a `readonly record struct` with three states: `Uninitialized` (the `default`
   value), `Success` and `Failure`. Keep all three observable through `IsInitialized`, `IsSuccess` and
   `IsFailure`.
@@ -158,8 +169,9 @@ including the diagnostics table, build properties and activation rules.
   code fix needs `Microsoft.CodeAnalysis.*.Workspaces`, which must not enter the generator's analyzer closure.
   The code fix never references the generator and there is no `InternalsVisibleTo`; the generator references the
   code fix analyzer-style only (`ReferenceOutputAssembly="false"`), so no reference cycle can form, and the shared well-known names are pinned by the code-fix tests.
-- Union-declaring test files are excluded from CSharpier through `.csharpierignore`, because the preview syntax
-  is not parseable. Add any new file that declares a union to that list.
+- Union-declaring test files (and files using the C# 15 `closed` modifier) are excluded from CSharpier through
+  `.csharpierignore`, because CSharpier 1.3.0 cannot parse that syntax. Add any new file that declares a union or a
+  closed hierarchy to that list.
 
 ## ASP.NET Core integration invariants
 

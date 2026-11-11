@@ -18,8 +18,8 @@ dotnet add package Purview.Results
 merged Roslyn component under `analyzers/dotnet/cs`, so it is applied to the compilation automatically. There is
 no separate generator package to reference.
 
-**Requirements:** a C# 15 compiler with union declaration support (the .NET 11 SDK or later) and
-`LangVersion=preview`.
+**Requirements:** a C# 15 compiler with union declaration support (the .NET 11 SDK or later) and a `net11.0`
+target. C# 15 is the default language version for `net11.0`, so no `LangVersion` is needed.
 
 ```csharp
 [GenerateResult]
@@ -124,6 +124,37 @@ unions is the intended composition pattern, so it is **not** reported as `RSG100
 `AsFailure` helper is not generated for any union; the union-receiver factory is the only (and safe) form. A case
 reachable through two different included unions cannot name a construction path, so it is reported as `RSG1008` and
 its inclusion factory is skipped.
+
+## Custom unions and non-boxing storage
+
+`[GenerateResult]` is not limited to a `union` declaration. Any class or struct with the `[Union]` attribute and
+the language's basic union pattern is a union, so a custom type with typed storage can keep a value-type case
+unboxed — the *non-boxing access pattern* adds a `HasValue` property and one `TryGetValue` overload per case:
+
+```csharp
+[Union]
+public readonly struct CountOrLabel : IUnion
+{
+    private readonly Count _count;
+    private readonly Label? _label;
+    private readonly byte _tag;
+
+    public CountOrLabel(Count value) { _count = value; _label = null; _tag = 1; }
+    public CountOrLabel(Label value) { _count = default; _label = value; _tag = 2; }
+
+    public object? Value => _tag switch { 1 => _count, 2 => _label, _ => null };
+    public bool HasValue => _tag != 0;
+
+    public bool TryGetValue(out Count value) { value = _count; return _tag == 1; }
+    public bool TryGetValue(out Label value) { value = _label.GetValueOrDefault(); return _tag == 2; }
+}
+```
+
+The generator treats it like any other union and emits the same per-case `AsFailure` helpers and
+union-receiver factory. Those helpers are plain `Result<...>.Failure(...)` calls, and `Result<TValue, TError>`
+stores its error in a typed field, so nothing in the generated path boxes the case either. A compiler-generated
+`union` declaration always stores its contents as `object?`; reach for a custom union when an error type is on a
+hot path. `NonBoxingUnionTests` proves the match allocates nothing.
 
 ## Why the generator exists
 
@@ -280,7 +311,8 @@ consumers too.
 
 ## Consumer requirements
 
-- A C# 15 compiler with union declaration support (`.NET 11` SDK or later) and `LangVersion=preview`.
+- A C# 15 compiler with union declaration support (`.NET 11` SDK or later) and a `net11.0` target. C# 15 is the
+  default language version for `net11.0`, so no `LangVersion` is needed.
 - A reference to `Purview.Results`, which provides both `Result<TValue, TError>` and the unit `Result<TError>`,
   and this generator.
 

@@ -2,8 +2,10 @@
 	<Import Sdk="Purview.BuildSdk" Project="Sdk.targets" />
 
 	<!--
-		Runtime async is a .NET 11 experiment, so it is scoped to that target framework: on net10.0 it lowers await
-		to System.Runtime.CompilerServices.AsyncHelpers, which is evaluation-only and fails the build with SYSLIB5007.
+		Runtime async is still a preview feature in .NET 11 GA (the libraries themselves are compiled with it, but
+		the compiler switch is not), so it is scoped to the net11.0 target framework: on net10.0 it lowers
+		await to System.Runtime.CompilerServices.AsyncHelpers, which is evaluation-only and fails the build with
+		SYSLIB5007. A net11.0 project no longer needs EnablePreviewFeatures to opt in.
 
 		It is also kept out of every shipped assembly. A library compiled with it carries runtime-async methods that
 		only a runtime implementing the feature can execute, and the Mono runtime behind Blazor WebAssembly does not:
@@ -11,7 +13,7 @@
 		PlatformNotSupportedException ("Runtime Async is not supported on this platform") in the browser. The
 		packed-consumer gate (`just smoke-packed-consumers`) found it. Tests, examples and other non-packable projects
 		keep the experiment; the libraries they reference are compiled with the stable lowering, so the tests exercise
-		exactly what ships.
+		exactly what ships. That is also why the packed consumers do not opt in: they are the WebAssembly proof.
 
 		Evaluated here rather than in Directory.Build.props because IsPackable is declared in each project file, which
 		is read after the props.

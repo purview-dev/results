@@ -55,8 +55,13 @@ public class ResultsHttpTelemetryTests
 			context
 		);
 
-		// Assert
-		var tag = measurements[0].Tags.Single(static pair => pair.Key == ResultsHttpTelemetry.ErrorTypeTag);
+		// Assert — the Meter is process-static and sibling tests emit their own unmapped failures
+		// concurrently, so filter to this error type instead of taking the first measurement.
+		var mine = ForErrorType(measurements, typeof(ItemNotFound));
+
+		await Assert.That(mine.Count).IsGreaterThanOrEqualTo(1);
+
+		var tag = mine[0].Tags.Single(static pair => pair.Key == ResultsHttpTelemetry.ErrorTypeTag);
 
 		await Assert.That(tag.Value).IsEqualTo(typeof(ItemNotFound).FullName);
 	}

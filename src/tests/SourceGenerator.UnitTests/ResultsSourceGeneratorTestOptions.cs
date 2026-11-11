@@ -4,7 +4,9 @@ namespace Purview.Results.SourceGenerator;
 /// Options shared by the results source generator and analyzer tests.
 /// </summary>
 /// <remarks>
-/// The tests compile C# 15 union declarations, so the test compilation uses the preview language version and
+/// The tests compile C# 15 union declarations. The pinned Roslyn 5.9.0 package exposes C# 15 through
+/// <c>LanguageVersion.Preview</c> only (its <c>Latest</c> still maps to C# 14), unlike the .NET 11 SDK
+/// compiler, which treats <c>latest</c> as C# 15 for a <c>net11.0</c> project. The test compilation also
 /// references the runtime <c>Purview.Results</c> library that the generated helpers target.
 /// <para>
 /// The options derive from <c>AnalyzerTestOptions</c> so the same type serves both
@@ -34,7 +36,7 @@ public record ResultsSourceGeneratorTestOptions : AnalyzerTestOptions
 	/// </summary>
 	public ResultsSourceGeneratorTestOptions()
 	{
-		// C# 15 union declarations are a preview feature.
+		// The pinned Roslyn 5.9.0 package exposes C# 15 only through Preview; its Latest is still C# 14.
 		LanguageVersion = Microsoft.CodeAnalysis.CSharp.LanguageVersion.Preview;
 
 		AdditionalAssemblyTypes = AdditionalAssemblyTypes.AddRange(typeof(Result<,>));

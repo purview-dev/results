@@ -16,11 +16,11 @@ jobs:
     name: Build and test
     uses: purview-dev/build/.github/workflows/purview-build.yml@main
     with:
-      # The shared workflow defaults to the 10.0.x SDK, but this repository targets net11.0 and pins
-      # the .NET 11 SDK in global.json. Without the matching SDK the runner cannot resolve global.json
+      # This repository targets net11.0 and pins the GA .NET 11 SDK in global.json. The shared workflow
+      # defaults to the 10.0.x SDK, so without the matching SDK the runner cannot resolve global.json
       # ("A compatible .NET SDK was not found") and every step fails.
       # Keep in sync with `sdk.version` in global.json.
-      dotnet-version: "11.0.100-rc.3.26522.148"
+      dotnet-version: "11.0.100"
       # Mirrors Build:TestFilter in purview-build.json: every test project is a *.UnitTests project
       # whose tests the SDK categorises as Unit.
       test-filter: "/*/*/*/*[Category=Unit]"

@@ -102,7 +102,8 @@ Conventions:
 ## Packaging traps
 
 - A project is packable **only** when its own `.csproj` declares `<IsPackable>true</IsPackable>`.
-- A new union-declaring file must be added to `.csharpierignore`, because the preview syntax is not parseable.
+- A new union-declaring file (or a file that uses the C# 15 `closed` modifier) must be added to `.csharpierignore`,
+  because CSharpier 1.3.0 cannot parse that syntax yet.
 - A new diagnostic must be added to `AnalyzerReleases.Unshipped.md`.
 - A property the generator reads must be declared as a `CompilerVisibleProperty` and shipped in
   `Sdk/buildTransitive/*.props`.

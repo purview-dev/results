@@ -2,8 +2,8 @@ using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Purview.Results.SourceGenerator.Helpers;
 
-// The language's union support is a preview feature of C# 15; ITypeSymbol.IsUnion is marked
-// [Experimental] until the feature ships, and this analysis deliberately targets it.
+// ITypeSymbol.IsUnion is still marked [Experimental] in Roslyn 5.9, and this analysis deliberately targets
+// it.
 #pragma warning disable RSEXPERIMENTAL006
 
 namespace Purview.Results.SourceGenerator.Diagnostics;

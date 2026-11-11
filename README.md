@@ -295,7 +295,7 @@ The full documentation suite lives in [`docs/wiki`](docs/wiki/Getting-Started.md
 
 - **.NET 10 or .NET 11** — the runtime packages multi-target `net10.0` and `net11.0`, so adopting them does
   not force a runtime upgrade. The source generator bundled in `Purview.Results` targets `netstandard2.0`
-  so any compiler host can load it. .NET 8 and 9 are not targeted; both are close to end of support.
+  so any compiler host can load it. .NET 8 and .NET 9 are not targeted; both are out of support.
 - **Unions require .NET 11.** The compiler needs `System.Runtime.CompilerServices.IUnion` and
   `UnionAttribute`, which do not exist earlier, so a `[GenerateResult]` union declaration cannot compile for
   `net10.0`. Everything else works on both: the result types, the combinators, the ASP.NET Core mapping and
@@ -303,11 +303,12 @@ The full documentation suite lives in [`docs/wiki`](docs/wiki/Getting-Started.md
   mapper already handles — register a mapping for the error type itself.
 - **Purview.ZodSharp 3** for the ZodSharp integrations, on the same `net10.0`/`net11.0` set. Trimmed, Native AOT and
   Blazor applications: see [Blazor and Native AOT](docs/wiki/Blazor-and-Native-AOT.md).
-- **C# 15 preview — only to *declare* a union.** The requirement is per-project and scoped:
+- **C# 15 is GA — only a union *declaration* needs .NET 11.** The requirement is per-project and scoped:
   - Using `Result<TValue, TError>`, `Result<TError>` and the combinators needs **nothing special**. No
     `LangVersion`, no `EnablePreviewFeatures`.
-  - Declaring your own `[GenerateResult]` union needs `LangVersion=preview` in **that** project, because the
-    union syntax is yours to compile.
+  - Declaring your own `[GenerateResult]` union needs a `net11.0` target. C# 15 is the default language
+    version for a `net11.0` project in the .NET 11 SDK, so no `LangVersion` is needed there either; set it
+    explicitly only if a project overrides the default.
 
   These packages deliberately do **not** set `EnablePreviewFeatures`. Doing so emits
   `[assembly: RequiresPreviewFeatures]`, which makes CA2252 (an error by default) fire on every member a
