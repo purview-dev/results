@@ -24,6 +24,19 @@ static class ResultsTypeLibrary
 	);
 
 	/// <summary>
+	/// The <c>Purview.Unions.GenerateUnionAttribute</c> opt-in attribute. A type carrying it is a union
+	/// even though the attribute and its constructors are emitted by another generator, which Roslyn never
+	/// exposes to this one.
+	/// </summary>
+	/// <remarks>
+	/// Matched by metadata identity only: the shipped generator has no reference to <c>Purview.Unions</c>.
+	/// </remarks>
+	public static readonly TypeIdentity GenerateUnionAttribute = new(
+		typeName: "GenerateUnionAttribute",
+		@namespace: "Purview.Unions"
+	);
+
+	/// <summary>
 	/// The runtime <c>Result&lt;TValue, TError&gt;</c> result type. Callers apply the generic arguments
 	/// for a specific union.
 	/// </summary>

@@ -1,0 +1,53 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+	<PropertyGroup>
+		<!--
+			net11.0 only: the sample declares a union, and the results pipeline's helpers need C# 15 and the
+			.NET 11 union runtime types. Server rendering can use runtime async, which this example opts into
+			through Directory.Build.targets.
+		-->
+		<TargetFrameworks></TargetFrameworks>
+		<TargetFramework>net11.0</TargetFramework>
+	</PropertyGroup>
+	<PropertyGroup>
+		<!--
+			A runnable Blazor Web App sample using interactive server rendering, started with `dotnet run`.
+			It stays non-packable (the SDK default) because it is documentation, not a shipped package.
+		-->
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- The result type and the generated AsFailure/union-receiver helpers. -->
+		<ProjectReference Include="..\Results\Results.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- The bridge that turns a ValidationResult<T> into a result. -->
+		<ProjectReference Include="..\ZodSharp\ZodSharp.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!--
+			ZodSharp itself: the [ZodSchema] attribute and the generator that emits TenantInputSchema. The
+			server renderer runs the same browser-safe validation pipeline, so both Blazor samples enforce
+			the same rules.
+		-->
+		<PackageReference Include="Purview.ZodSharp" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!--
+			The generator is a Roslyn component: it is referenced analyzer-style so it produces the
+			AsFailure<TValue>() helpers for this project's TenantError union without becoming a runtime
+			dependency, and without flowing to anything that references this project.
+		-->
+		<ProjectReference
+			Include="..\SourceGenerator\SourceGenerator.csproj"
+			OutputItemType="Analyzer"
+			ReferenceOutputAssembly="false"
+			PrivateAssets="all"
+		/>
+	</ItemGroup>
+</Project>

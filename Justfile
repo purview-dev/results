@@ -15,6 +15,8 @@ pipeline_tool := "dotnet purview-build"
 
 current_version := `bun -p "require('./package.json').version"`
 
+import "Justfile.skills.just"
+
 [private]
 default:
     just --list
@@ -134,6 +136,21 @@ example-basic *args:
 [group('Examples')]
 example-zod *args:
     dotnet run --project src/src/Examples.Zod {{ args }}
+
+# Run the Purview.Unions example ([GenerateUnion] and [GenerateResult] in one compilation, listening on none)
+[group('Examples')]
+example-unions *args:
+    dotnet run --project src/src/Examples.Unions {{ args }}
+
+# Run the Blazor WebAssembly example (results + ZodSharp validation in the browser), listening on http://localhost:5217
+[group('Examples')]
+example-blazor-wasm *args:
+    dotnet run --project src/src/Examples.Blazor.Wasm --urls http://localhost:5217 {{ args }}
+
+# Run the Blazor Server example (the same pipeline with interactive server rendering), listening on http://localhost:5218
+[group('Examples')]
+example-blazor-server *args:
+    dotnet run --project src/src/Examples.Blazor.Server --urls http://localhost:5218 {{ args }}
 
 # Run the ASP.NET Core example (result-to-response mapping), listening on http://localhost:5215
 [group('Examples')]

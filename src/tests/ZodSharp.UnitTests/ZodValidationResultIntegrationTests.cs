@@ -26,7 +26,7 @@ public class ZodValidationResultIntegrationTests
 		// Assert
 		await Assert.That(validation.IsSuccess).IsFalse();
 		await Assert.That(validation.Errors.Length).IsGreaterThanOrEqualTo(1);
-		await Assert.That(validation.Errors[0].Path).Contains(nameof(Operation.Name));
+		await Assert.That(validation.Errors[0].FullPath.ToDottedString()).Contains(nameof(Operation.Name));
 	}
 
 	[Test]
@@ -51,7 +51,7 @@ public class ZodValidationResultIntegrationTests
 
 		await Assert.That(rejected).IsNotNull();
 		await Assert.That(rejected!.Value.Operation).IsEqualTo(operation);
-		await Assert.That(rejected.Value.Errors[0].Path).Contains(nameof(Operation.Name));
+		await Assert.That(rejected.Value.Errors[0].FullPath.ToDottedString()).Contains(nameof(Operation.Name));
 
 		// The guard idiom: the method succeeds with a different type than the validated value, so the generated
 		// AsFailure<TValue>() helper produces the failure.
@@ -223,7 +223,7 @@ public class ZodValidationResultIntegrationTests
 
 		await Assert.That(rejected).IsNotNull();
 		await Assert.That(rejected!.Value.Operation).IsEqualTo(operation);
-		await Assert.That(rejected.Value.Errors[0].Path).Contains(nameof(Operation.Name));
+		await Assert.That(rejected.Value.Errors[0].FullPath.ToDottedString()).Contains(nameof(Operation.Name));
 	}
 
 	[Test]

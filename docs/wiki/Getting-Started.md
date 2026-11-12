@@ -5,15 +5,16 @@ This guide installs the packages, models an error union, returns a result, and m
 ## Requirements
 
 - **.NET 10 or .NET 11** — the runtime packages multi-target `net10.0` and `net11.0`; the source generator
-  targets `netstandard2.0` so any compiler host can load it. .NET 8 and 9 are not targeted.
+  targets `netstandard2.0` so any compiler host can load it. .NET 8 and .NET 9 are not targeted; both are out
+  of support.
 - **Unions require .NET 11**, because the compiler needs `System.Runtime.CompilerServices.IUnion` and
   `UnionAttribute`. On `net10.0` the result types, combinators, ASP.NET Core mapping and ZodSharp bridge all
   work; only the union declaration itself is unavailable, so map the error type directly instead of a case.
-- **C# 15 preview — only to *declare* a union.** Using the result types and combinators needs nothing
+- **C# 15 — only a union *declaration* needs .NET 11.** Using the result types and combinators needs nothing
   special: no `LangVersion`, no `EnablePreviewFeatures`. A project that declares its own
-  `[GenerateResult]` union needs `LangVersion=preview` in that project, because the union syntax is yours to
-  compile. Adoption is therefore incremental — you can take `Result<TValue, TError>` into an existing
-  solution first and introduce unions per project later.
+  `[GenerateResult]` union needs a `net11.0` target, where C# 15 is the SDK's default language version, so it
+  needs no `LangVersion` either. Adoption is therefore incremental — you can take `Result<TValue, TError>` into
+  an existing solution first and introduce unions per project later.
 
   These packages do not set `EnablePreviewFeatures`, so they do not force preview features on your
   solution. See [Guarantees and Limitations](Guarantees-and-Limitations.md).
@@ -161,7 +162,10 @@ Every example is a non-packable project under `src/src/Examples.*`, built on the
 
 ```bash
 dotnet run --project src/src/Examples.Basic
+dotnet run --project src/src/Examples.Unions
 dotnet run --project src/src/Examples.Zod
+dotnet run --project src/src/Examples.Blazor.Server --urls http://localhost:5218
+dotnet run --project src/src/Examples.Blazor.Wasm --urls http://localhost:5217
 dotnet run --project src/src/Examples.AspNetCore --urls http://localhost:5215
 dotnet run --project src/src/Examples.AspNetCore.Zod --urls http://localhost:5216
 dotnet run --project src/src/Examples.ValueObjects.Zod

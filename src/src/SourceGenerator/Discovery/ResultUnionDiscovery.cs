@@ -5,10 +5,6 @@ using Purview.Results.SourceGenerator.Diagnostics;
 using Purview.Results.SourceGenerator.Helpers;
 using Purview.Results.SourceGenerator.Models;
 
-// The language's union support is a preview feature of C# 15; ITypeSymbol.IsUnion is marked
-// [Experimental] until the feature ships, and this discovery deliberately targets it.
-#pragma warning disable RSEXPERIMENTAL006
-
 namespace Purview.Results.SourceGenerator.Discovery;
 
 /// <summary>
@@ -57,12 +53,18 @@ static class ResultUnionDiscovery
 		var extensionClassName = CreateExtensionClassName(union);
 		var cases = CreateCaseModels(analysis.CaseTypes);
 		var includedCases = CreateIncludedCaseModels(analysis.IncludedCases);
+		var typeParameters = CreateTypeParameterModels(union);
 
 		return GeneratorResult<ResultUnionModel>.Create(
 			new ResultUnionModel(
 				Namespace: namespaceName,
 				IsGlobalNamespace: namespaceName.Length == 0,
 				UnionType: new TypeIdentity(union),
+				UnionTypeLiteral: union.ToDisplayString(LiteralFormat),
+				IsGeneric: typeParameters.Count > 0,
+				TypeParameters: typeParameters,
+				UsesMemberProvider: analysis.UsesMemberProvider,
+				MemberProviderLiteral: analysis.MemberProvider?.ToDisplayString(LiteralFormat),
 				FullyQualifiedName: union.ToDisplayString(ResultUnionDiagnostics.DisplayFormat),
 				Accessibility: analysis.UnionIsPublic && analysis.EveryCaseIsPublic
 					? TypeDeclarationAccessibility.Public
@@ -80,6 +82,66 @@ static class ResultUnionDiscovery
 		);
 	}
 
+	/// <summary>
+	/// The display format used for emitted type names: fully qualified, with C# keywords and nullable
+	/// annotations. A type parameter renders as its bare name, so a generic union's own parameters can appear
+	/// in a generated top-level helper.
+	/// </summary>
+	static readonly SymbolDisplayFormat LiteralFormat =
+		SymbolDisplayFormat.FullyQualifiedFormat.WithMiscellaneousOptions(
+			SymbolDisplayMiscellaneousOptions.UseSpecialTypes
+				| SymbolDisplayMiscellaneousOptions.EscapeKeywordIdentifiers
+				| SymbolDisplayMiscellaneousOptions.IncludeNullableReferenceTypeModifier
+		);
+
+	/// <summary>
+	/// Renders a type as a literal, render-only reference.
+	/// </summary>
+	/// <remarks>
+	/// A <c>TypeReference</c> built from a symbol carries a <c>TypeIdentity</c> whose name is empty for a
+	/// type parameter, which <c>CodeWriter</c> rejects in a declaration. The generator emits fully qualified
+	/// names, so a literal reference over the rendered name is both exact and safe for arrays, nullable
+	/// types, constructed generics and type parameters.
+	/// </remarks>
+	static TypeReference ToLiteral(ITypeSymbol type) =>
+		new(new TypeIdentity(type.ToDisplayString(LiteralFormat), null));
+
+	static EquatableArray<ResultUnionTypeParameterModel> CreateTypeParameterModels(INamedTypeSymbol union)
+	{
+		if (union.TypeParameters.IsDefaultOrEmpty)
+			return EquatableArray<ResultUnionTypeParameterModel>.Empty;
+
+		var parameters = ImmutableArray.CreateBuilder<ResultUnionTypeParameterModel>(union.TypeParameters.Length);
+
+		foreach (var parameter in union.TypeParameters)
+		{
+			var constraints = ImmutableArray.CreateBuilder<string>();
+
+			if (parameter.HasUnmanagedTypeConstraint)
+				constraints.Add("unmanaged");
+			else if (parameter.HasValueTypeConstraint)
+				constraints.Add("struct");
+			else if (parameter.HasReferenceTypeConstraint)
+				constraints.Add(
+					parameter.ReferenceTypeConstraintNullableAnnotation == NullableAnnotation.Annotated
+						? "class?"
+						: "class"
+				);
+			else if (parameter.HasNotNullConstraint)
+				constraints.Add("notnull");
+
+			foreach (var constraintType in parameter.ConstraintTypes)
+				constraints.Add(constraintType.ToDisplayString(LiteralFormat));
+
+			if (parameter.HasConstructorConstraint)
+				constraints.Add("new()");
+
+			parameters.Add(new ResultUnionTypeParameterModel(parameter.Name, constraints.ToImmutable()));
+		}
+
+		return parameters.ToImmutable();
+	}
+
 	static EquatableArray<ReportableDiagnostic> ToReportableDiagnostics(ImmutableArray<ResultDiagnostic> findings)
 	{
 		if (findings.IsDefaultOrEmpty)
@@ -92,7 +154,7 @@ static class ResultUnionDiscovery
 		return diagnostics.ToImmutable();
 	}
 
-	static EquatableArray<ResultUnionCaseModel> CreateCaseModels(ImmutableArray<INamedTypeSymbol> caseTypes)
+	static EquatableArray<ResultUnionCaseModel> CreateCaseModels(ImmutableArray<ITypeSymbol> caseTypes)
 	{
 		var cases = ImmutableArray.CreateBuilder<ResultUnionCaseModel>(caseTypes.Length);
 
@@ -100,9 +162,10 @@ static class ResultUnionDiscovery
 		{
 			cases.Add(
 				new ResultUnionCaseModel(
-					TypeReference.Create(caseType),
+					ToLiteral(caseType),
 					caseType.ToDisplayString(ResultUnionDiagnostics.DisplayFormat),
-					caseType.IsUnion
+					caseType is INamedTypeSymbol namedCaseType && ResultUnionDiagnostics.IsUnionType(namedCaseType),
+					caseType is ITypeParameterSymbol
 				)
 			);
 		}
@@ -125,9 +188,14 @@ static class ResultUnionDiscovery
 		{
 			cases.Add(
 				new IncludedUnionCaseModel(
-					TypeReference.Create(includedCase.CaseType),
+					ToLiteral(includedCase.CaseType),
 					includedCase.CaseType.ToDisplayString(ResultUnionDiagnostics.DisplayFormat),
-					includedCase.UnionPath.Select(static unionType => new TypeIdentity(unionType)).ToImmutableArray()
+					includedCase
+						.UnionPath.Select(static unionType => new IncludedUnionStepModel(
+							ToLiteral(unionType),
+							ResultUnionDiagnostics.GetMemberProvider(unionType)?.ToDisplayString(LiteralFormat)
+						))
+						.ToImmutableArray()
 				)
 			);
 		}

@@ -1,9 +1,11 @@
 using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Purview.Results.SourceGenerator.Helpers;
 
-// The language's union support is a preview feature of C# 15; ITypeSymbol.IsUnion is marked
-// [Experimental] until the feature ships, and this analysis deliberately targets it.
+// ITypeSymbol.IsUnion is still marked [Experimental] in Roslyn 5.9, and this analysis deliberately targets
+// it.
 #pragma warning disable RSEXPERIMENTAL006
 
 namespace Purview.Results.SourceGenerator.Diagnostics;
@@ -26,14 +28,21 @@ readonly record struct ResultUnionIncludedCase(INamedTypeSymbol CaseType, Immuta
 /// generated and which case types it should reference).
 /// </summary>
 /// <param name="HasGenerateResultAttribute">Whether the target opts in with the generated attribute.</param>
-/// <param name="IsUnion">Whether the target is a C# union.</param>
+/// <param name="IsUnion">
+/// Whether the target is a union this generator recognises: a language union or a source-visible
+/// <c>Purview.Unions.GenerateUnionAttribute</c> target.
+/// </param>
 /// <param name="UnionIsReferenceable">Whether the union itself can be referenced from generated code.</param>
 /// <param name="UnionIsPublic">Whether the union is public.</param>
 /// <param name="EveryCaseIsPublic">Whether every usable case type is public.</param>
-/// <param name="CaseTypes">The usable case types, in constructor order.</param>
+/// <param name="CaseTypes">The usable case types, in declaration order.</param>
 /// <param name="IncludedCases">
 /// The case types reachable through the union's included (union-typed) cases, in discovery order.
 /// </param>
+/// <param name="UsesMemberProvider">
+/// Whether the union's creation members live on a nested <c>IUnionMembers</c> provider.
+/// </param>
+/// <param name="MemberProvider">The union's nested <c>IUnionMembers</c> provider, when it has one.</param>
 /// <param name="Diagnostics">Every finding, in discovery order.</param>
 readonly record struct ResultUnionTargetAnalysis(
 	bool HasGenerateResultAttribute,
@@ -41,8 +50,10 @@ readonly record struct ResultUnionTargetAnalysis(
 	bool UnionIsReferenceable,
 	bool UnionIsPublic,
 	bool EveryCaseIsPublic,
-	ImmutableArray<INamedTypeSymbol> CaseTypes,
+	ImmutableArray<ITypeSymbol> CaseTypes,
 	ImmutableArray<ResultUnionIncludedCase> IncludedCases,
+	bool UsesMemberProvider,
+	INamedTypeSymbol? MemberProvider,
 	ImmutableArray<ResultDiagnostic> Diagnostics
 )
 {
@@ -65,10 +76,20 @@ readonly record struct ResultUnionTargetAnalysis(
 /// the analyzer and the source generator so the two hosts cannot drift apart.
 /// </summary>
 /// <remarks>
-/// Union membership is decided by the language through <see cref="ITypeSymbol.IsUnion"/> — never by type
-/// name conventions, source-text parsing, reflection or runtime inspection of the union's value. Case types
-/// are resolved using the language's own rule: for each public constructor with exactly one by-value (or
-/// <c>in</c>) parameter, the type of that parameter is a case type of the union.
+/// <para>
+/// A target is a union when the language says so (<see cref="ITypeSymbol.IsUnion"/>) or when it opts into
+/// another generator with <c>Purview.Unions.GenerateUnionAttribute</c>. The latter is matched by metadata
+/// identity only, because this generator never sees another generator's output: a <c>[GenerateUnion]</c>
+/// type has no visible <c>[Union]</c> attribute and no visible constructors in this compilation. Never
+/// infer union membership from type names, source-text parsing, reflection or the union's runtime value.
+/// </para>
+/// <para>
+/// A language union resolves its cases from the language's own rule — a nested <c>IUnionMembers</c>
+/// provider when one exists, otherwise each public constructor with exactly one by-value (or <c>in</c>)
+/// parameter. A <c>[GenerateUnion]</c> target resolves the first non-empty <em>source-visible</em> list
+/// instead: the attribute's <c>typeof</c> list, its partial static factory signatures, a nested
+/// <c>IUnionMembers</c> provider, then any source-visible public single-parameter constructors.
+/// </para>
 /// </remarks>
 static class ResultUnionDiagnostics
 {
@@ -89,6 +110,30 @@ static class ResultUnionDiagnostics
 	/// <param name="symbol">The target symbol.</param>
 	/// <returns><see langword="true"/> when the opt-in attribute is applied.</returns>
 	public static bool HasGenerateResultAttribute(INamedTypeSymbol symbol) => CountGenerateResultAttributes(symbol) > 0;
+
+	/// <summary>
+	/// Determines whether the target opts into union generation with
+	/// <c>Purview.Unions.GenerateUnionAttribute</c>.
+	/// </summary>
+	/// <param name="symbol">The target symbol.</param>
+	/// <returns><see langword="true"/> when the attribute is applied.</returns>
+	/// <remarks>
+	/// The attribute is matched by metadata identity only. Its application is source-visible, so a target
+	/// is recognisable as a union even though the <c>[Union]</c> attribute and the constructors the union
+	/// generator emits are not visible to this generator.
+	/// </remarks>
+	public static bool HasGenerateUnionAttribute(INamedTypeSymbol symbol) =>
+		HasAttribute(symbol, ResultsTypeLibrary.GenerateUnionAttribute);
+
+	/// <summary>
+	/// Determines whether the type is a union as far as this generator is concerned: a language union
+	/// (a <c>union</c> declaration or a source-visible <c>[Union]</c> type) or a type opted into union
+	/// generation with <c>Purview.Unions.GenerateUnionAttribute</c>.
+	/// </summary>
+	/// <param name="type">The type to test.</param>
+	/// <returns><see langword="true"/> when the type is a union this generator can read cases from.</returns>
+	public static bool IsUnionType(INamedTypeSymbol type) =>
+		type.IsUnion || HasAttribute(type, ResultsTypeLibrary.UnionAttribute) || HasGenerateUnionAttribute(type);
 
 	/// <summary>
 	/// Counts the opt-in attribute applications on the target. Attribute applications on separate partial
@@ -151,6 +196,8 @@ static class ResultUnionDiagnostics
 				EveryCaseIsPublic: false,
 				CaseTypes: [],
 				IncludedCases: [],
+				UsesMemberProvider: false,
+				MemberProvider: null,
 				Diagnostics: []
 			);
 		}
@@ -159,7 +206,7 @@ static class ResultUnionDiagnostics
 		var declarationLocation = symbol.Locations.IsDefaultOrEmpty ? Location.None : symbol.Locations[0];
 		var attributeLocation = GetAttributeLocation(symbol, cancellationToken) ?? declarationLocation;
 
-		if (!symbol.IsUnion)
+		if (!IsUnionType(symbol))
 		{
 			return new ResultUnionTargetAnalysis(
 				HasGenerateResultAttribute: true,
@@ -169,6 +216,8 @@ static class ResultUnionDiagnostics
 				EveryCaseIsPublic: false,
 				CaseTypes: [],
 				IncludedCases: [],
+				UsesMemberProvider: false,
+				MemberProvider: null,
 				Diagnostics:
 				[
 					ResultDiagnostic.Create(
@@ -195,7 +244,8 @@ static class ResultUnionDiagnostics
 			);
 		}
 
-		if (HasNonImplicitMemberProvider(symbol))
+		var memberProvider = GetMemberProvider(symbol);
+		if (memberProvider is not null && GetProviderCaseTypes(memberProvider).IsDefaultOrEmpty)
 		{
 			diagnostics.Add(
 				ResultDiagnostic.Create(
@@ -207,7 +257,7 @@ static class ResultUnionDiagnostics
 			);
 		}
 
-		if (symbol.IsGenericType || symbol.Arity > 0)
+		if (HasGenericContainingType(symbol))
 		{
 			diagnostics.Add(
 				ResultDiagnostic.Create(
@@ -232,6 +282,7 @@ static class ResultUnionDiagnostics
 			);
 		}
 
+		var typeParameters = symbol.TypeParameters;
 		if (diagnostics.Any(static diagnostic => diagnostic.IsBlocking))
 		{
 			return new ResultUnionTargetAnalysis(
@@ -242,12 +293,22 @@ static class ResultUnionDiagnostics
 				EveryCaseIsPublic: false,
 				CaseTypes: [],
 				IncludedCases: [],
+				UsesMemberProvider: memberProvider is not null,
+				MemberProvider: memberProvider,
 				Diagnostics: diagnostics.ToImmutable()
 			);
 		}
 
 		var everyCaseIsPublic = true;
-		var caseTypes = AnalyzeCases(symbol, diagnostics, ref everyCaseIsPublic, cancellationToken);
+		var caseTypes = AnalyzeCases(
+			symbol,
+			memberProvider,
+			attributeLocation,
+			typeParameters,
+			diagnostics,
+			ref everyCaseIsPublic,
+			cancellationToken
+		);
 		var includedCases = AnalyzeIncludedCases(
 			symbol,
 			caseTypes,
@@ -277,37 +338,68 @@ static class ResultUnionDiagnostics
 			EveryCaseIsPublic: everyCaseIsPublic,
 			CaseTypes: caseTypes,
 			IncludedCases: includedCases,
+			UsesMemberProvider: memberProvider is not null,
+			MemberProvider: memberProvider,
 			Diagnostics: diagnostics.ToImmutable()
 		);
 	}
 
 	/// <summary>
-	/// Resolves the union's usable case types from the language's case-type rule, reporting case findings
+	/// Resolves the union's usable case types from its source-visible case list, and reports case findings
 	/// (which never block the union) for the cases that cannot be referenced from generated code.
 	/// </summary>
-	static ImmutableArray<INamedTypeSymbol> AnalyzeCases(
+	/// <remarks>
+	/// A language union keeps the language's rule: a nested <c>IUnionMembers</c> provider's <c>Create</c>
+	/// methods when one exists, otherwise the union's public single-parameter constructors. A
+	/// <c>[GenerateUnion]</c> target reads the first non-empty source-visible list the union generator
+	/// supports — the attribute's <c>typeof</c> list, its partial static factory signatures, a nested
+	/// <c>IUnionMembers</c> provider, or any source-visible public single-parameter constructors — because
+	/// the union's own constructors live in another generator's output.
+	/// </remarks>
+	static ImmutableArray<ITypeSymbol> AnalyzeCases(
 		INamedTypeSymbol union,
+		INamedTypeSymbol? memberProvider,
+		Location fallbackLocation,
+		ImmutableArray<ITypeParameterSymbol> typeParameters,
 		ImmutableArray<ResultDiagnostic>.Builder diagnostics,
 		ref bool everyCaseIsPublic,
 		CancellationToken cancellationToken
 	)
 	{
-		var caseTypes = ImmutableArray.CreateBuilder<INamedTypeSymbol>();
+		var caseTypes = ImmutableArray.CreateBuilder<ITypeSymbol>();
+		var candidates = GetCaseCandidates(union, memberProvider, fallbackLocation, cancellationToken);
 
-		foreach (var constructor in union.InstanceConstructors)
+		foreach (var (candidateType, caseLocation) in candidates)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
-			if (!IsCaseConstructor(constructor))
-				continue;
-
-			var caseType = constructor.Parameters[0].Type;
-			var caseLocation = constructor.Parameters[0].Locations.IsDefaultOrEmpty
-				? Location.None
-				: constructor.Parameters[0].Locations[0];
+			var caseType = NormalizeCaseType(candidateType);
 			var displayName = caseType.ToDisplayString(DisplayFormat);
 
-			if (ContainsTypeParameters(caseType))
+			// A bare type parameter is a valid union case only when it is one of the union's own type
+			// parameters. It gets a union-receiver factory but no per-case AsFailure helper.
+			if (caseType is ITypeParameterSymbol parameter)
+			{
+				if (!typeParameters.Contains(parameter, SymbolEqualityComparer.Default))
+				{
+					diagnostics.Add(
+						ResultDiagnostic.Create(
+							DiagnosticLibrary.UnsupportedGenericConfiguration,
+							DiagnosticScope.Case,
+							caseLocation,
+							displayName
+						)
+					);
+					continue;
+				}
+
+				caseTypes.Add(parameter);
+				continue;
+			}
+
+			// A case may mention the union's own type parameters, but a type parameter supplied by an
+			// enclosing type cannot be declared by the generated top-level helper.
+			if (ContainsExternalTypeParameters(caseType, typeParameters))
 			{
 				diagnostics.Add(
 					ResultDiagnostic.Create(
@@ -375,25 +467,26 @@ static class ResultUnionDiagnostics
 	/// </remarks>
 	static ImmutableArray<ResultUnionIncludedCase> AnalyzeIncludedCases(
 		INamedTypeSymbol union,
-		ImmutableArray<INamedTypeSymbol> caseTypes,
+		ImmutableArray<ITypeSymbol> caseTypes,
 		Location reportLocation,
 		ImmutableArray<ResultDiagnostic>.Builder diagnostics,
 		ref bool everyCaseIsPublic,
 		CancellationToken cancellationToken
 	)
 	{
-		HashSet<INamedTypeSymbol> directCases = [with(SymbolEqualityComparer.Default), .. caseTypes];
+		HashSet<ITypeSymbol> directCases = [with(SymbolEqualityComparer.Default), .. caseTypes];
 
 		Dictionary<INamedTypeSymbol, ImmutableArray<INamedTypeSymbol>> paths = [with(SymbolEqualityComparer.Default)];
 		HashSet<INamedTypeSymbol> ambiguous = [with(SymbolEqualityComparer.Default)];
 		HashSet<INamedTypeSymbol> stack = [with(SymbolEqualityComparer.Default)];
+		var typeParameters = union.TypeParameters;
 
 		foreach (var caseType in caseTypes)
 		{
 			cancellationToken.ThrowIfCancellationRequested();
 
-			if (caseType.IsUnion)
-				Walk(caseType, []);
+			if (caseType is INamedTypeSymbol unionCase && IsUnionType(unionCase))
+				Walk(unionCase, []);
 		}
 
 		if (paths.Count == 0)
@@ -463,7 +556,7 @@ static class ResultUnionDiagnostics
 			if (!stack.Add(currentUnion))
 				return;
 
-			foreach (var caseType in GetUsableCaseTypes(currentUnion))
+			foreach (var caseType in GetUsableCaseTypes(currentUnion, typeParameters, cancellationToken))
 			{
 				if (
 					SymbolEqualityComparer.Default.Equals(caseType, union)
@@ -484,7 +577,7 @@ static class ResultUnionDiagnostics
 
 				paths.Add(caseType, path);
 
-				if (caseType.IsUnion)
+				if (IsUnionType(caseType))
 					Walk(caseType, path);
 			}
 
@@ -496,17 +589,21 @@ static class ResultUnionDiagnostics
 	/// Resolves an included union's usable case types without reporting findings, which are reported when
 	/// that union is itself analyzed as an opted-in target.
 	/// </summary>
-	static ImmutableArray<INamedTypeSymbol> GetUsableCaseTypes(INamedTypeSymbol union)
+	static ImmutableArray<INamedTypeSymbol> GetUsableCaseTypes(
+		INamedTypeSymbol union,
+		ImmutableArray<ITypeParameterSymbol> allowedTypeParameters,
+		CancellationToken cancellationToken
+	)
 	{
 		var caseTypes = ImmutableArray.CreateBuilder<INamedTypeSymbol>();
 
-		foreach (var constructor in union.InstanceConstructors)
+		foreach (var candidateType in GetCaseTypeCandidates(union, cancellationToken))
 		{
-			if (!IsCaseConstructor(constructor))
-				continue;
+			cancellationToken.ThrowIfCancellationRequested();
 
-			var caseType = constructor.Parameters[0].Type;
-			if (ContainsTypeParameters(caseType))
+			var caseType = NormalizeCaseType(candidateType);
+
+			if (caseType is ITypeParameterSymbol || ContainsExternalTypeParameters(caseType, allowedTypeParameters))
 				continue;
 
 			if (!TryGetReferenceableAccessibility(caseType, out _))
@@ -523,6 +620,262 @@ static class ResultUnionDiagnostics
 
 		return caseTypes.ToImmutable();
 	}
+
+	/// <summary>
+	/// Gets the union's case type candidates from the first non-empty source-visible case list.
+	/// </summary>
+	/// <remarks>
+	/// A <c>[GenerateUnion]</c> target mirrors the union generator's order: the attribute's <c>typeof</c>
+	/// list, its partial static factory signatures, a nested <c>IUnionMembers</c> provider, then any
+	/// source-visible public single-parameter constructors. A language union keeps the language's rule: the
+	/// provider when one exists, otherwise its constructors.
+	/// </remarks>
+	static List<(ITypeSymbol CaseType, Location Location)> GetCaseCandidates(
+		INamedTypeSymbol union,
+		INamedTypeSymbol? memberProvider,
+		Location fallbackLocation,
+		CancellationToken cancellationToken
+	)
+	{
+		if (HasGenerateUnionAttribute(union))
+		{
+			var attributeCases = GetAttributeCaseTypes(union);
+			if (!attributeCases.IsDefaultOrEmpty)
+				return [.. attributeCases.Select(caseType => (caseType, fallbackLocation))];
+
+			var factoryCases = GetFactoryCaseCandidates(union, cancellationToken);
+			if (factoryCases.Count > 0)
+				return factoryCases;
+		}
+
+		if (memberProvider is not null)
+		{
+			List<(ITypeSymbol CaseType, Location Location)> providerCases = [];
+
+			foreach (var method in GetProviderCreateMethods(memberProvider))
+			{
+				cancellationToken.ThrowIfCancellationRequested();
+				providerCases.Add((method.Parameters[0].Type, GetParameterLocation(method.Parameters[0])));
+			}
+
+			if (providerCases.Count > 0)
+				return providerCases;
+		}
+
+		List<(ITypeSymbol CaseType, Location Location)> constructorCases = [];
+
+		foreach (var constructor in union.InstanceConstructors)
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+
+			if (IsCaseConstructor(constructor))
+				constructorCases.Add((constructor.Parameters[0].Type, GetParameterLocation(constructor.Parameters[0])));
+		}
+
+		return constructorCases;
+	}
+
+	/// <summary>
+	/// Gets an included union's case type candidates without reporting findings.
+	/// </summary>
+	static IEnumerable<ITypeSymbol> GetCaseTypeCandidates(INamedTypeSymbol union, CancellationToken cancellationToken)
+	{
+		foreach (var candidate in GetCaseCandidates(union, GetMemberProvider(union), Location.None, cancellationToken))
+			yield return candidate.CaseType;
+	}
+
+	/// <summary>
+	/// Reads the <c>[GenerateUnion]</c> <c>typeof</c> case list, in declaration order.
+	/// </summary>
+	static ImmutableArray<ITypeSymbol> GetAttributeCaseTypes(INamedTypeSymbol union)
+	{
+		foreach (var attribute in union.GetAttributes())
+		{
+			if (!ResultsTypeLibrary.GenerateUnionAttribute.Matches(attribute.AttributeClass))
+				continue;
+
+			if (attribute.ConstructorArguments.Length != 1)
+				return [];
+
+			var argument = attribute.ConstructorArguments[0];
+			if (argument.Kind != TypedConstantKind.Array || argument.IsNull)
+				return [];
+
+			var builder = ImmutableArray.CreateBuilder<ITypeSymbol>(argument.Values.Length);
+
+			foreach (var value in argument.Values)
+			{
+				if (value.Kind == TypedConstantKind.Type && value.Value is ITypeSymbol type)
+					builder.Add(type);
+			}
+
+			return builder.ToImmutable();
+		}
+
+		return [];
+	}
+
+	/// <summary>
+	/// Reads the case types from the union's own partial static factory signatures.
+	/// </summary>
+	static List<(ITypeSymbol CaseType, Location Location)> GetFactoryCaseCandidates(
+		INamedTypeSymbol union,
+		CancellationToken cancellationToken
+	)
+	{
+		List<(ITypeSymbol CaseType, Location Location)> candidates = [];
+
+		foreach (var method in OrderedFactoryMethods(union, cancellationToken))
+			candidates.Add((method.Parameters[0].Type, GetParameterLocation(method.Parameters[0])));
+
+		return candidates;
+	}
+
+	/// <summary>
+	/// Gets the partial static factory signatures to read cases from, in source order.
+	/// </summary>
+	/// <remarks>
+	/// A factory is a static method with exactly one unrestricted parameter whose return type is the union,
+	/// declared as a <c>partial</c> signature without a body. This mirrors the union generator, so a
+	/// generated union's source-visible factories are the same list that generator implements.
+	/// </remarks>
+	static IEnumerable<IMethodSymbol> OrderedFactoryMethods(INamedTypeSymbol union, CancellationToken cancellationToken)
+	{
+		foreach (var member in OrderedMembers(union))
+		{
+			cancellationToken.ThrowIfCancellationRequested();
+
+			if (member is not IMethodSymbol { IsStatic: true, Parameters.Length: 1 } method)
+				continue;
+
+			if (method.Parameters[0].RefKind is not (RefKind.None or RefKind.In))
+				continue;
+
+			if (!SymbolEqualityComparer.Default.Equals(method.ReturnType, union))
+				continue;
+
+			if (!IsPartialMethodDefinition(method, cancellationToken))
+				continue;
+
+			yield return method;
+		}
+	}
+
+	static IEnumerable<ISymbol> OrderedMembers(INamedTypeSymbol type) =>
+		type.GetMembers()
+			.OrderBy(static member =>
+				member.Locations.IsDefaultOrEmpty ? int.MaxValue : member.Locations[0].SourceSpan.Start
+			);
+
+	/// <summary>
+	/// Determines whether a method is a <c>partial</c> signature without a body, which is what makes a
+	/// factory declaration a case list rather than an implementation.
+	/// </summary>
+	static bool IsPartialMethodDefinition(IMethodSymbol method, CancellationToken cancellationToken)
+	{
+		foreach (var reference in method.DeclaringSyntaxReferences)
+		{
+			if (
+				reference.GetSyntax(cancellationToken) is MethodDeclarationSyntax syntax
+				&& syntax.Modifiers.Any(SyntaxKind.PartialKeyword)
+				&& syntax.Body is null
+				&& syntax.ExpressionBody is null
+			)
+				return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// Normalises a case type exactly as the union generator exposes it: a nullable value type becomes its
+	/// underlying type, a nullable reference annotation is stripped, and constructed generic types and
+	/// arrays are preserved as they are.
+	/// </summary>
+	static ITypeSymbol NormalizeCaseType(ITypeSymbol caseType) =>
+		caseType switch
+		{
+			INamedTypeSymbol named
+				when named.OriginalDefinition.SpecialType == SpecialType.System_Nullable_T
+					&& named.TypeArguments.Length == 1 => NormalizeCaseType(named.TypeArguments[0]),
+			_ when caseType.NullableAnnotation == NullableAnnotation.Annotated => caseType.WithNullableAnnotation(
+				NullableAnnotation.NotAnnotated
+			),
+			_ => caseType,
+		};
+
+	static bool HasAttribute(INamedTypeSymbol type, TypeIdentity identity)
+	{
+		foreach (var attribute in type.GetAttributes())
+		{
+			if (identity.Matches(attribute.AttributeClass))
+				return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// Gets the union's nested <c>IUnionMembers</c> provider, when it declares one.
+	/// </summary>
+	/// <param name="union">The union to inspect.</param>
+	/// <returns>The provider interface, or <see langword="null"/>.</returns>
+	/// <remarks>
+	/// The language finds a union's members only on a public nested interface named <c>IUnionMembers</c>.
+	/// A type that declares one is a member-provider union even when it also has constructors.
+	/// </remarks>
+	public static INamedTypeSymbol? GetMemberProvider(INamedTypeSymbol union)
+	{
+		foreach (var member in union.GetTypeMembers("IUnionMembers"))
+		{
+			if (!member.IsImplicitlyDeclared && member.TypeKind == TypeKind.Interface)
+				return member;
+		}
+
+		return null;
+	}
+
+	/// <summary>
+	/// Determines whether the union is nested inside a generic type. The generated helper is a top-level type,
+	/// so it cannot name the containing type's type parameters; such a union is reported rather than emitted
+	/// with an unbound type argument.
+	/// </summary>
+	static bool HasGenericContainingType(INamedTypeSymbol union)
+	{
+		for (var current = union.ContainingType; current is not null; current = current.ContainingType)
+		{
+			if (current.Arity > 0)
+				return true;
+		}
+
+		return false;
+	}
+
+	/// <summary>
+	/// Gets every static single-parameter <c>Create</c> method declared by a provider or an interface it
+	/// inherits. The parameter type of each is a case type.
+	/// </summary>
+	static IEnumerable<IMethodSymbol> GetProviderCreateMethods(INamedTypeSymbol provider)
+	{
+		foreach (var current in provider.AllInterfaces.Prepend(provider))
+		{
+			foreach (var member in current.GetMembers("Create"))
+			{
+				if (member is IMethodSymbol { IsStatic: true, Parameters.Length: 1 } method)
+					yield return method;
+			}
+		}
+	}
+
+	/// <summary>
+	/// Gets a provider's case types, used to decide whether the provider declares the required creation
+	/// members.
+	/// </summary>
+	static ImmutableArray<ITypeSymbol> GetProviderCaseTypes(INamedTypeSymbol provider) =>
+		[.. GetProviderCreateMethods(provider).Select(static method => method.Parameters[0].Type)];
+
+	static Location GetParameterLocation(IParameterSymbol parameter) =>
+		parameter.Locations.IsDefaultOrEmpty ? Location.None : parameter.Locations[0];
 
 	static bool PathsEqual(ImmutableArray<INamedTypeSymbol> left, ImmutableArray<INamedTypeSymbol> right)
 	{
@@ -548,33 +901,22 @@ static class ResultUnionDiagnostics
 		&& constructor.Parameters[0].RefKind is RefKind.None or RefKind.In;
 
 	/// <summary>
-	/// Determines whether the union directly declares a user-authored <c>IUnionMembers</c> member provider
-	/// interface, which the first implementation does not support.
+	/// Determines whether a type contains a type parameter that the generated helper cannot declare: one
+	/// that is not supplied by the union itself (directly, through an array element, or through a generic
+	/// type argument).
 	/// </summary>
-	static bool HasNonImplicitMemberProvider(INamedTypeSymbol union)
-	{
-		foreach (var member in union.GetTypeMembers("IUnionMembers"))
-		{
-			if (!member.IsImplicitlyDeclared)
-				return true;
-		}
-
-		return false;
-	}
-
-	/// <summary>
-	/// Determines whether a type contains a type parameter (directly, through an array element, or through
-	/// a generic type argument), which cannot be referenced from a generated top-level extension method.
-	/// </summary>
-	static bool ContainsTypeParameters(ITypeSymbol type)
+	static bool ContainsExternalTypeParameters(
+		ITypeSymbol type,
+		ImmutableArray<ITypeParameterSymbol> allowedTypeParameters
+	)
 	{
 		switch (type)
 		{
-			case ITypeParameterSymbol:
-				return true;
+			case ITypeParameterSymbol parameter:
+				return !allowedTypeParameters.Contains(parameter, SymbolEqualityComparer.Default);
 
 			case IArrayTypeSymbol array:
-				return ContainsTypeParameters(array.ElementType);
+				return ContainsExternalTypeParameters(array.ElementType, allowedTypeParameters);
 
 			case INamedTypeSymbol named:
 			{
@@ -583,11 +925,12 @@ static class ResultUnionDiagnostics
 
 				foreach (var argument in named.TypeArguments)
 				{
-					if (ContainsTypeParameters(argument))
+					if (ContainsExternalTypeParameters(argument, allowedTypeParameters))
 						return true;
 				}
 
-				return named.ContainingType is not null && ContainsTypeParameters(named.ContainingType);
+				return named.ContainingType is not null
+					&& ContainsExternalTypeParameters(named.ContainingType, allowedTypeParameters);
 			}
 
 			default:
@@ -609,6 +952,11 @@ static class ResultUnionDiagnostics
 		{
 			case IArrayTypeSymbol array:
 				return TryGetReferenceableAccessibility(array.ElementType, out isPublic);
+
+			// The caller has already rejected a type parameter the generated helper cannot declare; a type
+			// parameter that reaches here is the union's own, and is referenceable by name.
+			case ITypeParameterSymbol:
+				return true;
 
 			case INamedTypeSymbol named:
 			{

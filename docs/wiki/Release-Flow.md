@@ -36,11 +36,13 @@ A push to `main` publishes, so everything below has to be true *before* the merg
 | Workflow | Trigger | Pipeline |
 | --- | --- | --- |
 | `.github/workflows/pr.yml` | pull requests against `main` (opened, synchronize, reopened, ready_for_review) | `build`: shared `purview-build.yml`, with the `[Category=Unit]` test filter, `run-pack: true` and `validate-pack: true`; `packed-consumers`: packs to an isolated feed, publishes and runs the Native AOT, Blazor WebAssembly and Blazor Server consumers, leak-scans their output and proves every `ForbiddenContent` rule rejects a package |
-| `.github/workflows/release.yml` | push to `main` | shared `purview-release.yml` with `release-mode: NuGet` |
+| `.github/workflows/release.yml` | push to `main` | shared `purview-release` action with `release-mode: NuGet` |
 
-Both workflows pin `dotnet-version` to the SDK in `global.json` — the shared workflow defaults to the 10.0.x SDK,
-which cannot resolve a repository that targets `net11.0`. Keep the two workflow files and `global.json` in sync,
-and read the pinned version from `global.json` rather than from this page.
+Both workflows take the SDK from `global.json` through `purview-dev/build`'s `dotnet-sdk` action and
+`purview-release` action; neither repeats the version. The `packed-consumers` job adds a second
+`actions/setup-dotnet` step for the .NET 10 runtime the `net10.0` consumer runs on. `setup-dotnet`'s
+`global-json-file` input is not used, because it resolves `rollForward: latestMajor` as the LTS channel and
+leaves the job without the pinned SDK. Read the pinned version from `global.json` rather than from this page.
 
 The release workflow packs, publishes to NuGet, and creates the `v<version>` GitHub release only when that tag does
 not already exist. Do not create release tags or publish packages manually.

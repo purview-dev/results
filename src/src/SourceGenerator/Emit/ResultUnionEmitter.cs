@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using System.Text;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.Text;
@@ -67,6 +68,11 @@ static class ResultUnionEmitter
 
 	static void EmitHelper(CodeWriter writer, ResultUnionModel union, ResultUnionCaseModel unionCase)
 	{
+		// A bare type-parameter case has no safe extension-method receiver; its union-receiver factory is the
+		// supported form.
+		if (unionCase.IsTypeParameterCase)
+			return;
+
 		EmitValueHelper(writer, union, unionCase);
 		EmitUnitHelper(writer, union, unionCase);
 	}
@@ -75,14 +81,14 @@ static class ResultUnionEmitter
 	{
 		var resultType = CreateResultTypeReference(union);
 		var resultTypeName = resultType.RenderFullName;
+		var valueTypeParameterName = GetValueTypeParameterName(union);
 
 		writer.XmlSummary(
 			$"Creates a failed result containing the {XmlInlineCode(DocText.Escape(unionCase.FullyQualifiedName))} union case of {XmlInlineCode(DocText.Escape(union.FullyQualifiedName))}."
 		);
-		writer.XmlTypeParam(
-			PropertyLibrary.ValueTypeParameterName,
-			"The type of the successful value of the created result."
-		);
+		foreach (var parameter in union.TypeParameters)
+			writer.XmlTypeParam(parameter.Name, $"The union's {XmlInlineCode(parameter.Name)} type argument.");
+		writer.XmlTypeParam(valueTypeParameterName, "The type of the successful value of the created result.");
 		writer.XmlParam(
 			PropertyLibrary.ErrorParameterName,
 			$"The {XmlInlineCode(DocText.Escape(unionCase.FullyQualifiedName))} union case to convert."
@@ -99,7 +105,7 @@ static class ResultUnionEmitter
 				options with
 				{
 					IsStatic = true,
-					GenericTypes = [new GenericTypeParameterOptions(PropertyLibrary.ValueTypeParameterName)],
+					GenericTypes = MethodTypeParameters(union, valueTypeParameterName),
 					Parameters =
 					[
 						new ParameterDeclarationOptions(PropertyLibrary.ErrorParameterName, unionCase.CaseType)
@@ -120,6 +126,8 @@ static class ResultUnionEmitter
 		writer.XmlSummary(
 			$"Creates a failed unit result containing the {XmlInlineCode(DocText.Escape(unionCase.FullyQualifiedName))} union case of {XmlInlineCode(DocText.Escape(union.FullyQualifiedName))}."
 		);
+		foreach (var parameter in union.TypeParameters)
+			writer.XmlTypeParam(parameter.Name, $"The union's {XmlInlineCode(parameter.Name)} type argument.");
 		writer.XmlParam(
 			PropertyLibrary.ErrorParameterName,
 			$"The {XmlInlineCode(DocText.Escape(unionCase.FullyQualifiedName))} union case to convert."
@@ -136,6 +144,7 @@ static class ResultUnionEmitter
 				options with
 				{
 					IsStatic = true,
+					GenericTypes = MethodTypeParameters(union, valueTypeParameterName: null),
 					Parameters =
 					[
 						new ParameterDeclarationOptions(PropertyLibrary.ErrorParameterName, unionCase.CaseType)
@@ -156,29 +165,50 @@ static class ResultUnionEmitter
 	/// (<c>case.AsFailure&lt;TValue&gt;()</c>) keeps the call site unambiguous when a case type is shared with
 	/// another union, because each union owns its own factory set. The factory is therefore the shared-case
 	/// safe form of the per-case helpers.
+	/// <para>
+	/// A generic union needs a generic extension block (<c>extension&lt;T&gt;(Option&lt;T&gt;)</c>), which the
+	/// framework's structured <c>ExtensionBlock</c> API does not express: it accepts only a plain named
+	/// receiver. The header is therefore written as text and the body through the normal writer API, with
+	/// the union's constraints repeated on the block.
+	/// </para>
 	/// </remarks>
 	static void EmitUnionFactory(CodeWriter writer, ResultUnionModel union)
 	{
-		writer.ExtensionBlock(
-			new TypeReference(union.UnionType),
-			body =>
-			{
-				foreach (var unionCase in union.Cases)
-				{
-					EmitUnitFactory(body, union, unionCase);
-					EmitValueFactory(body, union, unionCase);
-				}
+		if (!union.IsGeneric)
+		{
+			writer.ExtensionBlock(Literal(union.UnionTypeLiteral), body => EmitFactoryMembers(body, union));
+			return;
+		}
 
-				foreach (var includedCase in union.IncludedCases)
-				{
-					EmitIncludedUnitFactory(body, union, includedCase);
-					EmitIncludedValueFactory(body, union, includedCase);
-				}
+		var typeParameterList = string.Join(", ", union.TypeParameters.Select(static parameter => parameter.Name));
 
-				EmitUnitSuccessFactory(body, union);
-				EmitValueSuccessFactory(body, union);
-			}
-		);
+		writer.Line($"extension<{typeParameterList}>({union.UnionTypeLiteral})");
+
+		foreach (var parameter in union.TypeParameters)
+		{
+			if (parameter.Constraints.Count > 0)
+				writer.Line($"\twhere {parameter.Name} : {string.Join(", ", parameter.Constraints)}");
+		}
+
+		writer.OpenBlock(null, body => EmitFactoryMembers(body, union));
+	}
+
+	static void EmitFactoryMembers(CodeWriter writer, ResultUnionModel union)
+	{
+		foreach (var unionCase in union.Cases)
+		{
+			EmitUnitFactory(writer, union, unionCase);
+			EmitValueFactory(writer, union, unionCase);
+		}
+
+		foreach (var includedCase in union.IncludedCases)
+		{
+			EmitIncludedUnitFactory(writer, union, includedCase);
+			EmitIncludedValueFactory(writer, union, includedCase);
+		}
+
+		EmitUnitSuccessFactory(writer, union);
+		EmitValueSuccessFactory(writer, union);
 	}
 
 	static void EmitUnitFactory(CodeWriter writer, ResultUnionModel union, ResultUnionCaseModel unionCase)
@@ -218,14 +248,12 @@ static class ResultUnionEmitter
 	{
 		var resultType = CreateResultTypeReference(union);
 		var resultTypeName = resultType.RenderFullName;
+		var valueTypeParameterName = GetValueTypeParameterName(union);
 
 		writer.XmlSummary(
 			$"Creates a failed result containing the {XmlInlineCode(DocText.Escape(unionCase.FullyQualifiedName))} union case of {XmlInlineCode(DocText.Escape(union.FullyQualifiedName))}."
 		);
-		writer.XmlTypeParam(
-			PropertyLibrary.ValueTypeParameterName,
-			"The type of the successful value of the created result."
-		);
+		writer.XmlTypeParam(valueTypeParameterName, "The type of the successful value of the created result.");
 		writer.XmlParam(
 			PropertyLibrary.ErrorParameterName,
 			$"The {XmlInlineCode(DocText.Escape(unionCase.FullyQualifiedName))} union case to convert."
@@ -242,7 +270,7 @@ static class ResultUnionEmitter
 				options with
 				{
 					IsStatic = true,
-					GenericTypes = [new GenericTypeParameterOptions(PropertyLibrary.ValueTypeParameterName)],
+					GenericTypes = [new GenericTypeParameterOptions(valueTypeParameterName)],
 					Parameters =
 					[
 						new ParameterDeclarationOptions(PropertyLibrary.ErrorParameterName, unionCase.CaseType),
@@ -297,14 +325,12 @@ static class ResultUnionEmitter
 	{
 		var resultType = CreateResultTypeReference(union);
 		var resultTypeName = resultType.RenderFullName;
+		var valueTypeParameterName = GetValueTypeParameterName(union);
 
 		writer.XmlSummary(
 			$"Creates a failed result containing the {XmlInlineCode(DocText.Escape(includedCase.FullyQualifiedName))} case of {XmlInlineCode(DocText.Escape(union.FullyQualifiedName))}, reached through the union(s) that include it."
 		);
-		writer.XmlTypeParam(
-			PropertyLibrary.ValueTypeParameterName,
-			"The type of the successful value of the created result."
-		);
+		writer.XmlTypeParam(valueTypeParameterName, "The type of the successful value of the created result.");
 		writer.XmlParam(
 			PropertyLibrary.ErrorParameterName,
 			$"The {XmlInlineCode(DocText.Escape(includedCase.FullyQualifiedName))} case to convert."
@@ -321,7 +347,7 @@ static class ResultUnionEmitter
 				options with
 				{
 					IsStatic = true,
-					GenericTypes = [new GenericTypeParameterOptions(PropertyLibrary.ValueTypeParameterName)],
+					GenericTypes = [new GenericTypeParameterOptions(valueTypeParameterName)],
 					Parameters =
 					[
 						new ParameterDeclarationOptions(PropertyLibrary.ErrorParameterName, includedCase.CaseType),
@@ -333,17 +359,21 @@ static class ResultUnionEmitter
 
 	/// <summary>
 	/// Renders the nested union value for a case reached through an included union: the case wrapped in each
-	/// path union innermost first, and finally in the declaring union.
+	/// path union innermost first, and finally in the declaring union. A union whose creation members live on
+	/// an <c>IUnionMembers</c> provider is constructed through that provider rather than a constructor.
 	/// </summary>
 	static string RenderIncludedValue(ResultUnionModel union, IncludedUnionCaseModel includedCase)
 	{
 		var current = PropertyLibrary.ErrorParameterName;
 
-		foreach (var unionType in includedCase.UnionPath)
-			current = $"new {unionType.RenderFullName}({current})";
+		foreach (var step in includedCase.UnionPath)
+			current = CreateUnionValue(step.UnionType.RenderFullName, step.MemberProviderLiteral, current);
 
-		return $"new {union.UnionType.RenderFullName}({current})";
+		return CreateUnionValue(union.UnionTypeLiteral, union.MemberProviderLiteral, current);
 	}
+
+	static string CreateUnionValue(string unionType, string? memberProvider, string argument) =>
+		memberProvider is null ? $"new {unionType}({argument})" : $"{memberProvider}.Create({argument})";
 
 	static void EmitUnitSuccessFactory(CodeWriter writer, ResultUnionModel union)
 	{
@@ -368,14 +398,12 @@ static class ResultUnionEmitter
 	{
 		var resultType = CreateResultTypeReference(union);
 		var resultTypeName = resultType.RenderFullName;
+		var valueTypeParameterName = GetValueTypeParameterName(union);
 
 		writer.XmlSummary(
 			$"Creates a successful result carrying a value for {XmlInlineCode(DocText.Escape(union.FullyQualifiedName))}."
 		);
-		writer.XmlTypeParam(
-			PropertyLibrary.ValueTypeParameterName,
-			"The type of the successful value of the created result."
-		);
+		writer.XmlTypeParam(valueTypeParameterName, "The type of the successful value of the created result.");
 		writer.XmlParam(PropertyLibrary.ValueParameterName, "The successful value.");
 		writer.XmlReturn(
 			$"A successful {XmlInlineCode(DocText.Escape(PropertyLibrary.ResultTypeName))} carrying {XmlParamRef(PropertyLibrary.ValueParameterName)}."
@@ -389,16 +417,12 @@ static class ResultUnionEmitter
 				options with
 				{
 					IsStatic = true,
-					GenericTypes = [new GenericTypeParameterOptions(PropertyLibrary.ValueTypeParameterName)],
+					GenericTypes = [new GenericTypeParameterOptions(valueTypeParameterName)],
 					Parameters =
 					[
-						// The method's own type parameter is referenced as a literal named argument, the same
-						// representation the generic result type reference uses: the framework's
-						// TypeReference.ForTypeParameter carries no identity, and the writer's parameter
-						// validation rejects a parameter whose reference has no identity name.
 						new ParameterDeclarationOptions(
 							PropertyLibrary.ValueParameterName,
-							new TypeReference(new TypeIdentity(PropertyLibrary.ValueTypeParameterName, null))
+							Literal(valueTypeParameterName)
 						),
 					],
 				},
@@ -407,23 +431,12 @@ static class ResultUnionEmitter
 	}
 
 	/// <summary>
-	/// Creates the <c>Result&lt;TValue, TUnion&gt;</c> reference for a union, using the framework's
-	/// structured type-reference abstraction so generic arguments, nesting and namespace qualification are
-	/// rendered consistently.
+	/// Creates the <c>Result&lt;TValue, TUnion&gt;</c> reference for a union, rendered as a fully-qualified
+	/// literal so a generic union's own type parameters can appear in the generated signature.
 	/// </summary>
-	/// <remarks>
-	/// The method's own type parameter is referenced as a literal named argument
-	/// (<c>new TypeIdentity("TValue", null)</c>), which renders as a bare <c>TValue</c>. This is the
-	/// framework's supported representation for a literal type-argument name: <c>CodeWriter</c> validates
-	/// every generic argument through its <c>TypeIdentity</c>, so <c>TypeReference.ForTypeParameter</c> —
-	/// which carries no identity — cannot be used inside a constructed generic type reference.
-	/// </remarks>
 	static TypeReference CreateResultTypeReference(ResultUnionModel union) =>
-		new(
-			ResultsTypeLibrary.Result.MakeGeneric(
-				new TypeIdentity(PropertyLibrary.ValueTypeParameterName, null),
-				union.UnionType
-			)
+		Literal(
+			$"global::{PropertyLibrary.ResultsNamespace}.Result<{GetValueTypeParameterName(union)}, {union.UnionTypeLiteral}>"
 		);
 
 	/// <summary>
@@ -432,5 +445,44 @@ static class ResultUnionEmitter
 	/// <param name="union">The union whose cases the helper converts.</param>
 	/// <returns>The structured reference to the unit result type.</returns>
 	static TypeReference CreateUnitResultTypeReference(ResultUnionModel union) =>
-		new(ResultsTypeLibrary.ResultUnit.MakeGeneric(union.UnionType));
+		Literal($"global::{PropertyLibrary.ResultsNamespace}.Result<{union.UnionTypeLiteral}>");
+
+	/// <summary>
+	/// Creates a literal, fully-qualified type reference.
+	/// </summary>
+	static TypeReference Literal(string typeName) => new(new TypeIdentity(typeName, null));
+
+	/// <summary>
+	/// Creates the generic parameters a per-case helper declares: the union's own type parameters first, then
+	/// the successful value type. A caller of a generic union's helper therefore supplies the union arguments
+	/// first and the value type last.
+	/// </summary>
+	static EquatableArray<GenericTypeParameterOptions> MethodTypeParameters(
+		ResultUnionModel union,
+		string? valueTypeParameterName
+	)
+	{
+		var parameters = ImmutableArray.CreateBuilder<GenericTypeParameterOptions>(
+			union.TypeParameters.Count + (valueTypeParameterName is null ? 0 : 1)
+		);
+
+		foreach (var parameter in union.TypeParameters)
+			parameters.Add(new GenericTypeParameterOptions(parameter.Name) { Constraints = parameter.Constraints });
+
+		if (valueTypeParameterName is not null)
+			parameters.Add(new GenericTypeParameterOptions(valueTypeParameterName));
+
+		return parameters.ToImmutable();
+	}
+
+	/// <summary>
+	/// Gets the successful-value type parameter name, avoiding a collision when the union declares a type
+	/// parameter with the same name.
+	/// </summary>
+	static string GetValueTypeParameterName(ResultUnionModel union) =>
+		union.TypeParameters.Any(static parameter =>
+			string.Equals(parameter.Name, PropertyLibrary.ValueTypeParameterName, StringComparison.Ordinal)
+		)
+			? "TResultValue"
+			: PropertyLibrary.ValueTypeParameterName;
 }

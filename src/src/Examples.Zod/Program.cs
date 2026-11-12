@@ -107,8 +107,10 @@ static void PrintErrors<TValue>(Result<TValue, TenantError> result)
 
 	foreach (var validationError in invalid.Errors)
 	{
-		var path = string.Join(".", validationError.Path);
-
-		Console.WriteLine($"      {path}: {validationError.Message} [{validationError.Code}]");
+		// FullPath is the authoritative typed path; ToDottedString is the canonical key
+		// Microsoft.Extensions.Validation and the ProblemDetails mapper use.
+		Console.WriteLine(
+			$"      {validationError.FullPath.ToDottedString()}: {validationError.Message} [{validationError.Code}]"
+		);
 	}
 }

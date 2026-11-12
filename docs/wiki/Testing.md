@@ -19,12 +19,18 @@ dotnet test src/Results.slnx --no-build --treenode-filter "/*/*/*/*[Category=Uni
 The `*.UnitTests` project naming is what the SDK uses to derive `TestingType=Unit` and apply the matching test
 category, which is what the filter matches. Use `--treenode-filter` for filtering — not `dotnet test --filter`.
 
+The non-packable `net11.0` examples compile with runtime async
+(`PurviewRuntimeAsync=true`, which appends `runtime-async=on` to `Features`) unless they are browser-hosted:
+Blazor WebAssembly's Mono runtime does not implement it, so `Examples.Blazor.Wasm` compiles with the stable
+lowering. The shipped libraries and the test projects never opt in. The tests therefore call the same stable
+lowering a consumer runs.
+
 ## Test projects
 
 | Project | Covers |
 | --- | --- |
 | `src/tests/Results.UnitTests` | `Result<TValue, TError>` and `Result<TError>` states, the throw-on-misuse contract, and the extension operations (`ResultsTests`, `ResultTErrorTests`, `ResultExtensionsTests`) |
-| `src/tests/SourceGenerator.UnitTests` | Generation, diagnostics, incremental caching, the compiler experiments, the code fix, and the suppressor |
+| `src/tests/SourceGenerator.UnitTests` | Generation, diagnostics, incremental caching, the compiler experiments (including the C# 15 `closed` hierarchy and the non-boxing custom union), the code fix, and the suppressor |
 | `src/tests/AspNetCore.UnitTests` | `DefaultResultsHttpMapper`, the endpoint filter, failure mappers and unmapped-failure behaviour |
 | `src/tests/ZodSharp.UnitTests` | `ToResult` and the validation-result integration |
 | `src/tests/ZodSharp.AspNetCore.UnitTests` | `ZodResultsFailureMapper`, registration order and the validation problem mapper |
@@ -49,6 +55,14 @@ code with the framework's `CodeQuery` and terminal assertion extensions (`result
 **Incremental pipelines need stage-by-stage cache tests.** `ResultsSourceGeneratorCacheTests` is the reference:
 it drives `GenerateIncrementalAsync`, asserts `New` on the first run, `Cached`/`Unchanged` on an identical rerun,
 and `Modified` only for the stages whose inputs changed.
+
+**Cross-generator discovery runs against the packaged generators.** `SourceGenerator.UnitTests` references
+`Purview.Unions`, so `GeneratedUnionDiscoveryTestTypes` declares real `[GenerateUnion]` unions and the results
+generator runs in the same compilation as the union generator. The test project therefore covers the `typeof`
+list, partial factory signatures and a nested `IUnionMembers` provider end to end; `GenerateUnionDiscoveryRuntimeTests`
+executes the generated helpers and probes the generated `TryGetValue` members against the real result types.
+`GenerateUnionDiscoveryTests` keeps the isolated source-string cases (including the `RSG1001` gap and an included
+`[GenerateUnion]` case), because a focused compilation is the only way to vary the case list per test.
 
 ## Compiler experiments
 

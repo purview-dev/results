@@ -1,7 +1,6 @@
 using Microsoft.CodeAnalysis;
 
-// The language's union support is a preview feature of C# 15; ITypeSymbol.IsUnion is marked
-// [Experimental] until the feature ships, and these tests deliberately exercise it.
+// ITypeSymbol.IsUnion is still marked [Experimental] in Roslyn 5.9, and these tests deliberately exercise it.
 #pragma warning disable RSEXPERIMENTAL006
 
 namespace Purview.Results.SourceGenerator;

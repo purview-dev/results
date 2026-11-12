@@ -93,8 +93,8 @@ implicit conversion, and each rule is recorded as a compiler experiment in
 | A conversion operator **cannot declare its own type parameters**, so `TValue` is out of scope for a non-generic case type | `CS0246` |
 | **Only one user-defined conversion** may participate in a sequence, so `case → union → Result<…>` can never compose | `CS0029` |
 
-The one shape the language accepts is a *generic* case type carrying the value type parameter — precisely the
-shape the generator rejects as `RSG1002`. The per-case helper is therefore the best ergonomics the language
+The one shape the language accepts is a *generic* case type carrying the value type parameter — the shape a
+generic union's generated helper declares. The per-case helper is therefore the best ergonomics the language
 allows.
 
 ## The helper-free form
@@ -124,8 +124,9 @@ return TenantError.Failure(new TenantNotFound(id));            // after the fix,
 A fix is offered only when the rewrite will bind: the converted type is `Purview.Results.Result<TValue, TError>` or
 the unit `Purview.Results.Result<TError>`, `TError` is a union **and** opted in with `[GenerateResult]`, the
 expression's type is one of that union's case types, and the union is reachable by its simple name at the call
-site. A value result gets `Union.Failure<TValue>(case)`; a unit result gets `Union.Failure(case)`. The rewrite names
-the union, so it is correct even when the case type is shared with another union.
+site. A value result gets `Union.Failure<TValue>(case)`; a unit result gets `Union.Failure(case)`. For a generic
+union, the extension block's type arguments come first, so the rewrite is `Union<T>.Failure<T, TValue>(case)`.
+The rewrite names the union, so it is correct even when the case type is shared with another union.
 
 ## Chaining across services
 
@@ -166,18 +167,180 @@ Nesting also works with the HTTP layer: the ASP.NET Core mapper resolves a union
 mapping for the leaf (`Map<BillingServiceUnavailable>`) wins, and a mapping for the enclosing union
 (`Map<BillingError>` or `Map<RegisterTenantError>`) still applies when the leaf has none.
 
+## Non-boxing custom unions
+
+A `union` declaration always stores its contents in an `object?`, so a value-type case boxes. When the error
+union is on a hot path, declare a custom `[Union]` type with typed storage and the **non-boxing access
+pattern** — a `HasValue` property plus one `TryGetValue` overload per case. The compiler calls `HasValue` for a
+`null` pattern and `TryGetValue` for a type pattern, so matching a value-type case keeps it unboxed:
+
+```csharp
+using System.Runtime.CompilerServices;
+
+public readonly record struct Count(int Value);
+public readonly record struct Label(string Value);
+
+[Union]
+public readonly struct CountOrLabel : IUnion
+{
+    private readonly Count _count;
+    private readonly Label? _label;
+    private readonly byte _tag;
+
+    public CountOrLabel(Count value) { _count = value; _label = null; _tag = 1; }
+    public CountOrLabel(Label value) { _count = default; _label = value; _tag = 2; }
+
+    public object? Value => _tag switch { 1 => _count, 2 => _label, _ => null };
+    public bool HasValue => _tag != 0;
+
+    public bool TryGetValue(out Count value) { value = _count; return _tag == 1; }
+    public bool TryGetValue(out Label value) { value = _label.GetValueOrDefault(); return _tag == 2; }
+}
+
+// The Count arm calls TryGetValue(out Count): no box.
+static int Describe(CountOrLabel value) => value switch
+{
+    Count count => count.Value,
+    Label label => label.Value.Length,
+    null => -1,
+};
+```
+
+The generator does not change or re-emit the union, so `[GenerateResult]` works on a custom union exactly as
+on a `union` declaration: the per-case `AsFailure` helpers and the union-receiver factory are emitted. They add
+no boxing of their own — each is a plain `Result<...>.Failure(...)` call, and `Result<TValue, TError>` stores its
+error in a typed field.
+
+[`Purview.Unions`](https://github.com/purview-dev/unions) can generate this custom-union shape from a
+`[GenerateUnion]` declaration, and `[GenerateResult]` works on it directly:
+
+```csharp
+using Purview.Unions;
+
+[GenerateUnion(typeof(TenantNotFound), typeof(TenantDisabled))]
+[GenerateResult]
+public partial struct TenantError;
+```
+
+A source generator never sees another generator's output, so the `[Union]` attribute and the constructors
+`Purview.Unions` emits are invisible while the results generator runs. `[GenerateResult]` therefore reads the
+union's **source-visible** case list instead, in the union generator's order: the `[GenerateUnion]` `typeof`
+list, the union's partial static factory signatures, a nested `IUnionMembers` provider, then any source-visible
+public single-parameter constructors. It uses the first non-empty list. A generic `[GenerateUnion]` union must
+use one of the last three surfaces, because `typeof(T)` is not a legal attribute argument; a `[GenerateUnion]`
+union with no source-visible case list is reported as `RSG1001`.
+
+That integration is verified against the packaged generators: `src/tests/SourceGenerator.UnitTests` references
+`Purview.Unions` and declares real `[GenerateUnion]` unions alongside `[GenerateResult]`, and
+`Examples.Unions` is the runnable version. The shipped results generator still has no dependency on
+`Purview.Unions`; it matches the attribute by metadata identity.
+
+
+## Generic unions
+
+A generic union is supported. Its own type parameters and constraints are repeated on the generated helpers and on
+the generic extension block that carries the union-receiver factory:
+
+```csharp
+public readonly record struct None;
+public readonly record struct Some<T>(T Value);
+
+[GenerateResult]
+public readonly union Maybe<T>(None, Some<T>);
+
+Result<int, Maybe<string>> failure = Maybe<string>.Failure<string, int>(new Some<string>("present"));
+
+// The per-case helper declares the union's parameters first and the value type last.
+Result<int, Maybe<string>> helper = new Some<string>("present").AsFailure<string, int>();
+```
+
+A static extension member's explicit type arguments are the extension block's parameters first, then the method's,
+which is why `Failure` takes the union argument (`string`) before the value type (`int`). When the value type can be
+inferred, it can be omitted: `Maybe<string>.Success(42)`. A bare type parameter case (`union ValueOrText<T>(T,
+string)`) is covered by the union-receiver factory but has no per-case `AsFailure` helper, because an extension
+method on a bare `T` would apply to every value. A case that names a type parameter the union does not declare is
+reported as `RSG1002` and skipped.
+
+## Member-provider unions
+
+A custom union can place its creation members on a nested `IUnionMembers` provider. The generator reads the case
+list from the provider's public static single-parameter `Create` methods and constructs values through
+`IUnionMembers.Create`, so a union with a private constructor works:
+
+```csharp
+[Union]
+[GenerateResult]
+public readonly struct ProvidedError : IUnion, ProvidedError.IUnionMembers
+{
+    private readonly object? _value;
+    private ProvidedError(object? value) => _value = value;
+
+    public interface IUnionMembers
+    {
+        static ProvidedError Create(ProvidedCase value) => new(value);
+        object? Value { get; }
+    }
+
+    object? IUnionMembers.Value => _value;
+    public object? Value => _value;
+}
+
+Result<int, ProvidedError> failure = ProvidedError.Failure<int>(new ProvidedCase(7));
+```
+
+A provider that declares no usable `Create` method is reported as `RSG1007` and blocks generation, because the
+language would find no union members on it.
+
+## Closed hierarchies as an error type
+
+C# 15's `closed` modifier is the alternative when the cases are classes with shared behaviour or inheritance. It
+fixes the direct descendants at compile time, so a switch over them is exhaustive without a discard arm, and the
+hierarchy works as `TError`:
+
+```csharp
+public closed record class SyncOutcome;
+public record class Synced(int Count) : SyncOutcome;
+public record class Skipped(string Reason) : SyncOutcome;
+
+Result<int, SyncOutcome> result = new Skipped("offline");
+
+var text = result.Match(
+    value => $"synced {value}",
+    error => error switch
+    {
+        Synced synced => $"synced {synced.Count}",
+        Skipped skipped => $"skipped: {skipped.Reason}",
+    }
+);
+```
+
+`closed` needs the .NET 11 runtime (`IsClosedTypeAttribute`), just as a union needs `IUnion`/`UnionAttribute`.
+Prefer a union for data-only cases, where every alternative is declared in one place; prefer a closed hierarchy
+when the cases need members or inheritance. The HTTP mapper keys a non-union error by its runtime type, so register
+a mapping for each descendant (or handle the base type with a fallback/`IResultsFailureMapper`); a mapping for the
+base type alone is not consulted for a derived instance.
+
 ## Union shapes that are supported
 
 | Shape | Supported |
 | --- | --- |
 | A union declaration whose cases are public single-parameter constructors | Yes |
 | A type marked `[Union]` with public single-parameter constructors | Yes |
+| A `[GenerateUnion]` union with a source-visible case list (`typeof` list, partial static factory signatures, or an `IUnionMembers` provider) | Yes — cases are read from the source list, not from another generator's output |
+| A `[GenerateUnion]` union with no source-visible case list | No — `RSG1001` blocks the union |
+| A class-based `[Union]` type with reference semantics | Yes — construction and helpers are identical; the null union is a null reference |
+| Nullable value-type and nullable reference-type cases | Yes — a nullable value type is exposed as its underlying type (`int?` → `int`), and a nullable reference annotation is stripped because it is not part of the case's identity |
+| A custom `[Union]` type with `HasValue`/`TryGetValue` (non-boxing access pattern) | Yes — the generator is unchanged, and value-type cases stay unboxed |
+| A `closed` hierarchy used as `TError` (not a union) | Yes — no `[GenerateResult]` helpers, but the result and HTTP mapper accept it |
 | A **leaf** case type shared by two unions | Yes — `RSG1006` warning; the per-case `AsFailure` helper is generated once, and the union-receiver `Failure(...)` factory is generated for both |
 | A **union-typed** case shared by two unions (composition) | Yes — no warning; the including union's factory covers the included union's cases, and no ambiguous per-case helper is generated |
 | A case reachable through two different included unions | Yes — `RSG1008` warning; that case's inclusion factory is skipped |
-| A generic union | No — `RSG1002` |
-| A case type that itself contains type parameters | No — `RSG1002` (the remaining cases still generate) |
-| `IUnionMembers` member providers | No — `RSG1007` |
+| A generic union | Yes — the factory is emitted as a generic extension block; call `Option<string>.Failure<string, TValue>(case)` because the union arguments precede the method's type parameters |
+| A case type that uses the union's own type parameters | Yes — the helper and factory repeat them |
+| A bare union type parameter (for example `union ValueOrText<T>(T, string)`) | Yes — the union-receiver factory covers it; it has no per-case `AsFailure` helper, because an extension method on a bare `T` would apply to every value |
+| A case type that names a type parameter the union does not declare, or a union nested in a generic type | No — `RSG1002` (the remaining cases still generate) |
+| An `IUnionMembers` provider with a public static single-parameter `Create` per case | Yes — cases are read from the provider and values are constructed through `IUnionMembers.Create` |
+| An `IUnionMembers` provider without a usable `Create` method | No — `RSG1007` blocks the union |
 | A case type that is not a named type (for example an array) | No — `RSG1009` warning (the remaining cases still generate; wrap it in a record or struct case) |
 
 See [Diagnostics](Diagnostics.md) for the full rules table and the blocking policy.

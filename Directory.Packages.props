@@ -1,32 +1,44 @@
 <Project>
 	<!-- Version Definitions -->
 	<PropertyGroup Label=".NET Versions">
+		<DotNetRuntimeVersion>11.0.100</DotNetRuntimeVersion>
 		<!--
-			Tracks the target framework rather than being a single value: the packages multi-target net10.0
-			and net11.0, and an 11.x ASP.NET Core package does not resolve for net10.0 (NU1202). Keep the
-			default on the newest line so a new target framework fails loudly rather than silently resolving
-			something older.
+			The lowest supported patch line shared by net10.0 and net11.0 consumers. Runtime-adjacent
+			packages are pinned to the net10.0 servicing band (10.0.15), never the newer net11.0 band, so
+			the build exercises the oldest runtime these packages promise to support.
 		-->
-		<DotNetRuntimeVersion>11.0.100-rc.3.26522.148</DotNetRuntimeVersion>
-		<DotNetRuntimeVersion Condition="'$(TargetFramework)' == 'net10.0'">10.0.14</DotNetRuntimeVersion>
+		<DotNetRuntimeVersion Condition="'$(TargetFramework)' == 'net10.0'">10.0.15</DotNetRuntimeVersion>
+		<!--
+			Blazor WebAssembly is a net11.0 example-only dependency, so it takes the .NET 11 GA package line
+			rather than the shared net10.0 servicing band above.
+		-->
+		<AspNetCoreComponentsVersion>11.0.0</AspNetCoreComponentsVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Purview Versions">
-		<PurviewZodSharpVersion>3.0.0-prerelease.2</PurviewZodSharpVersion>
-		<PurviewValueObjectsVersion>1.3.0-prerelease.2</PurviewValueObjectsVersion>
+		<PurviewZodSharpVersion>3.0.0-prerelease.6</PurviewZodSharpVersion>
+		<PurviewValueObjectsVersion>2.0.0-prerelease.1</PurviewValueObjectsVersion>
+		<!--
+			The union generator is a test and example dependency only: the shipped generator matches
+			Purview.Unions.GenerateUnionAttribute by metadata identity, so it never references the package.
+			The version is the first published release with both net10.0 and net11.0 targets, which is the
+			floor the two-generator integration test compiles against.
+		-->
+		<PurviewUnionsVersion>1.0.0-prerelease.3</PurviewUnionsVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Source Generator Versions">
-		<PurviewSourceGeneratorFrameworkVersion>1.2.2</PurviewSourceGeneratorFrameworkVersion>
+		<PurviewSourceGeneratorFrameworkVersion>2.0.0</PurviewSourceGeneratorFrameworkVersion>
 		<RoslynVersion>5.9.0</RoslynVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Testing Versions">
-		<TUnitVersion>1.76.0</TUnitVersion>
-		<PurviewSkillsTestingVersion>1.2.0</PurviewSkillsTestingVersion>
+		<TUnitVersion>1.83.0</TUnitVersion>
+		<PurviewSkillsTestingVersion>2.0.1</PurviewSkillsTestingVersion>
 	</PropertyGroup>
 	<!-- Packages -->
 	<ItemGroup Label="Purview">
 		<PackageVersion Include="Purview.ZodSharp" Version="$(PurviewZodSharpVersion)" />
 		<PackageVersion Include="Purview.ZodSharp.AspNetCore" Version="$(PurviewZodSharpVersion)" />
 		<PackageVersion Include="Purview.ValueObjects" Version="$(PurviewValueObjectsVersion)" />
+		<PackageVersion Include="Purview.Unions" Version="$(PurviewUnionsVersion)" />
 	</ItemGroup>
 	<ItemGroup Label="Source Generators">
 		<PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="$(RoslynVersion)" />
@@ -42,10 +54,17 @@
 		/>
 	</ItemGroup>
 	<ItemGroup Label=".NET Runtime">
-		<PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.14" />
+		<!-- Pinned to the net10.0 servicing band: the lowest common runtime these packages support. -->
+		<PackageVersion Include="Microsoft.AspNetCore.TestHost" Version="10.0.15" />
+		<!-- The Blazor WebAssembly sample only; it targets net11.0 and is never packed. -->
+		<PackageVersion
+			Include="Microsoft.AspNetCore.Components.WebAssembly"
+			Version="$(AspNetCoreComponentsVersion)"
+		/>
+		<PackageVersion Include="Microsoft.AspNetCore.Components.Gateway" Version="$(AspNetCoreComponentsVersion)" />
 	</ItemGroup>
 	<ItemGroup Label="Other">
-		<PackageVersion Include="Microsoft.SourceLink.GitHub" Version="10.0.403" />
+		<PackageVersion Include="Microsoft.SourceLink.GitHub" Version="11.0.100" />
 	</ItemGroup>
 	<ItemGroup Label="Testing">
 		<PackageVersion Include="Bogus" Version="35.6.5" />

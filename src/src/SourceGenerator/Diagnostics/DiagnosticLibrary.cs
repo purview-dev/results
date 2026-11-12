@@ -51,11 +51,11 @@ static class DiagnosticLibrary
 	public static readonly DiagnosticDescriptor TargetIsNotUnion = new(
 		id: "RSG1000",
 		title: "GenerateResult target is not a union",
-		messageFormat: "'{0}' is not a union type; [GenerateResult] can only be applied to a union declaration or a type marked with [Union]",
+		messageFormat: "'{0}' is not a union type; [GenerateResult] can only be applied to a union declaration, a type marked with [Union], or a type opted into union generation with [GenerateUnion]",
 		category: Category,
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true,
-		description: "The results source generator only generates helpers for C# 15 union types."
+		description: "The results source generator only generates helpers for union types: a C# 15 union declaration, a type marked with [Union], or a source-visible Purview.Unions [GenerateUnion] target."
 	);
 
 	/// <summary>
@@ -68,20 +68,21 @@ static class DiagnosticLibrary
 		category: Category,
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true,
-		description: "A union declares its case types through public single-parameter constructors, or through an IUnionMembers member provider."
+		description: "A union declares its case types through its source-visible case list: the [GenerateUnion] typeof list, partial static factory signatures, an IUnionMembers member provider, or public single-parameter constructors."
 	);
 
 	/// <summary>
-	/// The union or one of its case types is generic, which the first implementation does not support.
+	/// A union case type contains a type parameter the union does not declare, which a generated top-level
+	/// helper cannot repeat.
 	/// </summary>
 	public static readonly DiagnosticDescriptor UnsupportedGenericConfiguration = new(
 		id: "RSG1002",
 		title: "Unsupported generic union configuration",
-		messageFormat: "'{0}' is a generic union or has a case type that contains type parameters, which is not supported",
+		messageFormat: "'{0}' has a case type that contains a type parameter the union does not declare, or the union is nested in a generic type, which the generated helper cannot repeat",
 		category: Category,
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true,
-		description: "Generic unions cannot be referenced from the generated extension helpers, and neither can a case type that still contains type parameters."
+		description: "A case may use the union's own type parameters. A type parameter introduced by an enclosing type cannot be declared by the generated top-level extension helper, and a union nested inside a generic type cannot be named without that type's parameters; the case or union is skipped."
 	);
 
 	/// <summary>
@@ -137,16 +138,17 @@ static class DiagnosticLibrary
 	);
 
 	/// <summary>
-	/// The union declares an <c>IUnionMembers</c> member provider, which is not supported.
+	/// The union declares an <c>IUnionMembers</c> member provider that does not declare the required
+	/// creation members.
 	/// </summary>
 	public static readonly DiagnosticDescriptor UnsupportedMemberProvider = new(
 		id: "RSG1007",
-		title: "Unsupported union member provider",
-		messageFormat: "'{0}' declares an IUnionMembers member provider, which is not supported; declare the union cases as the union's own parameters or constructors",
+		title: "Invalid union member provider",
+		messageFormat: "'{0}' declares an IUnionMembers provider with no public static single-parameter Create methods; declare one Create method per case",
 		category: Category,
 		defaultSeverity: DiagnosticSeverity.Error,
 		isEnabledByDefault: true,
-		description: "The first implementation resolves union cases from the union type's own public single-parameter constructors."
+		description: "When a union contains a nested IUnionMembers interface, the language finds the union's creation members only on that provider. Each case must be declared by a public static single-parameter Create method."
 	);
 
 	/// <summary>
@@ -238,12 +240,12 @@ static class DiagnosticLibrary
 	/// <list type="bullet">
 	/// <item><description><c>RSG1000</c> (not a union): nothing can be generated.</description></item>
 	/// <item><description><c>RSG1001</c> (no cases): nothing can be generated.</description></item>
-	/// <item><description><c>RSG1002</c>: blocking for a generic union, non-blocking for a single case type that still contains type parameters — the remaining cases are generated.</description></item>
+	/// <item><description><c>RSG1002</c>: non-blocking; a case type that names a type parameter the union does not declare is skipped, and the remaining cases are generated.</description></item>
 	/// <item><description><c>RSG1003</c>: blocking when the union itself cannot be referenced, non-blocking for a single inaccessible case type.</description></item>
 	/// <item><description><c>RSG1004</c> (duplicate configuration): non-blocking; the union is valid and its helpers are generated once.</description></item>
 	/// <item><description><c>RSG1005</c> (generated class-name collision): blocking for the colliding union, which is skipped.</description></item>
 	/// <item><description><c>RSG1006</c> (shared case type): non-blocking; only the shared case's helper is skipped.</description></item>
-	/// <item><description><c>RSG1007</c> (member provider): nothing can be generated.</description></item>
+	/// <item><description><c>RSG1007</c> (invalid member provider): nothing can be generated from the provider.</description></item>
 	/// <item><description><c>RSG1008</c> (ambiguous included case): non-blocking; only the ambiguous case's inclusion factory is skipped.</description></item>
 	/// </list>
 	/// </para>

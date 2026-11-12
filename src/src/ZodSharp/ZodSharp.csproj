@@ -11,6 +11,14 @@
 		<IsAotCompatible>true</IsAotCompatible>
 	</PropertyGroup>
 
+	<!--
+		PurviewBrowserSafe: the bridge is downloaded to a browser by the Blazor WebAssembly example and by
+		real WebAssembly consumers, so the SDK runs the trim, AOT and browser-unsupported-API checks here.
+	-->
+	<PropertyGroup Label="Browser safety">
+		<PurviewBrowserSafe>true</PurviewBrowserSafe>
+	</PropertyGroup>
+
 	<PropertyGroup>
 		<IsPackable>true</IsPackable>
 		<Title>Purview Results ZodSharp</Title>

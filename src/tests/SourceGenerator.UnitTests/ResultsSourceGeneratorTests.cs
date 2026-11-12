@@ -452,9 +452,9 @@ public class ResultsSourceGeneratorTests
 		var generated = result.AssertSingleGeneratedSource();
 		await Assert.That(generated).DoesNotContain("namespace ");
 
-		// A type in the global namespace is rendered without a global:: qualifier, which is what resolves
-		// in the namespace-less generated file.
-		await Assert.That(generated).Contains("this GlobalNotFound error");
+		// A literal reference keeps the global:: qualifier, which resolves in the namespace-less generated
+		// file and stays unambiguous.
+		await Assert.That(generated).Contains("this global::GlobalNotFound error");
 	}
 
 	[Test]

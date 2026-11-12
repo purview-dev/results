@@ -6,13 +6,13 @@
 		beside guard Directory.Build.props/.targets and Directory.Packages.props files that stop any inheritance, and
 		supplies the versions as $(ResultsPackageVersion), $(ZodSharpPackageVersion) and $(AspNetCorePackageVersion).
 
-		It declares a [GenerateResult] union, so the packed generator runs here (C# 15 unions need LangVersion preview).
+		It declares a [GenerateResult] union, so the packed generator runs here. C# 15 is the default language
+		version for net11.0, so no LangVersion is needed either.
 		It is published trimmed with every warning an error, then again with RunAOTCompilation=true, and each publish is
 		served and loaded in a headless browser when one is available.
 	-->
 	<PropertyGroup>
 		<TargetFramework>net11.0</TargetFramework>
-		<LangVersion>preview</LangVersion>
 		<AssemblyName>PackedResultsWasm</AssemblyName>
 		<RootNamespace>PackedResultsWasm</RootNamespace>
 		<Nullable>enable</Nullable>

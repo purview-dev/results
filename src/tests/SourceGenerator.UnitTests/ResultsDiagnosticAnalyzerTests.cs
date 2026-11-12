@@ -72,6 +72,65 @@ public class ResultsDiagnosticAnalyzerTests
 	}
 
 	[Test]
+	public async Task AnalyzeAsync_GivenGenerateUnionWithNoSourceVisibleCases_ReportsUnionHasNoCases(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		// The target is a union because of [GenerateUnion], even though no [Union] attribute is visible;
+		// it has no source-visible case list, so RSG1001 rather than RSG1000 is the one finding.
+		const string source = """
+			using Purview.Unions;
+
+			namespace Test
+			{
+				[GenerateUnion]
+				[GenerateResult]
+				public readonly partial struct EmptyError;
+			}
+			""";
+
+		// Act
+		var result = await AnalyzeAsync(
+			[TestSources.GenerateResultAttributeDeclaration, TestSources.GenerateUnionAttributeDeclaration, source],
+			cancellationToken
+		);
+
+		// Assert
+		await Assert.That(result).HasDiagnostic("RSG1001");
+		await Assert.That(result).DoesNotHaveDiagnostic("RSG1000");
+	}
+
+	[Test]
+	public async Task AnalyzeAsync_GivenGenerateUnionWithSourceVisibleCases_ReportsNothing(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		const string source = """
+			using Purview.Unions;
+
+			namespace Test
+			{
+				public readonly record struct SourceCase(int Id);
+
+				[GenerateUnion(typeof(SourceCase))]
+				[GenerateResult]
+				public readonly partial struct GeneratedError;
+			}
+			""";
+
+		// Act
+		var result = await AnalyzeAsync(
+			[TestSources.GenerateResultAttributeDeclaration, TestSources.GenerateUnionAttributeDeclaration, source],
+			cancellationToken
+		);
+
+		// Assert
+		await Assert.That(result).HasNoDiagnostics();
+	}
+
+	[Test]
 	public async Task AnalyzeAsync_GivenUnionWithNoCases_ReportsUnionHasNoCases(CancellationToken cancellationToken)
 	{
 		// Arrange
@@ -91,7 +150,7 @@ public class ResultsDiagnosticAnalyzerTests
 	}
 
 	[Test]
-	public async Task AnalyzeAsync_GivenGenericUnion_ReportsUnsupportedGenericConfiguration(
+	public async Task AnalyzeAsync_GivenGenericUnion_SupportsTheNamedCasesAndReportsTheBareTypeParameterCase(
 		CancellationToken cancellationToken
 	)
 	{
@@ -107,8 +166,52 @@ public class ResultsDiagnosticAnalyzerTests
 		// Act
 		var result = await AnalyzeAsync([TestSources.GenerateResultAttributeDeclaration, source], cancellationToken);
 
-		// Assert
-		await Assert.That(result).HasDiagnostic("RSG1002");
+		// Assert — a generic union is supported, including its bare type-parameter case.
+		await Assert.That(result).HasNoDiagnostics();
+	}
+
+	[Test]
+	public async Task AnalyzeAsync_GivenCaseWithAnExternalTypeParameter_ReportsUnsupportedGenericConfiguration(
+		CancellationToken cancellationToken
+	)
+	{
+		// Arrange
+		const string source = """
+			namespace Test
+			{
+				public readonly record struct External<T>(T Value);
+
+				[GenerateResult]
+				public readonly union InnerError<T>(string, External<T>);
+			}
+			""";
+
+		// Act
+		var result = await AnalyzeAsync([TestSources.GenerateResultAttributeDeclaration, source], cancellationToken);
+
+		// Assert — External<T> names the union's own T, so it is supported.
+		await Assert.That(result).DoesNotHaveDiagnostic("RSG1002");
+
+		const string nestedSource = """
+			namespace Test
+			{
+				public readonly record struct External<T>(T Value);
+
+				public class Outer<T>
+				{
+					[GenerateResult]
+					public readonly union InnerError(External<T>, string);
+				}
+			}
+			""";
+
+		var nested = await AnalyzeAsync(
+			[TestSources.GenerateResultAttributeDeclaration, nestedSource],
+			cancellationToken
+		);
+
+		// Assert — T belongs to Outer<T>, not to the union, so the helper cannot declare it.
+		await Assert.That(nested).HasDiagnostic("RSG1002");
 	}
 
 	[Test]
@@ -173,7 +276,7 @@ public class ResultsDiagnosticAnalyzerTests
 	}
 
 	[Test]
-	public async Task AnalyzeAsync_GivenUnionMemberProvider_ReportsUnsupportedMemberProvider(
+	public async Task AnalyzeAsync_GivenMemberProviderWithoutCreateMethods_ReportsInvalidMemberProvider(
 		CancellationToken cancellationToken
 	)
 	{

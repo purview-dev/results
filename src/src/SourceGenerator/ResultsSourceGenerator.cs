@@ -56,9 +56,8 @@ public sealed class ResultsSourceGenerator : IIncrementalGenerator
 			"GetResultUnionGenerationModel"
 		);
 
-		context.RegisterSourceOutput(
-			generationModel,
-			static (sourceProductionContext, model) => ExecuteSafely(sourceProductionContext, model)
+		context.RegisterSourceOutput(generationModel, static (sourceProductionContext, model) =>
+			ExecuteSafely(sourceProductionContext, model)
 		);
 	}
 

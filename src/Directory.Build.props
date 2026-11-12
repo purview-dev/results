@@ -4,9 +4,10 @@
 		<RepositoryUrl>https://github.com/purview-dev/results</RepositoryUrl>
 
 		<!--
-			.NET 10 and .NET 11. Consumers choose: .NET 10 is the current long-term line, .NET 11 is where
-			the union work lands. Targeting both means adopting these packages does not force a runtime
-			upgrade. .NET 8 and 9 are deliberately not targeted — both are close to end of support.
+			.NET 10 and .NET 11. Consumers choose: .NET 10 is the long-term line, .NET 11 is the current
+			standard-term release (GA on 2026-11-10) where C# 15 unions land. Targeting both means adopting
+			these packages does not force a runtime upgrade. .NET 8 and .NET 9 are deliberately not targeted —
+			both are now out of support.
 
 			That is exactly Purview.BuildSdk's 'Supported' set, so the list is selected rather than spelled
 			out here: a runtime lifecycle change becomes an SDK bump instead of an edit in this file.
@@ -18,12 +19,23 @@
 			SDK's default (*) would make InstallPurviewSkills write a copy into every agent's folder.
 		-->
 		<PurviewSkillsAgents>universal</PurviewSkillsAgents>
-		<LangVersion>preview</LangVersion>
+		<!--
+			Compile with the latest *released* C# version, never a preview one. The .NET 11 SDK makes C# 15
+			the default for net11.0, which is where union declarations and closed hierarchies live. `preview`
+			would enable unshipped language features in shipping packages for no benefit, and the union
+			syntax no longer needs it: C# 15 and its runtime types are GA.
+		-->
+		<LangVersion>latest</LangVersion>
 
 		<!--
-			Runtime async (Features=runtime-async=on) is set in Directory.Build.targets, for net11.0 projects that
-			do not ship only: it needs IsPackable, which a project declares after this file is imported. See the
-			comment there for why a shipped assembly must not use it.
+			.NET 11 feature selection is the SDK's: MemorySafetyRules defaults to tier 2
+			(updated-memory-safety-rules). PurviewMultiThreadedBuild is deliberately false (see above): the
+			.NET 11 WebAssembly SDK cannot build a Blazor WebAssembly project under -mt, and the solution
+			contains one. Runtime async (PurviewRuntimeAsync) is opted into in Directory.Build.targets, for
+			net11.0 examples that are not browser-hosted only, and is forced off for every packable project:
+			it needs IsPackable, which a project declares after this file is imported, and the SDK reads the
+			switch as it imports in the targets file. See the comment there for why a shipped or WebAssembly
+			assembly must not use it.
 		-->
 
 		<!--
@@ -35,13 +47,14 @@
 			consuming application could not adopt the result type at all without turning preview features
 			on solution-wide. Partial adoption was impossible.
 
-			It is also unnecessary: union declarations are a *language* feature and need only
-			LangVersion=preview. Every project here, including the union-declaring examples and tests,
-			compiles without EnablePreviewFeatures. It gates runtime APIs annotated
-			[RequiresPreviewFeatures], and nothing in this repository uses one.
+			It is also unnecessary: union declarations and closed hierarchies are released C# 15 language
+			features; they need the .NET 11 runtime types (IUnion/UnionAttribute and
+			IsClosedTypeAttribute), not EnablePreviewFeatures. Every project here, including the
+			union-declaring examples and tests, compiles without EnablePreviewFeatures. It gates runtime APIs
+			annotated [RequiresPreviewFeatures], and nothing in this repository uses one.
 
-			A consumer that declares its own [GenerateResult] union still needs LangVersion=preview in
-			its own project, because the union syntax is theirs to compile. A consumer that only uses the
+			A consumer that declares its own [GenerateResult] union still needs a net11.0 (or later) target,
+			because the union runtime types are theirs to compile against. A consumer that only uses the
 			result types needs nothing special. Do not reintroduce this property without re-reading
 			docs/wiki/Getting-Started.md, which documents that distinction.
 		-->
@@ -52,6 +65,14 @@
 			are excluded repo-wide.
 		-->
 		<ExcludePurviewTelemetry>true</ExcludePurviewTelemetry>
+		<!--
+			MSBuild's multithreaded build mode (-mt) cannot build a Blazor WebAssembly project on the .NET 11
+			GA SDK: the WebAssembly SDK's JsonToItemsTaskFactory on ReadWasmProps does not support the
+			out-of-process task host that -mt uses, and the build fails with MSB4060. The repository ships a
+			Blazor WebAssembly sample, so it takes the SDK's supported opt-out rather than excluding the
+			sample from the build. The SDK writes -mt:false into Directory.Build.rsp.
+		-->
+		<PurviewMultiThreadedBuild>false</PurviewMultiThreadedBuild>
 	</PropertyGroup>
 
 	<Import Sdk="Purview.BuildSdk" Project="Sdk.props" />

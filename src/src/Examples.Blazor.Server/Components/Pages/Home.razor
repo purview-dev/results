@@ -1,0 +1,72 @@
+@page "/"
+@using Purview.Results
+@using Purview.Results.ZodSharp
+
+<PageTitle>Purview.Results + ZodSharp in Blazor Server</PageTitle>
+
+<h1>Tenant registration</h1>
+
+<p>
+    The form is validated by the compile-time <code>[ZodSchema]</code> generator and folded into
+    <code>Result&lt;Tenant, TenantError&gt;</code>. The page runs interactively on the server, so this host also
+    exercises the player's async path with the runtime-async compiler feature enabled.
+</p>
+
+<div class="form">
+    <label>
+        Tenant id
+        <input @bind="tenantId" placeholder="acme" />
+    </label>
+    <label>
+        Name
+        <input @bind="name" placeholder="Acme" />
+    </label>
+    <div class="buttons">
+        <button @onclick="Register">Register</button>
+        <button @onclick="Find">Find</button>
+    </div>
+</div>
+
+@if (result is { } outcome)
+{
+    <p class="result">
+        <strong>@outcome.Match(DescribeSuccess, DescribeError)</strong>
+    </p>
+
+    @if (outcome.TryGetError(out var error) && error is TenantInputInvalid invalid)
+    {
+        <ul class="errors">
+            @foreach (var validationError in invalid.Errors)
+            {
+                <li>
+                    <code>@validationError.FullPath.ToDottedString()</code> &mdash; @validationError.Message
+                    <span>(@validationError.Code)</span>
+                </li>
+            }
+        </ul>
+    }
+}
+
+@code {
+    Result<Tenant, TenantError>? result;
+    string tenantId = "acme";
+    string name = "Acme";
+
+    void Register() =>
+        result = TenantDirectory.Register(
+            new TenantInput { TenantId = tenantId, Name = name }
+        );
+
+    void Find() => result = TenantDirectory.Find(tenantId);
+
+    static string DescribeSuccess(Tenant tenant) => $"Registered {tenant.Name} ({tenant.Id.Value})";
+
+    static string DescribeError(TenantError error) =>
+        error switch
+        {
+            TenantInputInvalid invalid => $"Rejected by the schema ({invalid.Errors.Length} error(s))",
+            TenantNotFound notFound => $"Not found: {notFound.TenantId.Value}",
+            TenantAlreadyExists exists => $"Already exists: {exists.TenantId.Value}",
+            _ => nameof(TenantError),
+        };
+}

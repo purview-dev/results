@@ -50,6 +50,26 @@ generator that makes C# 15 union error cases ergonomic), and the ZodSharp and AS
 
 ## Runtime invariants
 
+- The runtime packages target `net10.0` and `net11.0` only (Purview.BuildSdk's `Supported` set). .NET 8 and .NET 9
+  are out of support and must not be reintroduced. Runtime-adjacent packages are pinned to the lowest shared
+  servicing band (`10.0.15`), never the newer `net11.0` band.
+- Runtime async (`PurviewRuntimeAsync=true`) is enabled **only for a non-browser example on `net11.0`**. It is
+  forced off for every packable project, every test project and every browser-hosted example, because a shipped
+  assembly or a WebAssembly client must keep the stable async lowering. `Directory.Build.targets` derives this
+  before the SDK import (the SDK reads the switch as it imports), so a project cannot opt a packable or
+  WebAssembly assembly in by declaring the property. `Examples.Blazor.Wasm` is the stable-lowering proof;
+  `Examples.Blazor.Server` is the runtime-async proof.
+- `PurviewMultiThreadedBuild=false` is deliberate: the .NET 11 GA WebAssembly SDK's `JsonToItemsTaskFactory`
+  does not support the out-of-process task host that `-mt` uses, and the solution contains a Blazor WebAssembly
+  example. `Directory.Build.rsp` carries `-mt:false`.
+- Compile with `LangVersion=latest`, never `preview`. C# 15 is the default for `net11.0`, and nothing here needs a
+  preview language feature. Union declarations and `closed` hierarchies need the .NET 11 runtime types
+  (`IUnion`/`UnionAttribute`, `IsClosedTypeAttribute`), so they belong in net11-only projects (examples, tests,
+  packed consumers), never in shared or multi-targeted shipped code.
+- A compiler `union` declaration boxes a value-type case. For a hot error union, a custom `[Union]` type with typed
+  storage and the non-boxing access pattern (`HasValue` plus `TryGetValue` per case) is supported by
+  `[GenerateResult]` unchanged. `Result<TValue, TError>.TryGetValue`/`TryGetError` are the result-side equivalents:
+  keep them non-boxing and keep generated helpers as pure `Result<...>.Failure(...)` calls.
 - `Result<TValue, TError>` is a `readonly record struct` with three states: `Uninitialized` (the `default`
   value), `Success` and `Failure`. Keep all three observable through `IsInitialized`, `IsSuccess` and
   `IsFailure`.
@@ -101,12 +121,27 @@ including the diagnostics table, build properties and activation rules.
   hosts, and keep `DiagnosticLibrary.IsBlocking` as the single blocking policy.
 - New or changed rules require an `AnalyzerReleases.Unshipped.md` entry (the compiler's RS2008 rule catalogue).
 - **One suppressor.** `Suppressors/UnionEqualityDiagnosticSuppressor.cs` is the only programmatic suppression in
-  this repository: it suppresses `CA1815` and only `CA1815`, and only on a declaration that is both a union
-  (`ITypeSymbol.IsUnion`) and opted in with `[GenerateResult]`. Keep it that narrow — a union without the
+  this repository: it suppresses `CA1815` and only `CA1815`, and only on a declaration that is both a union as
+  `ResultUnionDiagnostics.IsUnionType` recognises one (a language union or a source-visible
+  `Purview.Unions.GenerateUnionAttribute` target) and opted in with `[GenerateResult]`. Keep it that narrow — a union without the
   attribute, a union's case types and every other value type must keep the warning — and never let it report
   diagnostics, because a suppressor is not a rule host. Suppression descriptors are not release-tracked, so
   `RSG2000` (the suppression id a consumer adds to `NoWarn` to turn the suppression off) must not appear in
   `AnalyzerReleases.Unshipped.md`, which lists reported rules only.
+- **Union recognition never depends on another generator's output.** A target is a union when
+  `ITypeSymbol.IsUnion` is true or when it carries `Purview.Unions.GenerateUnionAttribute`, matched by metadata
+  identity only — never add a project or package reference from the shipped generator to `Purview.Unions`. A
+  `[GenerateUnion]` target resolves the first non-empty source-visible case list in the union generator's order:
+  the attribute's `typeof` list, partial static factory signatures, a nested `IUnionMembers` provider, then
+  source-visible public single-parameter constructors. Normalise a case exactly as the union generator exposes it
+  (nullable value type → underlying type, nullable reference annotation stripped, constructed generics and arrays
+  preserved). A `[GenerateUnion]` target with no source-visible case list is `RSG1001`, not `RSG1000`.
+- **Both generators are proved in one compilation from the package.** `SourceGenerator.UnitTests` references
+  `Purview.Unions` and declares real `[GenerateUnion]` unions, so the results generator and the union generator
+  run side by side and `GenerateUnionDiscoveryRuntimeTests` executes the helpers against the generated
+  `TryGetValue` members. `Examples.Unions` is the consumer-facing proof. Do not reintroduce a stand-in
+  `Purview.Unions.GenerateUnionAttribute` in the test project; the isolated source-string tests exist only to
+  vary the case list per test, and they never replace the package-level integration.
 - **Keep the pipeline value-equatable.** Do not let `ISymbol`, `Compilation`, `SemanticModel`, `IOperation`,
   `SyntaxNode`, `SyntaxTree` or `Location` reach cached models; convert them during discovery
   (`ResultUnionModel`, `ResultUnionCaseModel`, `ResultSourceLocation`) and use `EquatableArray<T>`.
@@ -125,8 +160,13 @@ including the diagnostics table, build properties and activation rules.
   framework's PSGF0003 validation fails the build when a declared generator-read property is neither
   compiler-visible nor declared by a package's own `Sdk/build*` assets, which is what keeps the packaged switch
   honest.
-- `[GenerateResult]` is supported on union declarations only. Generic unions and `IUnionMembers` member
-  providers are deliberately unsupported and reported as `RSG1002`/`RSG1007`.
+- `[GenerateResult]` is supported on `union` declarations and on custom `[Union]` types. Generic unions are
+  supported: the generated extension block and per-case helpers repeat the union's type parameters and constraints.
+  A case may use the union's own type parameters; a bare type parameter case gets the union-receiver factory only
+  (no per-case `AsFailure`), and one that names a type parameter the union does not declare is reported as
+  `RSG1002` and skipped. An `IUnionMembers` provider is supported when it declares a public static
+  single-parameter `Create` method per case (the generator constructs through `IUnionMembers.Create`); a provider
+  without one is reported as `RSG1007` and blocks the union.
 - **Do not attempt to generate implicit conversions.** C# blocks every route: an operator is illegal in a static
   class (`CS0715`), a conversion operator must be declared by the source or target type (`CS0556`), extension
   members cannot declare conversions (`CS9282`), an operator cannot declare its own type parameters so `TValue`
@@ -158,8 +198,8 @@ including the diagnostics table, build properties and activation rules.
   code fix needs `Microsoft.CodeAnalysis.*.Workspaces`, which must not enter the generator's analyzer closure.
   The code fix never references the generator and there is no `InternalsVisibleTo`; the generator references the
   code fix analyzer-style only (`ReferenceOutputAssembly="false"`), so no reference cycle can form, and the shared well-known names are pinned by the code-fix tests.
-- Union-declaring test files are excluded from CSharpier through `.csharpierignore`, because the preview syntax
-  is not parseable. Add any new file that declares a union to that list.
+- CSharpier 1.4.0 parses C# 15 union declarations and `closed` hierarchies, so union-declaring files are
+  formatted like every other file. There is no `.csharpierignore`; a new union file needs no exclusion.
 
 ## ASP.NET Core integration invariants
 
@@ -286,6 +326,11 @@ including the diagnostics table, build properties and activation rules.
 `src/src/Examples.*` holds one runnable example per integration aspect, all on the Tenant* domain the READMEs
 document: `Examples.Basic` (the result type, the value-less `Result<TError>`, the generated `AsFailure<TValue>()`
 and `AsFailure()` helpers, and the union-receiver `Union.Failure(...)`/`Union.Success(...)` factories),
+`Examples.Unions` (`Purview.Unions` generating the union itself, read by `[GenerateResult]` in the same
+compilation, including non-boxing `TryGetValue`, an exhaustive `switch`, and both generated helper forms),
+`Examples.Blazor.Wasm` (a Blazor WebAssembly form validated by the compile-time `[ZodSchema]` generator and
+folded into a result entirely in the browser, proving browser safety and the stable async lowering),
+`Examples.Blazor.Server` (the same pipeline under interactive server rendering, with runtime async enabled),
 `Examples.Zod` (`Purview.Results.ZodSharp`, including `ToUnitResult`),
 `Examples.AspNetCore` (`Purview.Results.AspNetCore`, including a unit result answering `204` and the filter-free
 `ToHttpResult()` form),
@@ -297,8 +342,12 @@ result and the HTTP mapping).
   `<IsPackable>true</IsPackable>`), keep them out of test discovery (no `*Tests` suffix, and they are not under
   `src/tests`), and keep each one's references equal to exactly the aspect it demonstrates.
 - Each example declares its own local union rather than sharing a domain project, matching how the test
-  projects declare `HttpTestError`/`ValidationTestError`. Anything that declares a union must be added to
-  `.csharpierignore`.
+  projects declare `HttpTestError`/`ValidationTestError`. `Examples.Unions` is the reference for a union
+  generated by `Purview.Unions`; every other example uses the language `union` declaration.
+- The Blazor pair is deliberately two projects: `Examples.Blazor.Wasm` must stay browser-safe (both referenced
+  projects set `PurviewBrowserSafe=true`) and must never opt into runtime async, while `Examples.Blazor.Server`
+  exercises the same page with the feature on. Keep the domain and page behaviour identical apart from that
+  host difference.
 - The generator is referenced analyzer-style (`OutputItemType="Analyzer"`, `ReferenceOutputAssembly="false"`,
   `PrivateAssets="all"`), exactly as the test projects reference it.
 - When public behaviour changes, update the example that demonstrates it, the example's snippet in the root
@@ -324,10 +373,10 @@ result and the HTTP mapping).
 ## Installed skills (`.agents/skills/`)
 
 Specialist guidance this repository depends on - the Purview engineering playbook, `Purview.BuildSdk`
-configuration, the `Purview.SourceGeneratorFramework` generator and test APIs, ZodSharp, and Purview.ValueObjects
-composition - is published by the repositories that own it, and installed here by the skills CLI. The installed skills are
-**committed**: `.agents/skills/**` and the CLI's `skills-lock.json` (source, skill path and content hash of every
-entry) are both in source, so a clone has them without running anything.
+configuration, the `Purview.SourceGeneratorFramework` generator and test APIs, ZodSharp, Purview.ValueObjects
+composition, and Purview.Unions modelling - is published by the repositories that own it, and installed here by the
+skills CLI. The installed skills are **committed**: `.agents/skills/**` and the CLI's `skills-lock.json` (source,
+skill path and content hash of every entry) are both in source, so a clone has them without running anything.
 
 | Skill | Source | Load before |
 | --- | --- | --- |
@@ -337,15 +386,19 @@ entry) are both in source, so a clone has them without running anything.
 | `purview-testing-conventions` | `purview-dev/engineering-playbook` | writing or reviewing tests (TUnit, AAA, naming, builders) |
 | `purview-persistence` | `purview-dev/engineering-playbook` | choosing a storage approach, abstracting EF Core, or a GUID primary-key strategy |
 | `purview-telemetry` | `purview-dev/engineering-playbook` | adding or reviewing observability, including the results HTTP telemetry |
-| `purview-buildsdk-*` (8 skills) | `purview-dev/build-sdk` | build/SDK configuration, project layout and detection, testing, skill installation and skill tests |
+| `purview-component-compatibility` | `purview-dev/engineering-playbook` | choosing a published component's lowest compatible dependency version, or changing its target frameworks |
+| `purview-org-harvest` | `purview-dev/engineering-playbook` | inventorying the organisation's repositories and comparing this one with the best-in-class |
+| `purview-buildsdk-*` (9 skills) | `purview-dev/build-sdk` | build/SDK configuration, project layout and detection, testing, skill installation, skill tests and the skills Justfile recipes |
 | `purview-sourcegenerator-codewriter` | `purview-dev/sourcegenerator-framework` | writing or reviewing emitter code (`CodeWriter`, scopes) |
 | `purview-sourcegenerator-pipeline` | `purview-dev/sourcegenerator-framework` | changing the incremental pipeline or its value-equatable models |
 | `purview-sourcegenerator-diagnostics` | `purview-dev/sourcegenerator-framework` | adding or changing an `RSG` diagnostic or the analyzer |
 | `purview-sourcegenerator-packaging` | `purview-dev/sourcegenerator-framework` | changing how the generator and code fix are packed or merged |
 | `purview-sourcegenerator-testing` | `purview-dev/sourcegenerator-framework` | writing generator, analyzer or code-fix tests (`CodeQuery`) |
 | `purview-sourcegenerator-tunit-tests` | `purview-dev/sourcegenerator-framework` | the TUnit base classes and assertion extensions |
-| `purview-zodsharp-*` (6 skills) | `purview-dev/zodsharp` | the ZodSharp bridge and ProblemDetails integration: `[ZodSchema]`, rules, JSON, ASP.NET Core, `ZODSGEN` diagnostics |
+| `purview-sourcegenerator-attribute-data-models` | `purview-dev/sourcegenerator-framework` | declaring or fixing a `[Generate]` attribute-data model |
+| `purview-zodsharp-*` (7 skills) | `purview-dev/zodsharp` | the ZodSharp bridge and ProblemDetails integration: `[ZodSchema]`, rules, JSON, ASP.NET Core, Blazor, `ZODSGEN` diagnostics |
 | `purview-value-objects*` (4 skills) | `purview-dev/value-objects` | the value-objects composition example, tests and packed consumer |
+| `purview-unions-*` (4 skills) | `purview-dev/unions` | modelling a `[GenerateUnion]` union, its `UNI` diagnostics, and the Results/Telemetry/JSON interop |
 
 Skills are installed into the universal `.agents/skills/` location **only**. Never install copies into `.claude/`
 or any other per-agent folder, and never add a `CLAUDE.md`: `AGENTS.md` is the one instruction file, and
@@ -358,10 +411,16 @@ npx -y skills@1 add purview-dev/build-sdk -s '*' -a universal -y
 npx -y skills@1 add purview-dev/sourcegenerator-framework -s '*' -a universal -y
 npx -y skills@1 add purview-dev/zodsharp -s '*' -a universal -y
 npx -y skills@1 add purview-dev/value-objects -s '*' -a universal -y
+npx -y skills@1 add purview-dev/unions -s '*' -a universal -y
 
 # restore the committed set from skills-lock.json
 npx -y skills@1 experimental_install
 ```
+
+`just skills-update` runs the same re-add for every `skills-lock.json` source, `just skills-check` enforces the
+universal-only layout, and `just skills-fix` removes the links the CLI leaves in directories
+`PurviewSkillsAgents` does not select. They are the recipes in `Justfile.skills.just`, imported by the `Justfile`;
+the update, install and fix targets refuse to run inside a build, so keep them off every other recipe.
 
 Commit the changed `.agents/skills/**` and `skills-lock.json` together, in their own `chore` commit. Do not edit
 anything under `.agents/skills/` by hand - the CLI is its only writer, and a hand edit no longer matches the
@@ -433,8 +492,7 @@ package to an isolated feed and cache and publishes and runs, from the packages 
 WebAssembly app (trimmed and `RunAOTCompilation`, in a headless browser), a Blazor Server app, a `net10.0` console
 and a Native AOT minimal API (handlers returning `ToHttpResult()`, plus a Purview.ZodSharp.Http client self-test), then leak-scans every output for compiler-host assemblies. It needs the Native AOT toolchain, the
 `wasm-tools` workload and Chrome or Edge; dependency versions not yet on nuget.org restore from
-`LOCAL_NUGET_FEED_PATH`. Run it when the generator, packaging or a dependency version changes. The consumers'
-union-declaring files are listed in `.csharpierignore` like every other union file.
+`LOCAL_NUGET_FEED_PATH`. Run it when the generator, packaging or a dependency version changes.
 
 Local CI-equivalent validation:
 
@@ -487,12 +545,14 @@ all). Prefer a new version, as the local release flow does.
 - Release is automatic on push to `main`: `.github/workflows/release.yml` calls the shared
   `purview-dev/build` release pipeline with `Release:Mode=NuGet`, which packs, publishes and creates the
   `v<version>` GitHub release only when that tag does not already exist.
-- `.github/workflows/pr.yml` runs the shared build pipeline for pull requests, pinned to the SDK version in
-  `global.json` so the runner can resolve it.
+- `.github/workflows/pr.yml` runs the shared build pipeline for pull requests, and `.github/workflows/release.yml`
+  runs the shared release action. Neither repeats the SDK version: `purview-dev/build`'s `dotnet-sdk` action and
+  `purview-release` action install the `sdk.version` that `global.json` pins. Only the `packed-consumers` job adds
+  a second `actions/setup-dotnet` step for the .NET 10 runtime the `net10.0` consumer executes on; it never uses
+  `global-json-file`, because `setup-dotnet` resolves `rollForward: latestMajor` as the LTS channel.
 - Never create release tags or publish packages manually unless the user explicitly requests a documented
   recovery procedure.
-- `.github/workflows/*` and `global.json` must stay in sync: the workflow's `dotnet-version` input has to match
-  `sdk.version`, and `.config/purview-build.json` has to keep pointing at `src/Results.slnx`.
+- `.config/purview-build.json` has to keep pointing at `src/Results.slnx`.
 
 ## Completion checklist
 
@@ -504,8 +564,8 @@ Before handing work back:
 - Add or update focused tests for code changes, including incremental-cache coverage for pipeline changes.
 - Update the affected package `Sdk/README.md`, the root `README.md`, `docs/wiki`, `AGENTS.md` and
   `AnalyzerReleases` when the change affects them.
-- Watch for the packaging traps: `<IsPackable>true</IsPackable>` missing from a new package project, a new
-  union-declaring file missing from `.csharpierignore`, and a new diagnostic missing from
+- Watch for the packaging traps: `<IsPackable>true</IsPackable>` missing from a new package project, an example
+  that references a package the aspect it demonstrates does not need, and a new diagnostic missing from
   `AnalyzerReleases.Unshipped.md`.
 - Run appropriate build, test, formatting and pack checks in proportion to risk.
 - State exactly what validation ran. If a check was skipped or blocked, give the concrete reason and the

@@ -406,7 +406,7 @@ public class ZodValidationResultExtensionsTests
 
 		// Act & Assert
 		await Assert
-			.That(async () => await validation.ToUnitResultAsync<int, string>(errors => "rejected"))
+			.That(async () => await validation.ToUnitResultAsync(errors => "rejected"))
 			.Throws<ArgumentNullException>();
 	}
 }

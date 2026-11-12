@@ -8,6 +8,88 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 Released versions correspond to `v<version>` GitHub releases.
 
+## Unreleased
+
+### Changed
+
+- **.NET 11 GA.** The repository now builds against the .NET 11 GA SDK (`11.0.100`) rather than a release
+  candidate. CI pins match `global.json`.
+- **C# 15 is no longer preview.** `LangVersion` moved from `preview` to `latest`; a `net11.0` project gets C# 15 by
+  default, so declaring a union needs no language-version switch. The packed consumers no longer set
+  `LangVersion=preview`, which proves a consumer needs nothing special.
+- **.NET 8 and .NET 9 are out of support** and remain deliberately untargeted; only `net10.0` and `net11.0` ship.
+- **Lowest common runtime bits.** `Microsoft.AspNetCore.TestHost` and the `net10.0` runtime-adjacent version are
+  pinned to `10.0.15`, the oldest servicing band the packages claim to support, rather than the newer `net11.0`
+  band.
+- **Purview.BuildSdk 2.0.1 and its .NET 11 feature switches.** The solution keeps the SDK's `Supported` target set
+  (`net10.0;net11.0`), takes the C# 15 memory-safety tier from `MemorySafetyRules` (default `2`,
+  `updated-memory-safety-rules`), and bootstraps `Directory.Build.rsp`. Runtime async is requested with
+  `PurviewRuntimeAsync=true` instead of a hand-written `Features` append, and is now enabled **only for a
+  non-browser example**: packable projects, tests and `Examples.Blazor.Wasm` are forced to the stable async
+  lowering even if a project declares the property.
+- **The multithreaded build is off (`PurviewMultiThreadedBuild=false`, `-mt:false`).** The .NET 11 GA WebAssembly
+  SDK's `JsonToItemsTaskFactory` does not support the out-of-process task host that `-mt` uses, so a Blazor
+  WebAssembly project cannot build under it (`MSB4060`). The repository now carries a first-class Blazor
+  WebAssembly sample, so it takes the SDK's supported opt-out instead of excluding the sample.
+- **Purview.ZodSharp 3.0.0-prerelease.6.** The bridge and the examples take the release that fixes the Blazor
+  WebAssembly `InvalidProgramException` caused by runtime async in the net11.0 assemblies.
+
+### Added
+
+- **Generic unions.** A `union Option<T>(...)` now generates a generic extension block and per-case helpers that
+  repeat the union's type parameters and constraints. A static extension member's explicit type arguments are the
+  extension block's parameters first, so the value factory is `Option<string>.Failure<string, TValue>(case)`. A
+  bare type parameter case gets the union-receiver factory only.
+- **`IUnionMembers` member providers.** A custom union whose creation members live on a nested `IUnionMembers`
+  provider is supported: cases are read from the provider's public static single-parameter `Create` methods and
+  values are constructed through `IUnionMembers.Create`, so a private constructor works. `RSG1007` now reports only
+  a provider with no usable `Create` method.
+- **Class-based and nullable union shapes.** Reference-type `[Union]` declarations and nullable reference/value
+  case types are generated for and executed by the test suite.
+- **The code fix follows the new shapes.** A generic union's rewrite repeats the union's type arguments before the
+  value type, and a provider union's case is recognised from its `Create` methods.
+- **Non-boxing union coverage.** A custom `[Union]` type with typed storage and the non-boxing access pattern
+  (`HasValue` + `TryGetValue`) is generated for and executed by the test suite, including an assertion that a
+  value-type case does not allocate when matched. A compiler `union` declaration always boxes its cases; the
+  custom shape is the supported way to avoid that on a hot error path.
+- **Closed-hierarchy coverage.** A C# 15 `closed` hierarchy used as `TError`, switched exhaustively without a
+  discard arm, is compiled and executed by the test suite.
+- **The two-generator integration runs from the packages.** `SourceGenerator.UnitTests` references
+  `Purview.Unions` 1.0.0-prerelease.2, so real `[GenerateUnion]` unions and the results generator compile in one
+  project; the tests cover the `typeof` list, partial factory signatures and a nested `IUnionMembers` provider and
+  execute the generated `TryGetValue` members. A new `Examples.Unions` console example is the consumer proof, and
+  the previous hand-written `GenerateUnionAttribute` stand-in is gone.
+- **Blazor WebAssembly and Blazor Server samples.** `Examples.Blazor.Wasm` and `Examples.Blazor.Server` run the
+  same page: a `[ZodSchema]`-validated tenant form folded into `Result<Tenant, TenantError>` through
+  `Purview.Results.ZodSharp`, with the validation errors rendered from `ValidationError.FullPath`. The WebAssembly
+  sample is the browser-safety and stable-async proof; the server sample runs with runtime async enabled.
+  `Purview.Results` and `Purview.Results.ZodSharp` now declare `PurviewBrowserSafe=true`, so the SDK's trim, AOT
+  and browser-unsupported-API checks run on them.
+
+### Fixed
+
+- **`[GenerateResult]` discovery for `Purview.Unions` unions.** A union opted into `Purview.Unions` generation
+  carries its `[Union]` attribute and constructors in *that* generator's output, which this generator never sees.
+  `[GenerateResult]` now recognises a source-visible `Purview.Unions.GenerateUnionAttribute` by metadata identity
+  (the shipped generator still has no dependency on `Purview.Unions`) and reads the first non-empty source-visible
+  case list in the union generator's order: the `typeof` list, partial static factory signatures, a nested
+  `IUnionMembers` provider, then any source-visible constructors. A `[GenerateUnion]` union with no source-visible
+  case list is reported as `RSG1001`; `RSG1000` now describes the full set of recognised union shapes. Case types
+  are normalised as the union generator exposes them (`int?` → `int`, nullable reference annotations stripped).
+- **`NU5118` on `dotnet pack`.** The analyzer pack target ran in every inner build and added the same
+  TFM-independent generator and code-fix files once per target framework. It now runs once, for the default target
+  framework, matching the SDK's own TFM-specific pack targets; a Release pack completes with no warnings.
+- The unmapped-failure telemetry test no longer reads the first measurement from the process-static meter; it
+  filters by error-type tag like its sibling, so concurrent tests cannot make it flaky.
+
+### Documentation
+
+- README, wiki, package READMEs, `AGENTS.md` and the union skill now state that C# 15 unions are GA, need a
+  `net11.0` target rather than `LangVersion=preview`, and explain the non-boxing custom-union option and closed
+  hierarchies.
+- The wiki's testing page describes the package-level two-generator integration instead of the retired stand-in,
+  and the contributing pages no longer mention a `.csharpierignore` (CSharpier 1.4.0 parses C# 15 unions).
+
 ## 1.1.0-prerelease.2
 
 A minor prerelease built against Purview.ZodSharp 3.0.0-prerelease.2 and Purview.ValueObjects 1.3.0-prerelease.2. It

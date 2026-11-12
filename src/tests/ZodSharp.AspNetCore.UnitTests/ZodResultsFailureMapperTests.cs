@@ -356,9 +356,8 @@ public sealed class ZodResultsFailureMapperTests
 		// Arrange
 		// The strict origin rule declines a mixed failure, so the failure keeps the default validation response.
 		await using var services = CreateServices(zod =>
-			zod.MapOrigin(
-				ValueObjectOrigin,
-				(errors, _) => errors.Length == 1 && errors[0].Code == InvalidNameCode ? TypedResults.NotFound() : null
+			zod.MapOrigin(ValueObjectOrigin, (errors, _) =>
+				errors.Length == 1 && errors[0].Code == InvalidNameCode ? TypedResults.NotFound() : null
 			)
 		);
 		var mapper = services.GetRequiredService<IResultsHttpMapper>();
@@ -425,9 +424,8 @@ public sealed class ZodResultsFailureMapperTests
 		// Arrange
 		// A factory can tighten the match rule: here it only answers a failure whose every error is the code.
 		await using var services = CreateServices(zod =>
-			zod.MapCode(
-				InvalidNameCode,
-				(errors, _) => errors.Length == 1 && errors[0].Code == InvalidNameCode ? TypedResults.NotFound() : null
+			zod.MapCode(InvalidNameCode, (errors, _) =>
+				errors.Length == 1 && errors[0].Code == InvalidNameCode ? TypedResults.NotFound() : null
 			)
 		);
 		var mapper = services.GetRequiredService<IResultsHttpMapper>();

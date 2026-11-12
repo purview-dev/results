@@ -177,8 +177,8 @@ response an endpoint that returns `default` receives too.
 dotnet run --project src/src/Examples.AspNetCore --urls http://localhost:5215
 ```
 
-The [repository README](https://github.com/purview-dev/results#examples) lists the Basic, ZodSharp and
-ASP.NET Core + Zod examples too.
+The [repository README](https://github.com/purview-dev/results#examples) lists the Basic, ZodSharp,
+ASP.NET Core + Zod and Blazor WebAssembly/Server examples too.
 
 ## Related packages
 

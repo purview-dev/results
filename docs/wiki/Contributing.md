@@ -16,6 +16,9 @@ src/
     ZodSharp/               ZodSharp ValidationResult<T> bridge
     ZodSharp.AspNetCore/    Validation-problem mapping for validation-carrying failures
     Examples.Basic/         Runnable examples, one project per integration aspect
+    Examples.Unions/
+    Examples.Blazor.Server/
+    Examples.Blazor.Wasm/
     Examples.Zod/
     Examples.AspNetCore/
     Examples.AspNetCore.Zod/
@@ -102,7 +105,8 @@ Conventions:
 ## Packaging traps
 
 - A project is packable **only** when its own `.csproj` declares `<IsPackable>true</IsPackable>`.
-- A new union-declaring file must be added to `.csharpierignore`, because the preview syntax is not parseable.
+- A new union-declaring file needs no formatter exclusion: CSharpier 1.4.0 parses C# 15 unions and `closed`
+  hierarchies.
 - A new diagnostic must be added to `AnalyzerReleases.Unshipped.md`.
 - A property the generator reads must be declared as a `CompilerVisibleProperty` and shipped in
   `Sdk/buildTransitive/*.props`.

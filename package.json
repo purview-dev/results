@@ -1,6 +1,6 @@
 {
 	"name": "results",
-	"version": "1.1.0-prerelease.3",
+	"version": "2.0.0-prerelease.1",
 	"license": "MIT",
 	"private": true,
 	"keywords": [],
@@ -25,7 +25,7 @@
 		"typescript": "^7.0.2"
 	},
 	"engines": {
-		"bun": ">=1.4.2"
+		"bun": ">=1.4.4"
 	},
-	"packageManager": "bun@1.4.2"
+	"packageManager": "bun@1.4.4"
 }

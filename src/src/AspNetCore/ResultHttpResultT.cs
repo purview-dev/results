@@ -93,8 +93,7 @@ static class ResultHttpResultExecution
 {
 	internal static Task Execute(IResultValue result, HttpContext httpContext)
 	{
-		var mapper =
-			httpContext.RequestServices.GetService<IResultsHttpMapper>()
+		var mapper = httpContext.RequestServices.GetService<IResultsHttpMapper>()
 			?? throw new InvalidOperationException(
 				$"No {nameof(IResultsHttpMapper)} is registered. Call services.AddResultsHttp() before mapping a "
 					+ "result with ToHttpResult()."

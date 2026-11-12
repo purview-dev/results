@@ -9,7 +9,8 @@ using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.Simplification;
 using Microsoft.CodeAnalysis.Text;
 
-// ITypeSymbol.IsUnion is [Experimental] until C# 15 union support ships, and this provider targets it.
+// ITypeSymbol.IsUnion is still marked [Experimental] in Roslyn 5.9 (the .NET 11 GA compiler), so accessing it
+// is deliberate here and the diagnostic is suppressed for the whole file.
 #pragma warning disable RSEXPERIMENTAL006
 
 namespace Purview.Results.SourceGenerator.CodeFixes;
@@ -89,9 +90,10 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 			if (!IsUnionVisibleBySimpleName(model, unionType, expression.SpanStart))
 				continue;
 
+			var unionDisplay = unionType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat);
 			var title = isUnit
-				? $"Convert the union case to a failed unit result with {unionType.Name}.{FailureFactoryName}()"
-				: $"Convert the union case to a failed result with {unionType.Name}.{FailureFactoryName}<{valueType!.Name}>()";
+				? $"Convert the union case to a failed unit result with {unionDisplay}.{FailureFactoryName}()"
+				: $"Convert the union case to a failed result with {unionDisplay}.{FailureFactoryName}<{valueType!.Name}>()";
 
 			context.RegisterCodeFix(
 				CodeAction.Create(
@@ -172,25 +174,52 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 		if (!visited.Add(union))
 			return false;
 
-		foreach (var constructor in union.InstanceConstructors)
+		foreach (var candidate in GetCaseTypes(union))
 		{
-			if (
-				constructor.DeclaredAccessibility != Accessibility.Public
-				|| constructor.Parameters.Length != 1
-				|| constructor.Parameters[0].RefKind is not (RefKind.None or RefKind.In)
-			)
-				continue;
-
-			var parameterType = constructor.Parameters[0].Type;
-
-			if (SymbolEqualityComparer.Default.Equals(parameterType, caseType))
+			if (SymbolEqualityComparer.Default.Equals(candidate, caseType))
 				return true;
 
-			if (parameterType is INamedTypeSymbol { IsUnion: true } included && IsCaseOf(included, caseType, visited))
+			if (candidate is INamedTypeSymbol { IsUnion: true } included && IsCaseOf(included, caseType, visited))
 				return true;
 		}
 
 		return false;
+	}
+
+	/// <summary>
+	/// Gets a union's case types from the same sources the generator uses: a nested <c>IUnionMembers</c>
+	/// provider's public static single-parameter <c>Create</c> methods when one exists, otherwise its public
+	/// single-parameter constructors.
+	/// </summary>
+	static IEnumerable<ITypeSymbol> GetCaseTypes(INamedTypeSymbol union)
+	{
+		var provider = union
+			.GetTypeMembers("IUnionMembers")
+			.FirstOrDefault(static member => !member.IsImplicitlyDeclared && member.TypeKind == TypeKind.Interface);
+
+		if (provider is not null)
+		{
+			foreach (var current in provider.AllInterfaces.Prepend(provider))
+			{
+				foreach (var member in current.GetMembers("Create"))
+				{
+					if (member is IMethodSymbol { IsStatic: true, Parameters.Length: 1 } method)
+						yield return method.Parameters[0].Type;
+				}
+			}
+
+			yield break;
+		}
+
+		foreach (var constructor in union.InstanceConstructors)
+		{
+			if (
+				constructor.DeclaredAccessibility == Accessibility.Public
+				&& constructor.Parameters.Length == 1
+				&& constructor.Parameters[0].RefKind is RefKind.None or RefKind.In
+			)
+				yield return constructor.Parameters[0].Type;
+		}
 	}
 
 	static bool IsUnionVisibleBySimpleName(SemanticModel model, INamedTypeSymbol union, int position)
@@ -200,7 +229,13 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 
 		foreach (var symbol in model.LookupSymbols(position, name: union.Name))
 		{
-			if (SymbolEqualityComparer.Default.Equals(symbol, union))
+			if (
+				SymbolEqualityComparer.Default.Equals(symbol, union)
+				|| (
+					symbol is INamedTypeSymbol named
+					&& SymbolEqualityComparer.Default.Equals(named.OriginalDefinition, union.OriginalDefinition)
+				)
+			)
 				return true;
 		}
 
@@ -223,7 +258,9 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 			return document;
 
 		// The union-receiver factory is named on the union type: Union.Failure(case) for a unit result and
-		// Union.Failure<TValue>(case) for a value result.
+		// Union.Failure<TValue>(case) for a value result. A static extension member's explicit type arguments
+		// are the extension block's parameters first, so a generic union repeats its type arguments before the
+		// value type: Union<T>.Failure<T, TValue>(case).
 		var unionName = SyntaxFactory
 			.ParseTypeName(unionType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat))
 			.WithAdditionalAnnotations(Simplifier.Annotation);
@@ -235,13 +272,28 @@ public sealed class UnionCaseResultCodeFixProvider : CodeFixProvider
 		}
 		else
 		{
-			var typeArgument = SyntaxFactory
-				.ParseTypeName(valueType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat))
-				.WithAdditionalAnnotations(Simplifier.Annotation);
+			List<TypeSyntax> typeArguments = [];
+
+			if (unionType.IsGenericType)
+			{
+				typeArguments.AddRange(
+					unionType.TypeArguments.Select(static argument =>
+						SyntaxFactory
+							.ParseTypeName(argument.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat))
+							.WithAdditionalAnnotations(Simplifier.Annotation)
+					)
+				);
+			}
+
+			typeArguments.Add(
+				SyntaxFactory
+					.ParseTypeName(valueType.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat))
+					.WithAdditionalAnnotations(Simplifier.Annotation)
+			);
 
 			factoryName = SyntaxFactory.GenericName(
 				SyntaxFactory.Identifier(FailureFactoryName),
-				SyntaxFactory.TypeArgumentList(SyntaxFactory.SingletonSeparatedList(typeArgument))
+				SyntaxFactory.TypeArgumentList(SyntaxFactory.SeparatedList(typeArguments))
 			);
 		}
 

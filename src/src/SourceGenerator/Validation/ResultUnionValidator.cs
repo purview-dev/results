@@ -91,6 +91,11 @@ static class ResultUnionValidator
 		{
 			foreach (var unionCase in union.Cases)
 			{
+				// A bare type-parameter case has only the union-receiver factory; it must not claim the
+				// per-case helper from another union.
+				if (unionCase.IsTypeParameterCase)
+					continue;
+
 				if (!caseOwners.TryGetValue(unionCase.CaseType, out var owners))
 				{
 					owners = [];
@@ -109,6 +114,9 @@ static class ResultUnionValidator
 
 			foreach (var unionCase in union.Cases)
 			{
+				if (unionCase.IsTypeParameterCase)
+					continue;
+
 				var owners = caseOwners[unionCase.CaseType];
 
 				if (owners.Count == 1)
