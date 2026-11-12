@@ -29,10 +29,7 @@ jobs:
       - uses: purview-dev/build/actions/purview-release@main
         with:
           release-mode: NuGet
-          # This repository targets net11.0 and pins the GA .NET 11 SDK in global.json; without it the
-          # release job cannot resolve global.json.
-          # Keep in sync with `sdk.version` in global.json (and with .github/workflows/pr.yml).
-          dotnet-version: "11.0.100"
+          # The action installs the SDK `global.json` pins; a `dotnet-version` input would be ignored.
           trusted-publishing: true
           # The nuget.org profile name, not the sign-in email.
           nuget-user: kieronlanning

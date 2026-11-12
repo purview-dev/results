@@ -545,12 +545,14 @@ all). Prefer a new version, as the local release flow does.
 - Release is automatic on push to `main`: `.github/workflows/release.yml` calls the shared
   `purview-dev/build` release pipeline with `Release:Mode=NuGet`, which packs, publishes and creates the
   `v<version>` GitHub release only when that tag does not already exist.
-- `.github/workflows/pr.yml` runs the shared build pipeline for pull requests, pinned to the SDK version in
-  `global.json` so the runner can resolve it.
+- `.github/workflows/pr.yml` runs the shared build pipeline for pull requests, and `.github/workflows/release.yml`
+  runs the shared release action. Neither repeats the SDK version: `purview-dev/build`'s `dotnet-sdk` action and
+  `purview-release` action install the `sdk.version` that `global.json` pins. Only the `packed-consumers` job adds
+  a second `actions/setup-dotnet` step for the .NET 10 runtime the `net10.0` consumer executes on; it never uses
+  `global-json-file`, because `setup-dotnet` resolves `rollForward: latestMajor` as the LTS channel.
 - Never create release tags or publish packages manually unless the user explicitly requests a documented
   recovery procedure.
-- `.github/workflows/*` and `global.json` must stay in sync: the workflow's `dotnet-version` input has to match
-  `sdk.version`, and `.config/purview-build.json` has to keep pointing at `src/Results.slnx`.
+- `.config/purview-build.json` has to keep pointing at `src/Results.slnx`.
 
 ## Completion checklist
 
