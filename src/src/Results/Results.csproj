@@ -14,6 +14,16 @@
 		<IsAotCompatible>true</IsAotCompatible>
 	</PropertyGroup>
 
+	<!--
+		PurviewBrowserSafe: the Results packages are downloaded to a browser by the Blazor WebAssembly
+		example and by real WebAssembly consumers. The SDK then runs the trim, AOT and browser-unsupported-API
+		checks on this project, so a regression is a build failure here rather than a runtime failure in a
+		client. The packed-consumer gate's Blazor WebAssembly app proves the same from the packages.
+	-->
+	<PropertyGroup Label="Browser safety">
+		<PurviewBrowserSafe>true</PurviewBrowserSafe>
+	</PropertyGroup>
+
 	<PropertyGroup>
 		<IsPackable>true</IsPackable>
 		<Title>Purview Results</Title>

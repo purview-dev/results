@@ -19,10 +19,11 @@ dotnet test src/Results.slnx --no-build --treenode-filter "/*/*/*/*[Category=Uni
 The `*.UnitTests` project naming is what the SDK uses to derive `TestingType=Unit` and apply the matching test
 category, which is what the filter matches. Use `--treenode-filter` for filtering — not `dotnet test --filter`.
 
-The non-packable `net11.0` projects (tests and examples) compile with runtime async
-(`Features=runtime-async=on`), which is still a preview feature in .NET 11 but gives cleaner live call stacks
-and lower async overhead while debugging. The shipped libraries deliberately do not: Blazor WebAssembly's Mono
-runtime does not implement it. The tests therefore call the same stable lowering a consumer runs.
+The non-packable `net11.0` examples compile with runtime async
+(`PurviewRuntimeAsync=true`, which appends `runtime-async=on` to `Features`) unless they are browser-hosted:
+Blazor WebAssembly's Mono runtime does not implement it, so `Examples.Blazor.Wasm` compiles with the stable
+lowering. The shipped libraries and the test projects never opt in. The tests therefore call the same stable
+lowering a consumer runs.
 
 ## Test projects
 
@@ -55,12 +56,13 @@ code with the framework's `CodeQuery` and terminal assertion extensions (`result
 it drives `GenerateIncrementalAsync`, asserts `New` on the first run, `Cached`/`Unchanged` on an identical rerun,
 and `Modified` only for the stages whose inputs changed.
 
-**Cross-generator discovery is covered by a source-visible stand-in.** `GenerateUnionDiscoveryTests` declares a
-stand-in `Purview.Unions.GenerateUnionAttribute` (and source-visible conversions where the generated helpers need
-them), because `Purview.Unions` is not on a CI-safe package feed yet. It exercises the `typeof` list, partial
-factory signatures, an included `[GenerateUnion]` case and the `RSG1001` gap; `GenerateUnionDiscoveryRuntimeTests`
-executes the helpers against the real result types. Referencing `Purview.Unions` so both generators run in one
-compilation is recorded as a follow-up for when that package is on the feed the CI can restore from.
+**Cross-generator discovery runs against the packaged generators.** `SourceGenerator.UnitTests` references
+`Purview.Unions`, so `GeneratedUnionDiscoveryTestTypes` declares real `[GenerateUnion]` unions and the results
+generator runs in the same compilation as the union generator. The test project therefore covers the `typeof`
+list, partial factory signatures and a nested `IUnionMembers` provider end to end; `GenerateUnionDiscoveryRuntimeTests`
+executes the generated helpers and probes the generated `TryGetValue` members against the real result types.
+`GenerateUnionDiscoveryTests` keeps the isolated source-string cases (including the `RSG1001` gap and an included
+`[GenerateUnion]` case), because a focused compilation is the only way to vary the case list per test.
 
 ## Compiler experiments
 

@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+	<PropertyGroup>
+		<!--
+			net11.0 only: the sample declares a union, and the results pipeline's helpers need C# 15 and the
+			.NET 11 union runtime types. This is also the sample that proves the browser path: it must compile
+			with the stable async lowering, because Mono has no runtime-async support.
+		-->
+		<TargetFrameworks></TargetFrameworks>
+		<TargetFramework>net11.0</TargetFramework>
+	</PropertyGroup>
+	<PropertyGroup>
+		<!--
+			A runnable Blazor WebAssembly sample, so it is started with `dotnet run`. It stays non-packable
+			(the SDK default) because it is documentation, not a shipped package.
+		-->
+		<Nullable>enable</Nullable>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+		<StaticWebAssetSpaFallbackEnabled>true</StaticWebAssetSpaFallbackEnabled>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<!-- The result type and the generated AsFailure/union-receiver helpers. -->
+		<ProjectReference Include="..\Results\Results.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!-- The bridge that turns a ValidationResult<T> into a result. -->
+		<ProjectReference Include="..\ZodSharp\ZodSharp.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!--
+			ZodSharp itself: the [ZodSchema] attribute and the generator that emits TenantInputSchema. Both
+			ZodSharp and the results bridge are browser-safe, so the whole validation pipeline runs in the
+			WebAssembly client with no server round trip.
+		-->
+		<PackageReference Include="Purview.ZodSharp" />
+		<!-- The Blazor WebAssembly runtime the SDK does not add implicitly. -->
+		<PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" />
+		<PackageReference Include="Microsoft.AspNetCore.Components.Gateway" PrivateAssets="all" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<!--
+			The generator is a Roslyn component: it is referenced analyzer-style so it produces the
+			AsFailure<TValue>() helpers for this project's TenantError union without becoming a runtime
+			dependency, and without flowing to anything that references this project.
+		-->
+		<ProjectReference
+			Include="..\SourceGenerator\SourceGenerator.csproj"
+			OutputItemType="Analyzer"
+			ReferenceOutputAssembly="false"
+			PrivateAssets="all"
+		/>
+	</ItemGroup>
+</Project>

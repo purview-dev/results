@@ -104,7 +104,7 @@ dotnet run --project src/src/Examples.Zod
 ```
 
 The [repository README](https://github.com/purview-dev/results#examples) lists the Basic, ASP.NET Core,
-ASP.NET Core + Zod and value-objects composition examples too.
+ASP.NET Core + Zod, value-objects composition and Blazor WebAssembly/Server examples too.
 
 ## Related packages
 

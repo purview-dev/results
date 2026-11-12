@@ -1,6 +1,8 @@
 # Blazor and Native AOT
 
 All four packages are marked `IsAotCompatible` and build clean under the trim and AOT analyzers.
+`Purview.Results` and `Purview.Results.ZodSharp` also set `PurviewBrowserSafe=true`, so the SDK's trim, AOT and
+browser-unsupported-API checks run on them whenever a WebAssembly consumer references them.
 
 - `Purview.Results` and `Purview.Results.ZodSharp` contain no reflection, no dynamic code and no runtime type
   discovery, and the generator's `AsFailure` helpers and union-receiver factories are plain constructor calls. A
@@ -17,6 +19,19 @@ All four packages are marked `IsAotCompatible` and build clean under the trim an
 it publishes a Native AOT console, a Native AOT minimal API (with a `Purview.ZodSharp.Http` client), a Blazor WebAssembly app (trimmed and AOT-compiled, then
 loaded in a headless browser), a Blazor Server app and a `net10.0` console from the `.nupkg` files alone, with
 warnings as errors, runs each one, and scans every output for compiler-host assemblies.
+
+Two runnable examples show the same integration from the other side:
+
+- [`Examples.Blazor.Wasm`](https://github.com/purview-dev/results/tree/main/src/src/Examples.Blazor.Wasm) runs the
+  compile-time `[ZodSchema]` validator and the result pipeline entirely in the browser and is compiled with the
+  stable async lowering, because Mono has no runtime-async support.
+- [`Examples.Blazor.Server`](https://github.com/purview-dev/results/tree/main/src/src/Examples.Blazor.Server) runs
+  the same page under interactive server rendering, where runtime async is enabled.
+
+```bash
+dotnet run --project src/src/Examples.Blazor.Wasm --urls http://localhost:5217
+dotnet run --project src/src/Examples.Blazor.Server --urls http://localhost:5218
+```
 
 ## Target frameworks
 

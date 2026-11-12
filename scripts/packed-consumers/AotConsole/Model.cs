@@ -1,4 +1,4 @@
-// Declares a C# 15 union, which CSharpier cannot parse yet, so this file is listed in .csharpierignore.
+// Declares a C# 15 union; CSharpier 1.4.0 parses the syntax, so the file needs no formatter exclusion.
 using System.Collections.Immutable;
 using System.ComponentModel.DataAnnotations;
 using Purview.Results;

@@ -1,26 +1,39 @@
 <Project>
-	<Import Sdk="Purview.BuildSdk" Project="Sdk.targets" />
-
 	<!--
 		Runtime async is still a preview feature in .NET 11 GA (the libraries themselves are compiled with it, but
 		the compiler switch is not), so it is scoped to the net11.0 target framework: on net10.0 it lowers
 		await to System.Runtime.CompilerServices.AsyncHelpers, which is evaluation-only and fails the build with
-		SYSLIB5007. A net11.0 project no longer needs EnablePreviewFeatures to opt in.
+		SYSLIB5007. A net11.0 project no longer needs EnablePreviewFeatures to opt in, and the SDK's
+		PurviewRuntimeAsync switch appends runtime-async=on to Features for us.
 
-		It is also kept out of every shipped assembly. A library compiled with it carries runtime-async methods that
-		only a runtime implementing the feature can execute, and the Mono runtime behind Blazor WebAssembly does not:
-		every async member of a net11.0 package (ToResultAsync, the async combinators) threw
-		PlatformNotSupportedException ("Runtime Async is not supported on this platform") in the browser. The
-		packed-consumer gate (`just smoke-packed-consumers`) found it. Tests, examples and other non-packable projects
-		keep the experiment; the libraries they reference are compiled with the stable lowering, so the tests exercise
-		exactly what ships. That is also why the packed consumers do not opt in: they are the WebAssembly proof.
+		Only an example that is not hosted in a browser opts in. A shipped assembly must never carry runtime-async
+		methods - only a runtime implementing the feature can execute them, and the Mono runtime behind Blazor
+		WebAssembly does not: every async member of a net11.0 package (ToResultAsync, the async combinators) threw
+		PlatformNotSupportedException ("Runtime Async is not supported on this platform") in the browser, which the
+		packed-consumer gate (`just smoke-packed-consumers`) found. The property is therefore forced to false for
+		every packable project, every non-example (tests included) and every browser-hosted example, so a project
+		cannot opt a shipped or WebAssembly assembly into it by declaring PurviewRuntimeAsync=true. The Blazor
+		WebAssembly sample is the proof that the browser path compiles with the stable lowering.
 
-		Evaluated here rather than in Directory.Build.props because IsPackable is declared in each project file, which
-		is read after the props.
+		Evaluated above the SDK import rather than in Directory.Build.props because IsPackable is declared in each
+		project file, which is read after the props and before these targets; the SDK resolves its feature switches
+		as it imports, so the property has to be set before the import below. Browser detection cannot use the
+		SDK's IsClientSideProject either: that is computed later, in ServerShared.targets, so the same name and
+		SDK-property signals are read here instead.
 	-->
-	<PropertyGroup Condition="'$(TargetFramework)' == 'net11.0' AND '$(IsPackable)' != 'true'">
-		<Features>$(Features);runtime-async=on</Features>
+	<PropertyGroup Label="Runtime async (non-WASM examples only)">
+		<_PurviewResultsProjectName>$([System.String]::Copy('$(MSBuildProjectName)').ToLowerInvariant())</_PurviewResultsProjectName>
+		<_PurviewResultsIsExample>$([System.String]::Copy('$(MSBuildProjectName)').StartsWith('Examples.'))</_PurviewResultsIsExample>
+		<_PurviewResultsIsBrowserHosted
+			Condition="'$(UsingMicrosoftNETSdkBlazorWebAssembly)' == 'true' OR '$(PurviewBrowserSafe)' == 'true' OR $([System.String]::Copy('$(_PurviewResultsProjectName)').EndsWith('.wasm')) OR $([System.String]::Copy('$(_PurviewResultsProjectName)').EndsWith('.browser')) OR $([System.String]::Copy('$(_PurviewResultsProjectName)').EndsWith('.client')) OR $([System.String]::Copy('$(_PurviewResultsProjectName)').EndsWith('.webassembly')) OR $([System.String]::Copy('$(_PurviewResultsProjectName)').EndsWith('.components'))"
+			>true</_PurviewResultsIsBrowserHosted>
+		<PurviewRuntimeAsync>false</PurviewRuntimeAsync>
+		<PurviewRuntimeAsync
+			Condition="'$(_PurviewResultsIsExample)' == 'true' AND '$(_PurviewResultsIsBrowserHosted)' != 'true' AND '$(IsPackable)' != 'true' AND '$(TargetFramework)' == 'net11.0'"
+			>true</PurviewRuntimeAsync>
 	</PropertyGroup>
+
+	<Import Sdk="Purview.BuildSdk" Project="Sdk.targets" />
 
 	<!--
 		NuGet package validation. Enabled for every packable project so an unintended change to the public API

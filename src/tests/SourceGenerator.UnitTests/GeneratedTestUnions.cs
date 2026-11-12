@@ -164,6 +164,10 @@ public readonly record struct ConstrainedSome<T>(T Value);
 
 /// <summary>A generic union with a bare type-parameter case, which is factory-only.</summary>
 /// <typeparam name="T">The value or text.</typeparam>
+// RSG1006 is deliberate here: NullableValue also owns a string case (string? normalises to string), so
+// it keeps the per-case AsFailure helper and TypedOrText<T> uses the shared-case safe factory instead.
+// GenericUnionTests exercises TypedOrText<int>.Failure<int, int>(...) on that path. Suppressed, with the
+// full reason, by the RSG1006 NoWarn entry in SourceGenerator.UnitTests.csproj.
 [GenerateResult]
 public readonly union TypedOrText<T>(T, string);
 

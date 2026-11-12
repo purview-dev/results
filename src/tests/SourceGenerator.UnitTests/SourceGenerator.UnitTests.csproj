@@ -7,6 +7,15 @@
 		-->
 		<TargetFrameworks></TargetFrameworks>
 		<TargetFramework>net11.0</TargetFramework>
+		<!--
+			RSG1006 is deliberate test data, not a defect: NullableValue declares string? (normalised to
+			string), so it owns the shared string case's AsFailure helper and TypedOrText<T> must use its
+			union-receiver factory instead. GenericUnionTests exercises TypedOrText<int>.Failure<int, int>(...)
+			on that path, which is exactly the shared-case-safe form the rule recommends. The generator reports
+			compilation-wide findings like RSG1006, so a #pragma around the declaration does not suppress it;
+			the project-level NoWarn is the scoped, documented suppression for this test fixture.
+		-->
+		<NoWarn>$(NoWarn);RSG1006</NoWarn>
 	</PropertyGroup>
 	<ItemGroup>
 		<!--
@@ -43,5 +52,11 @@
 
 	<ItemGroup>
 		<PackageReference Include="Purview.SourceGeneratorFramework.Testing.TUnit" />
+		<!--
+			The real union generator, so both generators run in this project's compilation. The shipped
+			results generator never references Purview.Unions: it recognises [GenerateUnion] by metadata
+			identity, which this package proves rather than a hand-written stand-in.
+		-->
+		<PackageReference Include="Purview.Unions" />
 	</ItemGroup>
 </Project>

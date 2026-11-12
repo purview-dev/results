@@ -21,6 +21,18 @@ Released versions correspond to `v<version>` GitHub releases.
 - **Lowest common runtime bits.** `Microsoft.AspNetCore.TestHost` and the `net10.0` runtime-adjacent version are
   pinned to `10.0.15`, the oldest servicing band the packages claim to support, rather than the newer `net11.0`
   band.
+- **Purview.BuildSdk 2.0.1 and its .NET 11 feature switches.** The solution keeps the SDK's `Supported` target set
+  (`net10.0;net11.0`), takes the C# 15 memory-safety tier from `MemorySafetyRules` (default `2`,
+  `updated-memory-safety-rules`), and bootstraps `Directory.Build.rsp`. Runtime async is requested with
+  `PurviewRuntimeAsync=true` instead of a hand-written `Features` append, and is now enabled **only for a
+  non-browser example**: packable projects, tests and `Examples.Blazor.Wasm` are forced to the stable async
+  lowering even if a project declares the property.
+- **The multithreaded build is off (`PurviewMultiThreadedBuild=false`, `-mt:false`).** The .NET 11 GA WebAssembly
+  SDK's `JsonToItemsTaskFactory` does not support the out-of-process task host that `-mt` uses, so a Blazor
+  WebAssembly project cannot build under it (`MSB4060`). The repository now carries a first-class Blazor
+  WebAssembly sample, so it takes the SDK's supported opt-out instead of excluding the sample.
+- **Purview.ZodSharp 3.0.0-prerelease.6.** The bridge and the examples take the release that fixes the Blazor
+  WebAssembly `InvalidProgramException` caused by runtime async in the net11.0 assemblies.
 
 ### Added
 
@@ -42,6 +54,17 @@ Released versions correspond to `v<version>` GitHub releases.
   custom shape is the supported way to avoid that on a hot error path.
 - **Closed-hierarchy coverage.** A C# 15 `closed` hierarchy used as `TError`, switched exhaustively without a
   discard arm, is compiled and executed by the test suite.
+- **The two-generator integration runs from the packages.** `SourceGenerator.UnitTests` references
+  `Purview.Unions` 1.0.0-prerelease.2, so real `[GenerateUnion]` unions and the results generator compile in one
+  project; the tests cover the `typeof` list, partial factory signatures and a nested `IUnionMembers` provider and
+  execute the generated `TryGetValue` members. A new `Examples.Unions` console example is the consumer proof, and
+  the previous hand-written `GenerateUnionAttribute` stand-in is gone.
+- **Blazor WebAssembly and Blazor Server samples.** `Examples.Blazor.Wasm` and `Examples.Blazor.Server` run the
+  same page: a `[ZodSchema]`-validated tenant form folded into `Result<Tenant, TenantError>` through
+  `Purview.Results.ZodSharp`, with the validation errors rendered from `ValidationError.FullPath`. The WebAssembly
+  sample is the browser-safety and stable-async proof; the server sample runs with runtime async enabled.
+  `Purview.Results` and `Purview.Results.ZodSharp` now declare `PurviewBrowserSafe=true`, so the SDK's trim, AOT
+  and browser-unsupported-API checks run on them.
 
 ### Fixed
 
@@ -64,6 +87,8 @@ Released versions correspond to `v<version>` GitHub releases.
 - README, wiki, package READMEs, `AGENTS.md` and the union skill now state that C# 15 unions are GA, need a
   `net11.0` target rather than `LangVersion=preview`, and explain the non-boxing custom-union option and closed
   hierarchies.
+- The wiki's testing page describes the package-level two-generator integration instead of the retired stand-in,
+  and the contributing pages no longer mention a `.csharpierignore` (CSharpier 1.4.0 parses C# 15 unions).
 
 ## 1.1.0-prerelease.2
 

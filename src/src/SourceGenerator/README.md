@@ -184,6 +184,10 @@ source `[Union]` attribute or constructor is required. Case types are normalised
 generator exposes them: a nullable value type becomes its underlying type, a nullable reference annotation is
 stripped, and constructed generic types and arrays keep their shape.
 
+That integration runs against the packaged generators: `SourceGenerator.UnitTests` references `Purview.Unions`
+and declares real `[GenerateUnion]` unions in the same compilation, and `Examples.Unions` is the runnable
+consumer proof. The shipped generator still has no dependency on `Purview.Unions`.
+
 ## Generic and member-provider unions
 
 A generic union's own type parameters and constraints are repeated on the generated helpers and on a generic

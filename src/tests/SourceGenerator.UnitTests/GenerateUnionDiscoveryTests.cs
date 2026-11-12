@@ -8,10 +8,11 @@ namespace Purview.Results.SourceGenerator;
 /// visible constructors in this compilation; its cases must come from the source-visible list instead.
 /// </summary>
 /// <remarks>
-/// The tests declare a stand-in <c>Purview.Unions.GenerateUnionAttribute</c> (and, where the generated
-/// helpers need a case-to-union conversion that the real generator would emit, source-visible conversion
-/// operators). The two-generator integration test is recorded as an interop follow-up, because
-/// <c>Purview.Unions</c> is not on a CI-safe package feed yet.
+/// These tests isolate the discovery path in a source string, so they declare a stand-in
+/// <c>Purview.Unions.GenerateUnionAttribute</c> (and, where the generated helpers need a case-to-union
+/// conversion the real generator would emit, source-visible conversion operators). The two-generator
+/// integration itself runs against the packaged generator in <see cref="DiscoveredError"/> and its
+/// siblings.
 /// </remarks>
 public class GenerateUnionDiscoveryTests
 	: TUnitSourceGeneratorTestBase<ResultsSourceGenerator, ResultsSourceGeneratorTestOptions>

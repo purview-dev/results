@@ -28,9 +28,14 @@
 		<LangVersion>latest</LangVersion>
 
 		<!--
-			Runtime async (Features=runtime-async=on) is set in Directory.Build.targets, for net11.0 projects that
-			do not ship only: it needs IsPackable, which a project declares after this file is imported. See the
-			comment there for why a shipped assembly must not use it.
+			.NET 11 feature selection is the SDK's: MemorySafetyRules defaults to tier 2
+			(updated-memory-safety-rules). PurviewMultiThreadedBuild is deliberately false (see above): the
+			.NET 11 WebAssembly SDK cannot build a Blazor WebAssembly project under -mt, and the solution
+			contains one. Runtime async (PurviewRuntimeAsync) is opted into in Directory.Build.targets, for
+			net11.0 examples that are not browser-hosted only, and is forced off for every packable project:
+			it needs IsPackable, which a project declares after this file is imported, and the SDK reads the
+			switch as it imports in the targets file. See the comment there for why a shipped or WebAssembly
+			assembly must not use it.
 		-->
 
 		<!--
@@ -60,6 +65,14 @@
 			are excluded repo-wide.
 		-->
 		<ExcludePurviewTelemetry>true</ExcludePurviewTelemetry>
+		<!--
+			MSBuild's multithreaded build mode (-mt) cannot build a Blazor WebAssembly project on the .NET 11
+			GA SDK: the WebAssembly SDK's JsonToItemsTaskFactory on ReadWasmProps does not support the
+			out-of-process task host that -mt uses, and the build fails with MSB4060. The repository ships a
+			Blazor WebAssembly sample, so it takes the SDK's supported opt-out rather than excluding the
+			sample from the build. The SDK writes -mt:false into Directory.Build.rsp.
+		-->
+		<PurviewMultiThreadedBuild>false</PurviewMultiThreadedBuild>
 	</PropertyGroup>
 
 	<Import Sdk="Purview.BuildSdk" Project="Sdk.props" />

@@ -1,4 +1,4 @@
-# Purview.BuildSdk 2.0.0 - managed file, do not edit
+# Purview.BuildSdk 2.0.1 - managed file, do not edit
 #
 # This file is written by Purview.BuildSdk and is replaced whenever the SDK version changes. The version
 # on the first line is how the SDK recognises a file it owns: a .editorconfig without that marker is
@@ -2689,11 +2689,6 @@ dotnet_diagnostic.RCS1021.severity = none
 dotnet_diagnostic.RCS1205.severity = none
 # PDS0004: Use correct acronym capitalization
 dotnet_diagnostic.PDS0004.severity = none
-
-[**/SourceGenerator.UnitTests/Purview/Unions/**.{cs,vb}]
-# The test-only stand-in for Purview.Unions' GenerateUnionAttribute must declare that package's namespace so
-# the results generator matches it by metadata identity, exactly as it matches the packaged attribute.
-dotnet_diagnostic.IDE0130.severity = none
 
 [**/Extensions/**.{cs,vb}]
 # Files under the Extensions/ namespace-reset convention must not force developers to add pragmas;

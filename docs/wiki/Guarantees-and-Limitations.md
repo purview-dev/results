@@ -106,7 +106,9 @@ reference, so no telemetry package dependency is added.
   member providers that declare a public static single-parameter `Create` per case. A bare union type parameter
   case gets the
   union-receiver factory only. A case that names a type parameter the union does not declare is `RSG1002`; an
-  array case is `RSG1009`; a provider with no usable `Create` is `RSG1007`.
+  array case is `RSG1009`; a provider with no usable `Create` is `RSG1007`. The `[GenerateUnion]` path is proved
+  end to end against the packaged generators (`Purview.Unions` 1.0.0-prerelease.2) in
+  `SourceGenerator.UnitTests` and `Examples.Unions`; `Purview.Results` takes no dependency on it.
 - Generated implicit conversions are not possible — see [Union Errors](Union-Errors.md) for the five compiler
   rules. The per-case `AsFailure<TValue>()` and `AsFailure()` helpers, the union-receiver
   `Union.Failure(...)`/`Union.Success(...)` factories and the IDE code fix are the ergonomics the language allows;

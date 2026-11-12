@@ -119,6 +119,11 @@ when another generator (such as telemetry) also needs a source-visible list. Cas
 union generator exposes them: nullable value type → underlying type, nullable reference annotation stripped,
 constructed generics and arrays preserved.
 
+That integration is verified against the packaged generators: this repository's `SourceGenerator.UnitTests`
+references `Purview.Unions` and declares real `[GenerateUnion]` unions beside `[GenerateResult]`, and
+`Examples.Unions` runs the same pairing. `Purview.Results` itself never takes a package reference on
+`Purview.Unions`.
+
 ## Chaining across services
 
 When one service calls another, the caller's operation-family union takes the callee's **error union** as a case,

@@ -1,8 +1,8 @@
 namespace Purview.Results.SourceGenerator;
 
 /// <summary>
-/// Executes the helpers generated for union-shaped types whose cases come from a source-visible
-/// <c>[GenerateUnion]</c> list rather than source constructors.
+/// Executes the helpers generated for unions produced by the real <c>Purview.Unions</c> generator, whose cases
+/// the results generator discovered from the source-visible list rather than from generated constructors.
 /// </summary>
 public class GenerateUnionDiscoveryRuntimeTests
 {
@@ -13,16 +13,12 @@ public class GenerateUnionDiscoveryRuntimeTests
 		DiscoveredSourceCase value = new(7);
 
 		// Act
-		// The explicit type proves the helper produces the result for the discovered union.
-#pragma warning disable IDE0007 // Use 'var' instead of explicit type
-		Result<int, DiscoveredError> result = value.AsFailure<int>();
-#pragma warning restore IDE0007 // Use 'var' instead of explicit type
+		var result = value.AsFailure<int>();
 
 		// Assert
-		// The test stand-in has no [Union] attribute (the real generator would emit one), so the active case
-		// is read through its Value property rather than by union pattern matching.
 		await Assert.That(result.IsFailure).IsTrue();
-		await Assert.That(result.Error.Value is DiscoveredSourceCase { Id: 7 }).IsTrue();
+		await Assert.That(result.Error.TryGetValue(out DiscoveredSourceCase activeCase)).IsTrue();
+		await Assert.That(activeCase.Id).IsEqualTo(7);
 	}
 
 	[Test]
@@ -33,13 +29,12 @@ public class GenerateUnionDiscoveryRuntimeTests
 
 		// Act
 		// The union-receiver factory names the union discovered from the typeof list.
-#pragma warning disable IDE0007 // Use 'var' instead of explicit type
-		Result<int, DiscoveredError> result = DiscoveredError.Failure<int>(value);
-#pragma warning restore IDE0007 // Use 'var' instead of explicit type
+		var result = DiscoveredError.Failure<int>(value);
 
 		// Assert
 		await Assert.That(result.IsFailure).IsTrue();
-		await Assert.That(result.Error.Value is DiscoveredSourceCase { Id: 7 }).IsTrue();
+		await Assert.That(result.Error.TryGetValue(out DiscoveredSourceCase activeCase)).IsTrue();
+		await Assert.That(activeCase.Id).IsEqualTo(7);
 	}
 
 	[Test]
@@ -49,13 +44,12 @@ public class GenerateUnionDiscoveryRuntimeTests
 		FactoryDiscoveredCase value = new(7);
 
 		// Act
-#pragma warning disable IDE0007 // Use 'var' instead of explicit type
-		Result<int, FactoryDiscoveredError> result = value.AsFailure<int>();
-#pragma warning restore IDE0007 // Use 'var' instead of explicit type
+		var result = value.AsFailure<int>();
 
 		// Assert
 		await Assert.That(result.IsFailure).IsTrue();
-		await Assert.That(result.Error.Value is FactoryDiscoveredCase { Id: 7 }).IsTrue();
+		await Assert.That(result.Error.TryGetValue(out FactoryDiscoveredCase activeCase)).IsTrue();
+		await Assert.That(activeCase.Id).IsEqualTo(7);
 	}
 
 	[Test]
@@ -65,12 +59,42 @@ public class GenerateUnionDiscoveryRuntimeTests
 		FactoryDiscoveredOtherCase value = new("rejected");
 
 		// Act
-#pragma warning disable IDE0007 // Use 'var' instead of explicit type
-		Result<FactoryDiscoveredError> result = FactoryDiscoveredError.Failure(value);
-#pragma warning restore IDE0007 // Use 'var' instead of explicit type
+		var result = FactoryDiscoveredError.Failure(value);
 
 		// Assert
 		await Assert.That(result.IsFailure).IsTrue();
-		await Assert.That(result.Error.Value is FactoryDiscoveredOtherCase { Reason: "rejected" }).IsTrue();
+		await Assert.That(result.Error.TryGetValue(out FactoryDiscoveredOtherCase activeCase)).IsTrue();
+		await Assert.That(activeCase.Reason).IsEqualTo("rejected");
+	}
+
+	[Test]
+	public async Task AsFailure_GivenGenerateUnionProviderCase_ProducesValueFailure()
+	{
+		// Arrange
+		ProviderDiscoveredCase value = new(7);
+
+		// Act
+		// The provider surface is the portable route when another generator must also see the case list.
+		var result = value.AsFailure<int>();
+
+		// Assert
+		await Assert.That(result.IsFailure).IsTrue();
+		await Assert.That(result.Error.TryGetValue(out ProviderDiscoveredCase activeCase)).IsTrue();
+		await Assert.That(activeCase.Id).IsEqualTo(7);
+	}
+
+	[Test]
+	public async Task UnionFactory_GivenGenerateUnionProviderCase_ProducesUnitFailure()
+	{
+		// Arrange
+		ProviderDiscoveredOtherCase value = new("rejected");
+
+		// Act
+		var result = ProviderDiscoveredError.Failure(value);
+
+		// Assert
+		await Assert.That(result.IsFailure).IsTrue();
+		await Assert.That(result.Error.TryGetValue(out ProviderDiscoveredOtherCase activeCase)).IsTrue();
+		await Assert.That(activeCase.Reason).IsEqualTo("rejected");
 	}
 }

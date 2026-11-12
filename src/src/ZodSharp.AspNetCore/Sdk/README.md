@@ -120,8 +120,8 @@ validation problem, while the host's own `TenantAlreadyExists` mapping still ret
 dotnet run --project src/src/Examples.AspNetCore.Zod --urls http://localhost:5216
 ```
 
-The [repository README](https://github.com/purview-dev/results#examples) lists the Basic, ZodSharp and
-ASP.NET Core examples too. The
+The [repository README](https://github.com/purview-dev/results#examples) lists the Basic, ZodSharp,
+ASP.NET Core and Blazor WebAssembly/Server examples too. The
 [value-objects composition example](https://github.com/purview-dev/results/tree/main/src/src/Examples.ValueObjects.Zod)
 is a console app with no HTTP layer: it shows a type-level `[ZodRule]` reporting `Origin = "value_object"` into a
 result failure — the identity a `MapOrigin("value_object", …)` rule in this package keys on.

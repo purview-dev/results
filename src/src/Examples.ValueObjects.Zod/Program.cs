@@ -63,7 +63,7 @@ static void PrintErrors<TValue>(Result<TValue, TenantError> result)
 
 	foreach (var validationError in invalid.Errors)
 	{
-		var path = string.Join(".", validationError.Path);
+		var path = validationError.FullPath.ToDottedString();
 
 		Console.WriteLine($"      '{path}': {validationError.Message} [{validationError.Code}]");
 	}
@@ -78,7 +78,7 @@ static void PrintIdentity<TValue>(Result<TValue, TenantError> result)
 	{
 		// A type-level rule validates the value object as a unit, so the path is empty and the origin is the
 		// one the rule owns.
-		var path = string.Join(".", validationError.Path);
+		var path = validationError.FullPath.ToDottedString();
 
 		Console.WriteLine(
 			$"      code={validationError.Code}, origin={validationError.Origin ?? "<none>"}, path=[{path}]"

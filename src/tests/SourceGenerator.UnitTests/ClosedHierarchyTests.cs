@@ -1,5 +1,4 @@
-// CSharpier 1.3.0's parser does not understand the C# 15 'closed' modifier yet, so this file is excluded in
-// .csharpierignore.
+// CSharpier 1.4.0 parses the C# 15 'closed' modifier, so this file needs no formatter exclusion.
 
 namespace Purview.Results.SourceGenerator;
 

@@ -162,7 +162,10 @@ Every example is a non-packable project under `src/src/Examples.*`, built on the
 
 ```bash
 dotnet run --project src/src/Examples.Basic
+dotnet run --project src/src/Examples.Unions
 dotnet run --project src/src/Examples.Zod
+dotnet run --project src/src/Examples.Blazor.Server --urls http://localhost:5218
+dotnet run --project src/src/Examples.Blazor.Wasm --urls http://localhost:5217
 dotnet run --project src/src/Examples.AspNetCore --urls http://localhost:5215
 dotnet run --project src/src/Examples.AspNetCore.Zod --urls http://localhost:5216
 dotnet run --project src/src/Examples.ValueObjects.Zod

@@ -6,10 +6,11 @@ namespace Purview.Results.SourceGenerator;
 static class TestSources
 {
 	/// <summary>
-	/// Declares the <c>Purview.Unions</c> opt-in attribute exactly as its package does, so a test compilation
-	/// can exercise the source-visible discovery path without referencing that package (whose analyzer is not
-	/// on a CI-safe feed yet). Matching is by metadata identity only, so this declaration is equivalent to the
-	/// real attribute for the generator.
+	/// Declares the <c>Purview.Unions</c> opt-in attribute exactly as its package does, so an isolated test
+	/// compilation can exercise the source-visible discovery path without referencing that package. Matching is
+	/// by metadata identity only, so this declaration is equivalent to the real attribute for the generator.
+	/// The package-level integration runs in this project's own compilation; see
+	/// <c>GeneratedUnionDiscoveryTestTypes</c>.
 	/// </summary>
 	public const string GenerateUnionAttributeDeclaration = """
 		namespace Purview.Unions

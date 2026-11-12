@@ -230,6 +230,11 @@ public single-parameter constructors. It uses the first non-empty list. A generi
 use one of the last three surfaces, because `typeof(T)` is not a legal attribute argument; a `[GenerateUnion]`
 union with no source-visible case list is reported as `RSG1001`.
 
+That integration is verified against the packaged generators: `src/tests/SourceGenerator.UnitTests` references
+`Purview.Unions` and declares real `[GenerateUnion]` unions alongside `[GenerateResult]`, and
+`Examples.Unions` is the runnable version. The shipped results generator still has no dependency on
+`Purview.Unions`; it matches the attribute by metadata identity.
+
 
 ## Generic unions
 
