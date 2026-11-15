@@ -27,7 +27,7 @@ generator that makes C# 15 union error cases ergonomic), and the ZodSharp and AS
 | `src/src/ZodSharp.AspNetCore` | Validation-problem mapping for validation-carrying failures |
 | `src/src/<Project>/Sdk` | Package-only assets. `Sdk/README.md` is packed as the package README |
 | `skills` | Authored agent skills, installable with the skills CLI (see [Agent skills](#agent-skills)) |
-| `.agents/skills`, `skills-lock.json` | Skills installed from other repositories, committed (see [Installed skills](#installed-skills-agentsskills)) |
+| `.agents/skills`, `skills-lock.json` | Skills installed from other repositories (gitignored; `skills-lock.json` is the tracked record) - see [Installed skills](#installed-skills-agentsskills) |
 | `src/tests` | TUnit unit tests, including source-generation and incremental-cache tests |
 | `src/src/Examples.*` | Runnable, non-packable examples: one project per integration aspect on a shared Tenant* domain |
 | `docs/wiki` | User-facing documentation suite, aggregated by the purview-dev website |
@@ -375,8 +375,9 @@ result and the HTTP mapping).
 Specialist guidance this repository depends on - the Purview engineering playbook, `Purview.BuildSdk`
 configuration, the `Purview.SourceGeneratorFramework` generator and test APIs, ZodSharp, Purview.ValueObjects
 composition, and Purview.Unions modelling - is published by the repositories that own it, and installed here by the
-skills CLI. The installed skills are **committed**: `.agents/skills/**` and the CLI's `skills-lock.json` (source,
-skill path and content hash of every entry) are both in source, so a clone has them without running anything.
+skills CLI. Only the CLI's `skills-lock.json` (source, skill path and content hash of every entry) is committed:
+`.agents/skills/` is a local install, gitignored so a skill this repository installs but does not publish can never
+be found through `skills add purview-dev/results`. A fresh clone restores the set with `just skills-install`.
 
 | Skill | Source | Load before |
 | --- | --- | --- |
@@ -401,8 +402,9 @@ skill path and content hash of every entry) are both in source, so a clone has t
 | `purview-unions-*` (4 skills) | `purview-dev/unions` | modelling a `[GenerateUnion]` union, its `UNI` diagnostics, and the Results/Telemetry/JSON interop |
 
 Skills are installed into the universal `.agents/skills/` location **only**. Never install copies into `.claude/`
-or any other per-agent folder, and never add a `CLAUDE.md`: `AGENTS.md` is the one instruction file, and
-`/.claude/` is gitignored. Pass `-a universal`, which writes `.agents/skills/` and nothing else:
+or any other per-agent folder, and never add a `CLAUDE.md`: `AGENTS.md` is the one instruction file. Both folders
+are gitignored, so neither an installed copy nor a per-agent one can be committed. Pass `-a universal`, which writes
+`.agents/skills/` and nothing else:
 
 ```bash
 # add or update every skill from a source
@@ -422,7 +424,9 @@ universal-only layout, and `just skills-fix` removes the links the CLI leaves in
 `PurviewSkillsAgents` does not select. They are the recipes in `Justfile.skills.just`, imported by the `Justfile`;
 the update, install and fix targets refuse to run inside a build, so keep them off every other recipe.
 
-Commit the changed `.agents/skills/**` and `skills-lock.json` together, in their own `chore` commit. Do not edit
+Commit the changed `skills-lock.json` in its own `chore` commit; `.agents/skills/` is gitignored and must not be
+committed, or a skill this repository installs but does not publish becomes findable through
+`skills add purview-dev/results`. Do not edit
 anything under `.agents/skills/` by hand - the CLI is its only writer, and a hand edit no longer matches the
 lockfile's hash. `Purview.BuildSdk`'s `InstallPurviewSkills` target delegates to the same CLI;
 `src/Directory.Build.props` sets `PurviewSkillsAgents=universal` so it is restricted the same way rather than
