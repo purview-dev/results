@@ -7,6 +7,8 @@ Purview result types for .NET — a small, dependency-light `Result<TValue, TErr
 for its error cases, and integrations that let expected failures flow through a value instead of an exception.
 Exceptional circumstances still throw; expected outcomes are values.
 
+**Documentation:** [Results documentation](https://purview.dev/docs/results/)
+
 ## Packages
 
 | Package | Purpose | Targets |
