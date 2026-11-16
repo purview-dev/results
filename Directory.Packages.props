@@ -15,23 +15,23 @@
 		<AspNetCoreComponentsVersion>11.0.0</AspNetCoreComponentsVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Purview Versions">
-		<PurviewZodSharpVersion>3.0.0-prerelease.6</PurviewZodSharpVersion>
-		<PurviewValueObjectsVersion>2.0.0-prerelease.1</PurviewValueObjectsVersion>
+		<PurviewZodSharpVersion>3.0.0</PurviewZodSharpVersion>
+		<PurviewValueObjectsVersion>2.0.0</PurviewValueObjectsVersion>
 		<!--
 			The union generator is a test and example dependency only: the shipped generator matches
 			Purview.Unions.GenerateUnionAttribute by metadata identity, so it never references the package.
 			The version is the first published release with both net10.0 and net11.0 targets, which is the
 			floor the two-generator integration test compiles against.
 		-->
-		<PurviewUnionsVersion>1.0.0-prerelease.3</PurviewUnionsVersion>
+		<PurviewUnionsVersion>1.0.0</PurviewUnionsVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Source Generator Versions">
-		<PurviewSourceGeneratorFrameworkVersion>2.0.0</PurviewSourceGeneratorFrameworkVersion>
+		<PurviewSourceGeneratorFrameworkVersion>2.1.0</PurviewSourceGeneratorFrameworkVersion>
 		<RoslynVersion>5.9.0</RoslynVersion>
 	</PropertyGroup>
 	<PropertyGroup Label="Testing Versions">
 		<TUnitVersion>1.83.0</TUnitVersion>
-		<PurviewSkillsTestingVersion>2.0.1</PurviewSkillsTestingVersion>
+		<PurviewSkillsTestingVersion>2.1.0</PurviewSkillsTestingVersion>
 	</PropertyGroup>
 	<!-- Packages -->
 	<ItemGroup Label="Purview">
